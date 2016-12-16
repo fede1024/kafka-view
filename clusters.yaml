@@ -1,0 +1,10 @@
+---
+  clusters:
+    local_cluster:
+      broker_list:
+        - "localhost:9092"
+      zookeeper: "localhost"
+    dev:
+      broker_list:
+        - "cluster-elb-2:9092"
+      zookeeper: "11.11.11.211:2181,11.11.11.212:2181,11.11.11.213:2181/kafka-2"
