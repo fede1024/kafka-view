@@ -5,6 +5,8 @@ authors = ["Federico Giraud <giraud.federico@gmail.com>"]
 
 [dependencies]
 env_logger = "^0.3.0"
+error-chain = "^0.7.1"
+clap = "2.18.0"
 log = "^0.3.0"
 rdkafka = { path = "/home/fede/rust/rust-rdkafka", version = "^0.5.0" }
 serde = "^0.8.0"

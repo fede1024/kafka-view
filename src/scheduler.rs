@@ -4,8 +4,10 @@ use std::thread::{JoinHandle, Thread};
 use std::sync::{Arc, RwLock};
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use error::*;
+
 pub trait ScheduledTask: Send + Sync + 'static {
-    fn run(&self);
+    fn run(&self) -> Result<()>;
 }
 
 pub struct Scheduler<I: Eq + Send + Sync + 'static, T: ScheduledTask> {
@@ -32,7 +34,9 @@ impl<I: Eq + Send + Sync + 'static, T: ScheduledTask> Scheduler<I, T> {
             let tasks_clone = self.tasks.clone();
             let period_clone = self.period.clone();
             let should_stop_clone = self.should_stop.clone();
-            self.thread = Some(thread::spawn(move || scheduler_clock_loop(period_clone, tasks_clone, should_stop_clone)));
+            let builder = thread::Builder::new().name("Scheduler".into());
+            let thread = builder.spawn(move || scheduler_clock_loop(period_clone, tasks_clone, should_stop_clone)).unwrap();
+            self.thread = Some(thread);
         }
         let mut tasks = self.tasks.write().unwrap();
         for i in 0..tasks.len() {
@@ -55,7 +59,17 @@ fn scheduler_clock_loop<I: Eq, T: ScheduledTask>(period: Duration, tasks: Arc<Rw
         let mut interval = Duration::from_secs(0);
         {
             let tasks = tasks.read().unwrap();
-            tasks[index].1.run();
+            if let Err(ref e) = tasks[index].1.run() {
+                error!("error: {}", e);
+
+                for e in e.iter().skip(1) {
+                    error!("caused by: {}", e);
+                }
+
+                if let Some(backtrace) = e.backtrace() {
+                    error!("backtrace: {:?}", backtrace);
+                }
+            }
             index += 1;
             if index >= tasks.len() {
                 index = 0;

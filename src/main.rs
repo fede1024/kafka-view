@@ -2,158 +2,85 @@
 extern crate alloc_system;
 
 #[macro_use] extern crate log;
+#[macro_use] extern crate error_chain;
 extern crate env_logger;
 extern crate rdkafka;
-
 #[macro_use] extern crate serde_derive;
-extern crate serde_json;
+extern crate clap;
 
-mod scheduler;
 mod config;
+mod error;
+mod metadata;
+mod scheduler;
+mod utils;
 
-use scheduler::ScheduledTask;
-use scheduler::Scheduler;
+use error::*;
+use metadata::MetadataFetcher;
+
+use clap::{App, Arg, ArgMatches};
 
 use std::time;
 use std::thread;
 use std::collections::HashMap;
 
-use rdkafka::consumer::{BaseConsumer, EmptyConsumerContext};
-use rdkafka::config::ClientConfig;
-use rdkafka::error;
-use rdkafka::error::{KafkaError, KafkaResult};
-use rdkafka::types::*;
 
-#[derive(Serialize, Deserialize, Debug)]
-struct Partition {
-    id: i32,
-    leader: i32,
-    replicas: Vec<i32>,
-    isr: Vec<i32>,
-    error: Option<String>
-}
+fn run_kafka_web(config_path: &str) -> Result<()> {
+    let config = config::read_config(config_path)
+        .chain_err(|| format!("Unable to load configuration from '{}'", config_path))?;
 
-impl Partition {
-    fn new(id: i32, leader: i32, replicas: Vec<i32>, isr: Vec<i32>, error: Option<String>) -> Partition {
-        Partition {
-            id: id,
-            leader: leader,
-            replicas: replicas,
-            isr: isr,
-            error: error
-        }
-    }
-}
+    println!("CONFIG: {:?}", config);
 
-#[derive(Serialize, Deserialize, Debug)]
-struct Broker {
-    id: i32,
-    host: String,
-    port: i32
-}
+    let mut fetcher = MetadataFetcher::new(time::Duration::from_secs(3));
 
-impl Broker {
-    fn new(id: i32, host: String, port: i32) -> Broker {
-        Broker {
-            id: id,
-            host: host,
-            port: port
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct Metadata {
-    brokers: Vec<Broker>,
-    topics: HashMap<String, Vec<Partition>>,
-}
-
-impl Metadata {
-    fn new(brokers: Vec<Broker>, topics: HashMap<String, Vec<Partition>>) -> Metadata {
-        Metadata {
-            brokers: brokers,
-            topics: topics,
-        }
-    }
-}
-
-fn fetch_metadata(consumer: &BaseConsumer<EmptyConsumerContext>) -> KafkaResult<Metadata> {
-    let metadata = try!(consumer.fetch_metadata(10000));
-
-    let mut brokers = Vec::new();
-    for broker in metadata.brokers() {
-        brokers.push(Broker::new(broker.id(), broker.host().to_owned(), broker.port()));
+    for (cluster_name, cluster_config) in config.clusters() {
+        fetcher.add_cluster(cluster_name, &cluster_config.broker_string());
+        info!("Added cluster {}", cluster_name);
     }
 
-    let mut topics = HashMap::new();
-    for t in metadata.topics() {
-        let mut topic = Vec::with_capacity(t.partitions().len());
-        for p in t.partitions() {
-            topic.push(Partition::new(p.id(), p.leader(), p.replicas().to_owned(), p.isr().to_owned(),
-                                      p.error().map(|e| error::resp_err_description(e))));
-        }
-        topics.insert(t.name().to_owned(), topic);
-    }
+    thread::sleep_ms(120000);
 
-    Ok(Metadata::new(brokers, topics))
+    info!("Terminating");
+
+    Ok(())
 }
 
-
-struct MetadataFetcher {
-    brokers: String,
-    consumer: Option<BaseConsumer<EmptyConsumerContext>>,
-}
-
-impl MetadataFetcher {
-    fn new(brokers: &str) -> MetadataFetcher {
-        MetadataFetcher {
-            brokers: brokers.to_owned(),
-            consumer: None,
-        }
-    }
-
-    fn create_consumer(&mut self) {
-        let consumer = ClientConfig::new()
-            .set("bootstrap.servers", &self.brokers)
-            .create::<BaseConsumer<_>>()
-            .expect("Consumer creation failed");
-        self.consumer = Some(consumer);
-    }
-}
-
-impl ScheduledTask for MetadataFetcher {
-    fn run(&self) {
-        info!("HI");
-        let metadata = match self.consumer {
-            None => {
-                error!("Consumer not initialized");
-                return;
-            },
-            Some(ref consumer) => fetch_metadata(consumer),
-        };
-        match metadata {
-            Err(e) => error!("Error while fetching metadata {}", e),
-            Ok(m) => {
-                let serialized = serde_json::to_string(&m).unwrap();
-                println!("serialized = {}", serialized);
-            }
-        }
-    }
+fn setup_args<'a>() -> ArgMatches<'a> {
+    App::new("kafka web interface")
+        .version(option_env!("CARGO_PKG_VERSION").unwrap_or(""))
+        .about("Kafka web interface")
+        .arg(Arg::with_name("conf")
+             .short("c")
+             .long("conf")
+             .help("Configuration file")
+             .takes_value(true)
+             .required(true))
+        .arg(Arg::with_name("log-conf")
+             .long("log-conf")
+             .help("Configure the logging format (example: 'rdkafka=trace')")
+             .takes_value(true))
+        .get_matches()
 }
 
 fn main() {
-    env_logger::init().unwrap();
+    let matches = setup_args();
 
-    let cluster_1 = "localhost:9092";
-    let mut fetcher = MetadataFetcher::new(cluster_1);
-    fetcher.create_consumer();
+    utils::setup_logger(true, matches.value_of("log-conf"));
 
-    //let mut sched = Scheduler::new(time::Duration::from_secs(3));
-    // sched.add_task(cluster_1, fetcher);
+    let config_path = matches.value_of("conf").unwrap();
 
-    //thread::sleep_ms(10000);
+    if let Err(ref e) = run_kafka_web(config_path) {
+        println!("error: {}", e);
 
-    let p = config::read_config("clusters.yaml");
+        for e in e.iter().skip(1) {
+            println!("caused by: {}", e);
+        }
 
-    println!(">> {:?}", p);
+        // The backtrace is not always generated. Try to run this example
+        // with `RUST_BACKTRACE=1`.
+        if let Some(backtrace) = e.backtrace() {
+            println!("backtrace: {:?}", backtrace);
+        }
+
+        ::std::process::exit(1);
+    }
 }
