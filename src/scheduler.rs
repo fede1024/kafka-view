@@ -1,10 +1,16 @@
-use std::time::Duration;
+// extern crate futures;
+// extern crate futures_cpupool;
+
+use std::time::{Duration, Instant};
 use std::thread;
 use std::thread::{JoinHandle, Thread};
 use std::sync::{Arc, RwLock};
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use error::*;
+
+// use scheduler::futures::Future;
+// use scheduler::futures_cpupool::{CpuPool, CpuFuture};
 
 pub trait ScheduledTask: Send + Sync + 'static {
     fn run(&self) -> Result<()>;
@@ -53,12 +59,30 @@ impl<I: Eq + Send + Sync + 'static, T: ScheduledTask> Scheduler<I, T> {
     }
 }
 
+// fn run_task<T: ScheduledTask>(task: &T, pool: &CpuPool) -> CpuFuture<(), error::Error> {
+//     let ret_value = pool.spawn_fn(|| {
+//         let result = futures::done(task.run());
+//         result
+//     });
+//
+//     ret_value
+// }
+
 fn scheduler_clock_loop<I: Eq, T: ScheduledTask>(period: Duration, tasks: Arc<RwLock<Vec<(I, T)>>>, should_stop: Arc<AtomicBool>) {
     let mut index = 0;
+    // let pool = CpuPool::new(4);
+    thread::sleep(Duration::from_millis(100));  // Wait for task enqueuing
     while !should_stop.load(Ordering::Relaxed) {
+        let start_time = Instant::now();
+        let n_tasks = 0;
         let mut interval = Duration::from_secs(0);
         {
             let tasks = tasks.read().unwrap();
+            if index >= tasks.len() {
+                index = 0;
+            }
+            // let boh = run_task(&tasks[index].1, &pool);
+            // info!(">> {:?}", boh.wait());
             if let Err(ref e) = tasks[index].1.run() {
                 error!("error: {}", e);
 
@@ -70,12 +94,19 @@ fn scheduler_clock_loop<I: Eq, T: ScheduledTask>(period: Duration, tasks: Arc<Rw
                     error!("backtrace: {:?}", backtrace);
                 }
             }
-            index += 1;
-            if index >= tasks.len() {
-                index = 0;
+            let elapsed_time = Instant::now() - start_time;
+            interval = if tasks.len() > 0 {
+                period / (tasks.len() as u32)
+            } else {
+                Duration::from_secs(1)
+            };
+            if interval > elapsed_time {
+                interval -= elapsed_time;
+            } else {
+                interval = Duration::from_secs(0);
             }
-            interval = period / (tasks.len() as u32);
         }
+        index += 1;
         thread::sleep(interval);
     }
 }

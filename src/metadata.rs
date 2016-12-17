@@ -14,7 +14,7 @@ use rdkafka::error as rderror;
 use rdkafka::error::{KafkaError, KafkaResult};
 use rdkafka::types::*;
 
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use std::thread;
 use std::collections::HashMap;
 
@@ -117,13 +117,14 @@ impl MetadataFetcherTask {
 
 impl ScheduledTask for MetadataFetcherTask {
     fn run(&self) -> Result<()> {
+        info!("Metadata start {:?}", Instant::now());
         let metadata = match self.consumer {
             None => bail!("Consumer not initialized"),
             Some(ref consumer) => fetch_metadata(consumer)
                 .chain_err(|| "Metadata fetch failed")?,
         };
         let serialized = serde_json::to_string(&metadata).unwrap();
-        info!("serialized = {}", serialized);
+        // info!("serialized = {}", serialized);
         Ok(())
     }
 }

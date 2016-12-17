@@ -21,7 +21,6 @@ use clap::{App, Arg, ArgMatches};
 
 use std::time;
 use std::thread;
-use std::collections::HashMap;
 
 
 fn run_kafka_web(config_path: &str) -> Result<()> {
@@ -30,7 +29,7 @@ fn run_kafka_web(config_path: &str) -> Result<()> {
 
     println!("CONFIG: {:?}", config);
 
-    let mut fetcher = MetadataFetcher::new(time::Duration::from_secs(3));
+    let mut fetcher = MetadataFetcher::new(time::Duration::from_secs(15));
 
     for (cluster_name, cluster_config) in config.clusters() {
         fetcher.add_cluster(cluster_name, &cluster_config.broker_string());
