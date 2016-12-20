@@ -98,7 +98,7 @@ fn setup_args<'a>() -> ArgMatches<'a> {
 fn main() {
     let matches = setup_args();
 
-    utils::setup_logger(true, matches.value_of("log-conf"));
+    utils::setup_logger(true, matches.value_of("log-conf"), "%F %T%z");
 
     let config_path = matches.value_of("conf").unwrap();
 

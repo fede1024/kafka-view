@@ -2,7 +2,7 @@ extern crate log;
 extern crate rdkafka;
 extern crate chrono;
 
-use self::chrono::{DateTime, UTC};
+use self::chrono::{DateTime, UTC, Local};
 use rdkafka::consumer::{BaseConsumer, EmptyConsumerContext};
 use rdkafka::config::ClientConfig;
 use rdkafka::error as rderror;
@@ -12,7 +12,7 @@ use rdkafka::types::*;
 use error::*;
 use scheduler::ScheduledTask;
 use scheduler::Scheduler;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use std::thread;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
@@ -155,7 +155,7 @@ impl MetadataFetcherTask {
 
 impl ScheduledTask for MetadataFetcherTask {
     fn run(&self) -> Result<()> {
-        info!("Metadata start {:?}", Instant::now());
+        info!("Metadata start {:?}", Local::now());
         let metadata = match self.consumer {
             None => bail!("Consumer not initialized"),
             Some(ref consumer) => fetch_metadata(consumer, 7000)
