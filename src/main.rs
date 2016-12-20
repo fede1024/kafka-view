@@ -16,16 +16,44 @@ mod utils;
 
 use error::*;
 use metadata::MetadataFetcher;
+use config::Config;
 
 use clap::{App, Arg, ArgMatches};
 
 use std::time;
 use std::thread;
+use std::collections::HashMap;
+
+extern crate serde_json;
+
+
+// struct InstanceData {
+//     config: Config,
+//     metadata: MetadataFetcher,
+// }
+//
+// impl InstanceData {
+//     fn new(config: Config) -> InstanceData {
+//         InstanceData {
+//             config: config,
+//             metadata: HashMap::new()
+//         }
+//     }
+//
+//     fn get_config(&self) -> &Config {
+//         &self.config
+//     }
+// }
 
 
 fn run_kafka_web(config_path: &str) -> Result<()> {
+    // let mut instance_data = InstanceData::new(
+    //         config::read_config(config_path)
+    //         .chain_err(|| format!("Unable to load configuration from '{}'", config_path))?
+    //     );
+    // let config = instance_data.get_config();
     let config = config::read_config(config_path)
-        .chain_err(|| format!("Unable to load configuration from '{}'", config_path))?;
+            .chain_err(|| format!("Unable to load configuration from '{}'", config_path))?;
 
     println!("CONFIG: {:?}", config);
 
@@ -36,7 +64,14 @@ fn run_kafka_web(config_path: &str) -> Result<()> {
         info!("Added cluster {}", cluster_name);
     }
 
-    thread::sleep_ms(120000);
+    loop {
+        let cluster_id = "local_cluster".to_string();
+        fetcher.get_metadata_copy(&cluster_id).map(|metadata| {
+            let serialized = serde_json::to_string(&metadata).unwrap();
+            info!("local cluster = {:?} {}", metadata.refresh_time(), serialized);
+        });
+        thread::sleep_ms(10000);
+    }
 
     info!("Terminating");
 
