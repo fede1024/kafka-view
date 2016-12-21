@@ -14,16 +14,16 @@ use scheduler::ScheduledTask;
 use scheduler::Scheduler;
 use std::time::Duration;
 use std::thread;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::{Arc, RwLock};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-struct Partition {
-    id: i32,
-    leader: i32,
-    replicas: Vec<i32>,
-    isr: Vec<i32>,
-    error: Option<String>
+pub struct Partition {
+    pub id: i32,
+    pub leader: i32,
+    pub replicas: Vec<i32>,
+    pub isr: Vec<i32>,
+    pub error: Option<String>
 }
 
 impl Partition {
@@ -39,7 +39,7 @@ impl Partition {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-struct Broker {
+pub struct Broker {
     id: i32,
     host: String,
     port: i32
@@ -58,14 +58,14 @@ impl Broker {
 pub type TopicName = String;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-struct Metadata {
+pub struct Metadata {
     brokers: Vec<Broker>,
-    topics: HashMap<TopicName, Vec<Partition>>,
+    topics: BTreeMap<TopicName, Vec<Partition>>,
     refresh_time: DateTime<UTC>,
 }
 
 impl Metadata {
-    fn new(brokers: Vec<Broker>, topics: HashMap<TopicName, Vec<Partition>>) -> Metadata {
+    fn new(brokers: Vec<Broker>, topics: BTreeMap<TopicName, Vec<Partition>>) -> Metadata {
         Metadata {
             brokers: brokers,
             topics: topics,
@@ -73,7 +73,7 @@ impl Metadata {
         }
     }
 
-    pub fn topic(&self) -> &HashMap<TopicName, Vec<Partition>> {
+    pub fn topics(&self) -> &BTreeMap<TopicName, Vec<Partition>> {
         &self.topics
     }
 
@@ -91,14 +91,15 @@ fn fetch_metadata(consumer: &BaseConsumer<EmptyConsumerContext>, timeout_ms: i32
         brokers.push(Broker::new(broker.id(), broker.host().to_owned(), broker.port()));
     }
 
-    let mut topics = HashMap::new();
+    let mut topics = BTreeMap::new();
     for t in metadata.topics() {
-        let mut topic = Vec::with_capacity(t.partitions().len());
+        let mut partitions = Vec::with_capacity(t.partitions().len());
         for p in t.partitions() {
-            topic.push(Partition::new(p.id(), p.leader(), p.replicas().to_owned(), p.isr().to_owned(),
+            partitions.push(Partition::new(p.id(), p.leader(), p.replicas().to_owned(), p.isr().to_owned(),
                                       p.error().map(|e| rderror::resp_err_description(e))));
         }
-        topics.insert(t.name().to_owned(), topic);
+        partitions.sort_by(|a, b| a.id.cmp(&b.id));
+        topics.insert(t.name().to_owned(), partitions);
     }
 
     Ok(Metadata::new(brokers, topics))
@@ -189,7 +190,11 @@ impl MetadataFetcher {
         self.cache.insert(cluster_id.to_owned(), metadata_container);
     }
 
-    pub fn get_metadata_copy(&self, cluster_id: &ClusterId) -> Option<Arc<Metadata>> {
+    pub fn clusters(&self) -> Vec<&ClusterId> {
+        self.cache.keys().collect::<Vec<&ClusterId>>()
+    }
+
+    pub fn get_metadata(&self, cluster_id: &ClusterId) -> Option<Arc<Metadata>> {
         match self.cache.get(cluster_id) {
             Some(container) => container.metadata(),
             None => None,

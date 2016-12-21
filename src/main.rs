@@ -1,18 +1,30 @@
-#![feature(alloc_system, proc_macro)]
+#![feature(alloc_system, proc_macro, plugin)]
+#![plugin(maud_macros)]
 extern crate alloc_system;
 
-#[macro_use] extern crate log;
 #[macro_use] extern crate error_chain;
-extern crate env_logger;
-extern crate rdkafka;
+#[macro_use] extern crate log;
 #[macro_use] extern crate serde_derive;
 extern crate clap;
+extern crate env_logger;
+extern crate handlebars_iron as hbi;
+extern crate iron;
+extern crate maud;
+extern crate mount;
+extern crate persistent;
+extern crate rdkafka;
+extern crate staticfile;
+extern crate urlencoded;
+extern crate serde;
 
+
+mod cache;
 mod config;
 mod error;
 mod metadata;
 mod scheduler;
 mod utils;
+mod web_server;
 
 use error::*;
 use metadata::MetadataFetcher;
@@ -22,7 +34,6 @@ use clap::{App, Arg, ArgMatches};
 
 use std::time;
 use std::thread;
-use std::collections::HashMap;
 
 extern crate serde_json;
 
@@ -57,25 +68,29 @@ fn run_kafka_web(config_path: &str) -> Result<()> {
 
     println!("CONFIG: {:?}", config);
 
-    let mut fetcher = MetadataFetcher::new(time::Duration::from_secs(15));
+    let mut metadata_cache = cache::Cache::new();
+    let mut metadata_fetcher = MetadataFetcher::new(time::Duration::from_secs(15));
 
     for (cluster_name, cluster_config) in config.clusters() {
-        fetcher.add_cluster(cluster_name, &cluster_config.broker_string());
+        metadata_fetcher.add_cluster(cluster_name, &cluster_config.broker_string());
         info!("Added cluster {}", cluster_name);
     }
 
+    // loop {
+    //     let cluster_id = "local_cluster".to_string();
+    //     fetcher.get_metadata_copy(&cluster_id).map(|metadata| {
+    //         let serialized = serde_json::to_string(&metadata).unwrap();
+    //         info!("local cluster = {:?} {}", metadata.refresh_time(), serialized);
+    //     });
+    //     thread::sleep_ms(10000);
+    // }
+
+    web_server::server::run_server(metadata_fetcher, true)
+        .chain_err(|| "Server initialization failed")?;
+
     loop {
-        let cluster_id = "local_cluster".to_string();
-        fetcher.get_metadata_copy(&cluster_id).map(|metadata| {
-            let serialized = serde_json::to_string(&metadata).unwrap();
-            info!("local cluster = {:?} {}", metadata.refresh_time(), serialized);
-        });
-        thread::sleep_ms(10000);
-    }
-
-    info!("Terminating");
-
-    Ok(())
+        thread::sleep_ms(100000);
+    };
 }
 
 fn setup_args<'a>() -> ArgMatches<'a> {
@@ -83,15 +98,15 @@ fn setup_args<'a>() -> ArgMatches<'a> {
         .version(option_env!("CARGO_PKG_VERSION").unwrap_or(""))
         .about("Kafka web interface")
         .arg(Arg::with_name("conf")
-             .short("c")
-             .long("conf")
-             .help("Configuration file")
-             .takes_value(true)
-             .required(true))
+            .short("c")
+            .long("conf")
+            .help("Configuration file")
+            .takes_value(true)
+            .required(true))
         .arg(Arg::with_name("log-conf")
-             .long("log-conf")
-             .help("Configure the logging format (example: 'rdkafka=trace')")
-             .takes_value(true))
+            .long("log-conf")
+            .help("Configure the logging format (example: 'rdkafka=trace')")
+            .takes_value(true))
         .get_matches()
 }
 
@@ -115,6 +130,6 @@ fn main() {
             println!("backtrace: {:?}", backtrace);
         }
 
-        ::std::process::exit(1);
+        std::process::exit(1);
     }
 }
