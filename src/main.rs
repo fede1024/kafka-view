@@ -9,6 +9,7 @@ extern crate clap;
 extern crate env_logger;
 extern crate handlebars_iron as hbi;
 extern crate iron;
+extern crate futures;
 extern crate maud;
 extern crate mount;
 extern crate persistent;
@@ -34,6 +35,8 @@ use clap::{App, Arg, ArgMatches};
 
 use std::time;
 use std::thread;
+
+use cache::ReplicatedCache;
 
 extern crate serde_json;
 
@@ -68,9 +71,7 @@ fn run_kafka_web(config_path: &str) -> Result<()> {
 
     println!("CONFIG: {:?}", config);
 
-    let mut metadata_cache = cache::Cache::new();
     let mut metadata_fetcher = MetadataFetcher::new(time::Duration::from_secs(15));
-
     for (cluster_name, cluster_config) in config.clusters() {
         metadata_fetcher.add_cluster(cluster_name, &cluster_config.broker_string());
         info!("Added cluster {}", cluster_name);
@@ -110,12 +111,53 @@ fn setup_args<'a>() -> ArgMatches<'a> {
         .get_matches()
 }
 
+#[derive(Serialize, Deserialize)]
+struct TestStruct {
+    lol: String,
+    ehh: i32,
+}
+
+fn run() -> Result<()> {
+    let mut replicator = cache::Replicator::new("localhost:9092", "replicator_topic")
+        .chain_err(|| "Failed to create replicator")?;
+    let cache = replicator.create_cache::<cache::Cache<_, _>>("test_cache1");
+
+    info!("pre insert");
+    cache.insert("a_key".to_string(), TestStruct {lol: "ciao".to_owned(), ehh: 234 })
+        .chain_err(|| "Failed to insert test update")?;
+    cache.insert("a_key".to_string(), TestStruct {lol: "lkj".to_owned(), ehh: 4 })
+        .chain_err(|| "Failed to insert test update")?;
+    cache.insert("a_key".to_string(), TestStruct {lol: "lkj".to_owned(), ehh: 4 })
+        .chain_err(|| "Failed to insert test update")?;
+    cache.insert("a_key".to_string(), TestStruct {lol: "lkj".to_owned(), ehh: 4 })
+        .chain_err(|| "Failed to insert test update")?;
+    info!("post insert");
+
+    Ok(())
+}
+
 fn main() {
     let matches = setup_args();
 
     utils::setup_logger(true, matches.value_of("log-conf"), "%F %T%z");
 
     let config_path = matches.value_of("conf").unwrap();
+    if let Err(ref e) = run() {
+        println!("error: {}", e);
+
+        for e in e.iter().skip(1) {
+            println!("caused by: {}", e);
+        }
+
+        // The backtrace is not always generated. Try to run this example
+        // with `RUST_BACKTRACE=1`.
+        if let Some(backtrace) = e.backtrace() {
+            println!("backtrace: {:?}", backtrace);
+        }
+
+        std::process::exit(1);
+    }
+    std::process::exit(0);
 
     if let Err(ref e) = run_kafka_web(config_path) {
         println!("error: {}", e);
