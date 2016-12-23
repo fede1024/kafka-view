@@ -17,21 +17,20 @@ use self::hbi::{HandlebarsEngine};
 use self::persistent::State;
 
 use error::*;
+use cache::{Cache, ReplicatedCache};
 use web_server::chain;
-use web_server::view_helpers;
-use metadata::MetadataFetcher;
+use metadata::{ClusterId, Metadata};
 use std::sync::Arc;
 use std::error::Error;
 use std::cell::Cell;
 
 
-pub struct Fetcher;
+pub struct MetadataCache;
 
-impl Key for Fetcher { type Value = MetadataFetcher; }
+impl Key for MetadataCache { type Value = Cache<ClusterId, Metadata>; }
 
 fn load_templates(path: &str, ext: &str) -> Result<HandlebarsEngine> {
     let mut hbs = Handlebars::new();
-    hbs.register_helper("each-sorted", Box::new(view_helpers::each_sorted_helper));
     let mut hbse = HandlebarsEngine::from(hbs);
 
     // TODO: Investigate serving the templates out of the binary using include_string!
@@ -44,7 +43,7 @@ fn load_templates(path: &str, ext: &str) -> Result<HandlebarsEngine> {
     Ok(hbse)
 }
 
-pub fn run_server(metadata_fetcher: MetadataFetcher, debug: bool) -> Result<()> {
+pub fn run_server(metadata_cache: Cache<ClusterId, Metadata>, debug: bool) -> Result<()> {
     let templates_ext = ".hbs";
     let templates_path = "./resources/web_server/templates";
 
@@ -60,7 +59,7 @@ pub fn run_server(metadata_fetcher: MetadataFetcher, debug: bool) -> Result<()> 
 
     let mut chain = chain::chain();
     chain.link_after(hbse_ref);
-    chain.link(State::<Fetcher>::both(metadata_fetcher));
+    chain.link(State::<MetadataCache>::both(metadata_cache));
 
     let port = 3000;
     let bind_addr = format!("localhost:{}", port);

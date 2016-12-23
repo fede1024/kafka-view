@@ -3,7 +3,6 @@ extern crate serde_yaml;
 use error::*;
 
 use std::collections::HashMap;
-use std::io;
 use std::io::prelude::*;
 use std::fs::File;
 
@@ -29,12 +28,6 @@ pub struct Config {
 }
 
 impl Config {
-    fn new(clusters: HashMap<String, ClusterConfig>) -> Config {
-        Config {
-            clusters: clusters
-        }
-    }
-
     pub fn clusters(&self) -> &HashMap<String, ClusterConfig> {
         &self.clusters
     }
@@ -43,24 +36,6 @@ impl Config {
         self.clusters.get(cluster_name)
     }
 }
-
-// #[derive(Debug)]
-// pub enum ConfigError {
-//     IO(io::Error),
-//     Yaml(serde_yaml::Error),
-// }
-//
-// impl From<io::Error> for ConfigError {
-//     fn from(err: io::Error) -> ConfigError {
-//         ConfigError::IO(err)
-//     }
-// }
-//
-// impl From<serde_yaml::Error> for ConfigError {
-//     fn from(err: serde_yaml::Error) -> ConfigError {
-//         ConfigError::Yaml(err)
-//     }
-// }
 
 pub fn read_config(path: &str) -> Result<Config> {
     let mut f = File::open(path)

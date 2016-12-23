@@ -1,21 +1,14 @@
-extern crate log;
-extern crate rdkafka;
-extern crate chrono;
-
-use self::chrono::{DateTime, UTC, Local};
+use chrono::{DateTime, UTC};
 use rdkafka::consumer::{BaseConsumer, EmptyConsumerContext};
 use rdkafka::config::ClientConfig;
 use rdkafka::error as rderror;
-use rdkafka::error::{KafkaError, KafkaResult};
-use rdkafka::types::*;
 
 use error::*;
 use scheduler::ScheduledTask;
 use scheduler::Scheduler;
+use cache::{Cache, ReplicatedCache};
 use std::time::Duration;
-use std::thread;
-use std::collections::{BTreeMap, HashMap};
-use std::sync::{Arc, RwLock};
+use std::collections::BTreeMap;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Partition {
@@ -105,43 +98,22 @@ fn fetch_metadata(consumer: &BaseConsumer<EmptyConsumerContext>, timeout_ms: i32
     Ok(Metadata::new(brokers, topics))
 }
 
-type ClusterId = String;
-
-#[derive(Clone)]
-struct SharedMetadataContainer(Arc<RwLock<Option<Arc<Metadata>>>>);
-
-impl SharedMetadataContainer {
-    fn new() -> SharedMetadataContainer {
-        SharedMetadataContainer(Arc::new(RwLock::new(None)))
-    }
-
-    fn set(&self, metadata: Metadata) {
-        match self.0.write() {
-            Ok(mut content_ref) => *content_ref = Some(Arc::new(metadata)),
-            Err(_) => panic!("Poison error!"),
-        };
-    }
-
-    fn metadata(&self) -> Option<Arc<Metadata>> {
-        match self.0.read() {
-            Err(_) => None,
-            Ok(content_ref) => (*content_ref).clone(),
-        }
-    }
-}
+pub type ClusterId = String;
 
 struct MetadataFetcherTask {
+    cluster_id: ClusterId,
     brokers: String,
     consumer: Option<BaseConsumer<EmptyConsumerContext>>,
-    container: SharedMetadataContainer,
+    cache: Cache<ClusterId, Metadata>,
 }
 
 impl MetadataFetcherTask {
-    fn new(brokers: &str, container: SharedMetadataContainer) -> MetadataFetcherTask {
+    fn new(cluster_id: &ClusterId, brokers: &str, cache: Cache<ClusterId, Metadata>) -> MetadataFetcherTask {
         MetadataFetcherTask {
+            cluster_id: cluster_id.to_owned(),
             brokers: brokers.to_owned(),
             consumer: None,
-            container: container,
+            cache: cache,
         }
     }
 
@@ -156,48 +128,43 @@ impl MetadataFetcherTask {
 
 impl ScheduledTask for MetadataFetcherTask {
     fn run(&self) -> Result<()> {
-        info!("Metadata start {:?}", Local::now());
+        debug!("Metadata fetch start");
         let metadata = match self.consumer {
             None => bail!("Consumer not initialized"),
             Some(ref consumer) => fetch_metadata(consumer, 7000)
                 .chain_err(|| "Metadata fetch failed")?,
         };
-        // let serialized = serde_json::to_string(&metadata).unwrap();
-        // info!("serialized = {}", serialized);
-        self.container.set(metadata);
+        self.cache.insert(self.cluster_id.to_owned(), metadata)
+            .chain_err(|| "Failed to create new metadata container to cache")?;
         Ok(())
     }
 }
 
 pub struct MetadataFetcher {
     scheduler: Scheduler<ClusterId, MetadataFetcherTask>,
-    cache: HashMap<ClusterId, SharedMetadataContainer>,
+    cache: Cache<ClusterId, Metadata>,
 }
 
 impl MetadataFetcher {
-    pub fn new(interval: Duration) -> MetadataFetcher {
+    pub fn new(cache: Cache<ClusterId, Metadata>, interval: Duration) -> MetadataFetcher {
         MetadataFetcher {
             scheduler: Scheduler::new(interval),
-            cache: HashMap::new(),
+            cache: cache,
         }
     }
 
-    pub fn add_cluster(&mut self, cluster_id: &ClusterId, brokers: &str) {
-        let mut metadata_container = SharedMetadataContainer::new();
-        let mut task = MetadataFetcherTask::new(brokers, metadata_container.clone());
+    pub fn add_cluster(&mut self, cluster_id: &ClusterId, brokers: &str) -> Result<()> {
+        let mut task = MetadataFetcherTask::new(cluster_id, brokers, self.cache.clone());
         task.create_consumer();
         self.scheduler.add_task(cluster_id.to_owned(), task);
-        self.cache.insert(cluster_id.to_owned(), metadata_container);
+        Ok(())
     }
 
-    pub fn clusters(&self) -> Vec<&ClusterId> {
-        self.cache.keys().collect::<Vec<&ClusterId>>()
-    }
+    // pub fn clusters(&self) -> Vec<ClusterId> {
+    //     self.cache.keys()
+    // }
 
-    pub fn get_metadata(&self, cluster_id: &ClusterId) -> Option<Arc<Metadata>> {
-        match self.cache.get(cluster_id) {
-            Some(container) => container.metadata(),
-            None => None,
-        }
-    }
+    // pub fn get_metadata(&self, cluster_id: &ClusterId) -> Option<Arc<Metadata>> {
+    //     self.cache.get(cluster_id)
+    // }
 }

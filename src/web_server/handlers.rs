@@ -11,29 +11,8 @@ use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
 
 use web_server::server::Fetcher;
-use metadata::Metadata;
-
-// pub fn new_task_handler(req: &mut Request) -> IronResult<Response> {
-//     println!("Reached the new task handler");
-//     println!("req = {:?}", req);
-//     let empty_hm = HashMap::new();
-//     let hm = match req.get_ref::<UrlEncodedBody>() {
-//         Ok(hashmap) => hashmap,
-//         Err(ref e) => {
-//             println!("{:?}", e);
-//             &empty_hm
-//         }
-//     };
-//     println!("encoded data = {:?}", hm);
-//     let mut resp = Response::new();
-//     resp.set_mut(hbi::Template::new("home", make_test_records())).set_mut(status::Ok);
-//     Ok(resp)
-// }
-
-
-// fn render_topic(topic: &str, partitions: &Vec<Partition>) {
-//
-// }
+use metadata::{ClusterId, Metadata};
+use cache::{Cache, ReplicatedCache};
 
 
 fn format_broker_list(brokers: &Vec<i32>) -> String {
@@ -58,11 +37,11 @@ fn format_metadata(metadata: &Metadata) -> maud::PreEscaped<String> {
 }
 
 pub fn home_handler(req: &mut Request) -> IronResult<Response> {
-    let fetcher_lock = req.get::<State<Fetcher>>().unwrap();
-    let cluster_name = "local_cluster";
+    let metadata_cache = req.get::<State<MetadataCache>>().unwrap();
+    let cluster_id = "local_cluster";
     let metadata = {
-        let mut fetcher = fetcher_lock.read().unwrap();
-        fetcher.get_metadata(&cluster_name.to_string()).unwrap()
+        let mut metadata_cache = metadata_cache.read().unwrap();
+        metadata_cache.get(&cluster_id.to_string()).unwrap()
     };
 
     let markup = html! {

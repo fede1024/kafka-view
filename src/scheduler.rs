@@ -3,7 +3,6 @@
 
 use std::time::{Duration, Instant};
 use std::thread;
-use std::thread::{JoinHandle, Thread};
 use std::sync::{Arc, RwLock};
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -19,8 +18,7 @@ pub trait ScheduledTask: Send + Sync + 'static {
 pub struct Scheduler<I: Eq + Send + Sync + 'static, T: ScheduledTask> {
     tasks: Arc<RwLock<Vec<(I, T)>>>,
     period: Duration,
-    index: usize,
-    thread: Option<JoinHandle<()>>,
+    thread: Option<thread::JoinHandle<()>>,
     should_stop: Arc<AtomicBool>,
 }
 
@@ -29,7 +27,6 @@ impl<I: Eq + Send + Sync + 'static, T: ScheduledTask> Scheduler<I, T> {
         Scheduler {
             tasks: Arc::new(RwLock::new(Vec::new())),
             period: period,
-            index: 0,
             thread: None,
             should_stop: Arc::new(AtomicBool::new(false)),
         }
@@ -74,8 +71,7 @@ fn scheduler_clock_loop<I: Eq, T: ScheduledTask>(period: Duration, tasks: Arc<Rw
     thread::sleep(Duration::from_millis(100));  // Wait for task enqueuing
     while !should_stop.load(Ordering::Relaxed) {
         let start_time = Instant::now();
-        let n_tasks = 0;
-        let mut interval = Duration::from_secs(0);
+        let mut interval;
         {
             let tasks = tasks.read().unwrap();
             if index >= tasks.len() {
