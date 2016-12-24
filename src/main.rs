@@ -30,14 +30,13 @@ mod web_server;
 
 use error::*;
 use metadata::MetadataFetcher;
-use config::Config;
 
 use clap::{App, Arg, ArgMatches};
 
 use std::time;
 use std::thread;
 
-use cache::{Cache, Replicator, ReplicatedCache};
+use cache::{Cache, Replicator};
 
 extern crate serde_json;
 
@@ -50,7 +49,8 @@ fn run_kafka_web(config_path: &str) -> Result<()> {
     let metadata_cache = replicator.create_cache::<Cache<_, _>>("metadata");
     let mut metadata_fetcher = MetadataFetcher::new(metadata_cache.clone(), time::Duration::from_secs(15));
     for (cluster_name, cluster_config) in config.clusters() {
-        metadata_fetcher.add_cluster(cluster_name, &cluster_config.broker_string());
+        metadata_fetcher.add_cluster(cluster_name, &cluster_config.broker_string())
+            .chain_err(|| format!("Failed to add cluster {}", cluster_name))?;
         info!("Added cluster {}", cluster_name);
     }
 

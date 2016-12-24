@@ -1,17 +1,15 @@
 use iron::Plugin;
 use iron::prelude::{Request, Response};
-use iron::{IronResult, Set, status};
+use iron::{IronResult, status};
 use staticfile::Static;
-use urlencoded::UrlEncodedBody;
 use persistent::State;
 use mount;
 use maud;
 
-use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
 
-use web_server::server::Fetcher;
-use metadata::{ClusterId, Metadata};
+use web_server::server::MetadataCache;
+use metadata::Metadata;
 use cache::{Cache, ReplicatedCache};
 
 
@@ -40,12 +38,14 @@ pub fn home_handler(req: &mut Request) -> IronResult<Response> {
     let metadata_cache = req.get::<State<MetadataCache>>().unwrap();
     let cluster_id = "local_cluster";
     let metadata = {
-        let mut metadata_cache = metadata_cache.read().unwrap();
-        metadata_cache.get(&cluster_id.to_string()).unwrap()
+        match metadata_cache.read() {
+            Ok(metadata) => (*metadata).get(&cluster_id.to_string()).unwrap(),
+            Err(_) => panic!("Poison error"),
+        }
     };
 
     let markup = html! {
-        h1 "Metadata for " cluster_name
+        h1 { "Metadata for " (cluster_id) }
         p { "Last update: " (metadata.refresh_time()) }
         ol {
             (format_metadata(&metadata))

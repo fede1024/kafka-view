@@ -1,4 +1,3 @@
-#![feature(plugin)]
 extern crate env_logger;
 //extern crate error_chain;
 extern crate handlebars as hbs;
@@ -17,12 +16,10 @@ use self::hbi::{HandlebarsEngine};
 use self::persistent::State;
 
 use error::*;
-use cache::{Cache, ReplicatedCache};
+use cache::Cache;
 use web_server::chain;
 use metadata::{ClusterId, Metadata};
 use std::sync::Arc;
-use std::error::Error;
-use std::cell::Cell;
 
 
 pub struct MetadataCache;
@@ -30,7 +27,7 @@ pub struct MetadataCache;
 impl Key for MetadataCache { type Value = Cache<ClusterId, Metadata>; }
 
 fn load_templates(path: &str, ext: &str) -> Result<HandlebarsEngine> {
-    let mut hbs = Handlebars::new();
+    let hbs = Handlebars::new();
     let mut hbse = HandlebarsEngine::from(hbs);
 
     // TODO: Investigate serving the templates out of the binary using include_string!

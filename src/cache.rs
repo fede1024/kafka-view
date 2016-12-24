@@ -4,7 +4,6 @@ use serde_json;
 use rdkafka::config::TopicConfig;
 use rdkafka::producer::{FutureProducer, EmptyProducerContext, FutureProducerTopic};
 use rdkafka::config::ClientConfig;
-use rdkafka::types::*;
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::sync::{Arc, RwLock};
@@ -120,7 +119,7 @@ impl<K, V> ReplicatedCache for Cache<K, V>
 
     fn get(&self, key: &K) -> Option<Arc<V>> {
         let value = match self.cache_lock.read() {
-            Ok(mut cache) => (*cache).get(key).map(|arc| arc.clone()),
+            Ok(cache) => (*cache).get(key).map(|arc| arc.clone()),
             Err(_) => panic!("Poison error"),
         };
         value
