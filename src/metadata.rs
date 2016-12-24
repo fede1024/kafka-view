@@ -131,9 +131,10 @@ impl ScheduledTask for MetadataFetcherTask {
         debug!("Metadata fetch start");
         let metadata = match self.consumer {
             None => bail!("Consumer not initialized"),
-            Some(ref consumer) => fetch_metadata(consumer, 7000)
-                .chain_err(|| "Metadata fetch failed")?,
+            Some(ref consumer) => fetch_metadata(consumer, 30000)
+                .chain_err(|| format!("Metadata fetch failed, cluster: {}", self.cluster_id))?,
         };
+        debug!("Metadata fetch end");
         self.cache.insert(self.cluster_id.to_owned(), metadata)
             .chain_err(|| "Failed to create new metadata container to cache")?;
         Ok(())

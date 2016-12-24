@@ -23,6 +23,8 @@ impl Replicator {
     pub fn new(brokers: &str, topic_name: &str) -> Result<Replicator> {
         let producer = ClientConfig::new()
             .set("bootstrap.servers", brokers)
+            .set("compression.codec", "gzip")
+            .set("message.max.bytes", "10000000")
             .create::<FutureProducer<_>>()
             .expect("Producer creation error");
 
@@ -65,6 +67,7 @@ fn write_update<K, V>(topic: &ReplicatorTopic, name: &str, key: &K, value: &V) -
         .chain_err(|| "Failed to serialize key")?;
     let serialized_value = serde_json::to_vec(&value)
         .chain_err(|| "Failed to serialize value")?;
+    trace!("Serialized value size: {}", serialized_value.len());
     let _f = topic.send_copy(None, Some(&serialized_value), Some(&serialized_key))
         .chain_err(|| "Failed to produce message")?;
     // _f.wait();  // Uncomment to make production synchronous

@@ -2,11 +2,14 @@ use iron::Plugin;
 use iron::prelude::{Request, Response};
 use iron::{IronResult, status};
 use staticfile::Static;
-use persistent::State;
 use mount;
 use maud;
+use iron::headers::ContentType;
+use iron::modifier::{Modifier, Set};
+use iron::modifiers::Header;
 
 use std::path::Path;
+use std::sync::Arc;
 
 use web_server::server::MetadataCache;
 use metadata::Metadata;
@@ -21,13 +24,17 @@ fn format_broker_list(brokers: &Vec<i32>) -> String {
     res
 }
 
-fn format_metadata(metadata: &Metadata) -> maud::PreEscaped<String> {
+fn format_metadata(cluster_id: &str, metadata: Arc<Metadata>) -> maud::PreEscaped<String> {
     html! {
-        @for (name, partitions) in metadata.topics() {
-            li (name)
-            ul {
-                @for partition in partitions {
-                    li { (partition.id) " - " (partition.leader) " " (format_broker_list(&partition.isr)) }
+        h1 { "Metadata for " (cluster_id) }
+        p { "Last update: " (metadata.refresh_time()) }
+        ol {
+            @for (name, partitions) in metadata.topics() {
+                li (name)
+                ul {
+                    @for partition in partitions {
+                        li { (partition.id) " - " (partition.leader) " " (format_broker_list(&partition.isr)) }
+                    }
                 }
             }
         }
@@ -35,24 +42,17 @@ fn format_metadata(metadata: &Metadata) -> maud::PreEscaped<String> {
 }
 
 pub fn home_handler(req: &mut Request) -> IronResult<Response> {
-    let metadata_cache = req.get::<State<MetadataCache>>().unwrap();
-    let cluster_id = "local_cluster";
-    let metadata = {
-        match metadata_cache.read() {
-            Ok(metadata) => (*metadata).get(&cluster_id.to_string()).unwrap(),
-            Err(_) => panic!("Poison error"),
-        }
-    };
+    let metadata_cache = req.extensions.get::<MetadataCache>().unwrap();
 
-    let markup = html! {
-        h1 { "Metadata for " (cluster_id) }
-        p { "Last update: " (metadata.refresh_time()) }
-        ol {
-            (format_metadata(&metadata))
-        }
-    };
+    let mut output = "".to_string();
+    for cluster_id in metadata_cache.keys() {
+        let metadata = metadata_cache.get(&cluster_id.to_string()).unwrap();
+        output += &format_metadata(&cluster_id, metadata).into_string();
+    }
 
-    Ok((Response::with((status::Ok, markup))))
+    let mut resp = Response::with((status::Ok, output));
+    resp.set_mut(Header(ContentType::html()));
+    Ok(resp)
 }
 
 pub struct AssetsHandler;
