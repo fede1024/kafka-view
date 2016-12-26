@@ -7,6 +7,9 @@ use rdkafka::config::ClientConfig;
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::sync::{Arc, RwLock};
+use typemap::{Key, TypeMap};
+use std::marker::PhantomData;
+use std::any::{Any, TypeId};
 
 use error::*;
 
@@ -17,6 +20,38 @@ pub struct Replicator {
 //    brokers: String,
 //    topic_name: String,
     producer_topic: Arc<ReplicatorTopic>,
+    type_map: TypeMap,
+}
+
+// pub struct MapKey<V: ReplicatedCache + Clone + 'static> {
+//     _p: PhantomData<V>
+// }
+// 
+// impl<V: ReplicatedCache + Clone + 'static> Key for MapKey<V> {
+//     type Value = V;
+// }
+// 
+// impl<V: ReplicatedCache + Clone + 'static> MapKey<V> {
+//     pub fn new() -> MapKey<V> {
+//         MapKey { _p: PhantomData }
+//     }
+// }
+
+
+struct FakeType {
+    id: u64,
+}
+
+impl FakeType {
+    fn new(id: u64) -> FakeType {
+        FakeType { id : id }
+    }
+}
+
+impl Any for FakeType {
+    fn get_type_id(&self) -> TypeId {
+        TypeId { t: self.id }
+    }
 }
 
 impl Replicator {
@@ -37,13 +72,28 @@ impl Replicator {
 //            brokers: brokers.to_owned(),
 //            topic_name: topic_name.to_owned(),
             producer_topic: Arc::new(topic),
+            type_map: TypeMap::new(),
         };
 
         Ok(replicator)
     }
 
-    pub fn create_cache<C: ReplicatedCache>(&self, name: &str) -> C {
-        C::new(self.producer_topic.clone(), name)
+    // pub fn create_cache<C: ReplicatedCache>(&self, name: &str) -> C {
+    //     C::new(self.producer_topic.clone(), name)
+    // }
+
+    // pub fn create_cache<V: ReplicatedCache + Clone + 'static>(&mut self, km: MapKey<V>) -> V {
+    //     let cache = V::new(self.producer_topic.clone(), "LOL");
+    //     self.type_map.insert::<MapKey<V>>(cache.clone());
+    //     cache
+    // }
+
+    pub fn create_cache<K: Key>(&mut self, name: &str) -> K::Value
+          where K::Value: ReplicatedCache + Clone {
+        let cache = K::Value::new(self.producer_topic.clone(), name);
+        self.type_map.insert::<K>(cache.clone());
+        println!(">> {:?}", TypeId::of::<K>());
+        cache
     }
 }
 
@@ -58,12 +108,41 @@ pub trait ReplicatedCache {
     fn keys(&self) -> Vec<Self::Key>;
 }
 
+#[derive(Serialize, Deserialize)]
+struct WrappedKey<K>
+  where K: Serialize + Deserialize {
+    id: i32,
+    map_name: String,
+    key: K,
+}
+
+impl<K> WrappedKey<K>
+  where K: Serialize + Deserialize {
+    fn new(id: i32, map_name: String, key: K) -> WrappedKey<K> {
+        WrappedKey {
+            id: id,
+            map_name: map_name,
+            key: key,
+        }
+    }
+}
+
+// impl<V> ValueContainer<V>
+//   where K: Serialize + Deserialize {
+//     fn new(id: i32, value: V) -> WrappedKey<V> {
+//         ValueContainer {
+//             id: id,
+//             value: value,
+//         }
+//     }
+// }
+
 // TODO: add name to key
 // TODO: use structure for value
 fn write_update<K, V>(topic: &ReplicatorTopic, name: &str, key: &K, value: &V) -> Result<()>
-        where K: Serialize + Deserialize,
+        where K: Serialize + Deserialize + Clone,
               V: Serialize + Deserialize {
-    let serialized_key = serde_json::to_vec(&key)
+    let serialized_key = serde_json::to_vec(&WrappedKey::new(1234, name.to_owned(), key.clone()))
         .chain_err(|| "Failed to serialize key")?;
     let serialized_value = serde_json::to_vec(&value)
         .chain_err(|| "Failed to serialize value")?;

@@ -1,4 +1,4 @@
-#![feature(alloc_system, proc_macro, plugin)]
+#![feature(alloc_system, proc_macro, plugin, get_type_id)]
 #![plugin(maud_macros)]
 extern crate alloc_system;
 
@@ -15,7 +15,9 @@ extern crate mount;
 extern crate rdkafka;
 extern crate staticfile;
 extern crate urlencoded;
+extern crate typemap;
 extern crate serde;
+extern crate serde_json;
 
 
 mod cache;
@@ -35,16 +37,31 @@ use std::time;
 use std::thread;
 
 use cache::{Cache, Replicator};
+use metadata::Metadata;
 
-extern crate serde_json;
+
+use typemap::{Key, TypeMap};
+
+struct MetadataCache;
+impl Key for MetadataCache {
+    type Value = Cache<String, Metadata>;
+}
+
 
 fn run_kafka_web(config_path: &str) -> Result<()> {
     let config = config::read_config(config_path)
         .chain_err(|| format!("Unable to load configuration from '{}'", config_path))?;
 
-    let replicator = Replicator::new("localhost:9092", "replicator_topic")
+    let mut replicator = Replicator::new("localhost:9092", "replicator_topic")
         .chain_err(|| format!("Replicator creation failed (brokers: {}, topic: {})", "localhost:9092", "replicator_topic"))?;
-    let metadata_cache = replicator.create_cache::<Cache<_, _>>("metadata");
+    // let metadata_cache = replicator.create_cache::<Cache<_, _>>("metadata");
+    let metadata_cache = replicator.create_cache::<MetadataCache>("metadata");
+    // let metadata_cache = replicator.create_cache::<Cache<_, _>>(MapKey::new::<Cache<_, _>>());
+    // replicator.type_map.insert::<TestType>(metadata_cache.clone());
+    // let boh = replicator.create_cache::<Cache<String, String>>("sgnappa");
+    // replicator.type_map.insert::<AnotherType>(boh.clone());
+
+
     let mut metadata_fetcher = MetadataFetcher::new(metadata_cache.clone(), time::Duration::from_secs(15));
     for (cluster_name, cluster_config) in config.clusters() {
         metadata_fetcher.add_cluster(cluster_name, &cluster_config.broker_string())
