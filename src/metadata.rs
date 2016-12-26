@@ -6,7 +6,7 @@ use rdkafka::error as rderror;
 use error::*;
 use scheduler::ScheduledTask;
 use scheduler::Scheduler;
-use cache::{Cache, ReplicatedCache};
+use cache::ReplicatedMap;
 use std::time::Duration;
 use std::collections::BTreeMap;
 
@@ -104,11 +104,11 @@ struct MetadataFetcherTask {
     cluster_id: ClusterId,
     brokers: String,
     consumer: Option<BaseConsumer<EmptyConsumerContext>>,
-    cache: Cache<ClusterId, Metadata>,
+    cache: ReplicatedMap<ClusterId, Metadata>,
 }
 
 impl MetadataFetcherTask {
-    fn new(cluster_id: &ClusterId, brokers: &str, cache: Cache<ClusterId, Metadata>) -> MetadataFetcherTask {
+    fn new(cluster_id: &ClusterId, brokers: &str, cache: ReplicatedMap<ClusterId, Metadata>) -> MetadataFetcherTask {
         MetadataFetcherTask {
             cluster_id: cluster_id.to_owned(),
             brokers: brokers.to_owned(),
@@ -143,11 +143,11 @@ impl ScheduledTask for MetadataFetcherTask {
 
 pub struct MetadataFetcher {
     scheduler: Scheduler<ClusterId, MetadataFetcherTask>,
-    cache: Cache<ClusterId, Metadata>,
+    cache: ReplicatedMap<ClusterId, Metadata>,
 }
 
 impl MetadataFetcher {
-    pub fn new(cache: Cache<ClusterId, Metadata>, interval: Duration) -> MetadataFetcher {
+    pub fn new(cache: ReplicatedMap<ClusterId, Metadata>, interval: Duration) -> MetadataFetcher {
         MetadataFetcher {
             scheduler: Scheduler::new(interval),
             cache: cache,
@@ -155,7 +155,7 @@ impl MetadataFetcher {
     }
 
     pub fn add_cluster(&mut self, cluster_id: &ClusterId, brokers: &str) -> Result<()> {
-        let mut task = MetadataFetcherTask::new(cluster_id, brokers, self.cache.clone());
+        let mut task = MetadataFetcherTask::new(cluster_id, brokers, self.cache.alias());
         task.create_consumer();
         self.scheduler.add_task(cluster_id.to_owned(), task);
         Ok(())

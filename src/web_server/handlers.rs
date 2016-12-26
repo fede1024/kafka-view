@@ -13,7 +13,6 @@ use std::sync::Arc;
 
 use web_server::server::MetadataCache;
 use metadata::Metadata;
-use cache::{Cache, ReplicatedCache};
 
 
 fn format_broker_list(brokers: &Vec<i32>) -> String {

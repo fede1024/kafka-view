@@ -3,7 +3,7 @@ use iron::middleware::BeforeMiddleware;
 use iron::prelude::*;
 
 use error::*;
-use cache::Cache;
+use cache::ReplicatedMap;
 use web_server::chain;
 use metadata::{ClusterId, Metadata};
 use std::sync::Arc;
@@ -11,16 +11,16 @@ use std::sync::Arc;
 
 pub struct MetadataCache;
 
-impl Key for MetadataCache { type Value = Cache<ClusterId, Metadata>; }
+impl Key for MetadataCache { type Value = ReplicatedMap<ClusterId, Metadata>; }
 
-impl BeforeMiddleware for Cache<ClusterId, Metadata> {
+impl BeforeMiddleware for ReplicatedMap<ClusterId, Metadata> {
     fn before(&self, request: &mut Request) -> IronResult<()> {
-        request.extensions.insert::<MetadataCache>(self.clone());
+        request.extensions.insert::<MetadataCache>(self.alias());
         Ok(())
     }
 }
 
-pub fn run_server(metadata_cache: Cache<ClusterId, Metadata>, debug: bool) -> Result<()> {
+pub fn run_server(metadata_cache: ReplicatedMap<ClusterId, Metadata>, debug: bool) -> Result<()> {
     // let metadata_cache_ref = MetadataCache { cache: metadata_cache };
 
     let mut chain = chain::chain();
