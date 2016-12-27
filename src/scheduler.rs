@@ -7,6 +7,7 @@ use std::sync::{Arc, RwLock};
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use error::*;
+use utils::format_error_chain;
 
 // use scheduler::futures::Future;
 // use scheduler::futures_cpupool::{CpuPool, CpuFuture};
@@ -79,17 +80,7 @@ fn scheduler_clock_loop<I: Eq, T: ScheduledTask>(period: Duration, tasks: Arc<Rw
             }
             // let boh = run_task(&tasks[index].1, &pool);
             // info!(">> {:?}", boh.wait());
-            if let Err(ref e) = tasks[index].1.run() {
-                error!("error: {}", e);
-
-                for e in e.iter().skip(1) {
-                    error!("caused by: {}", e);
-                }
-
-                if let Some(backtrace) = e.backtrace() {
-                    error!("backtrace: {:?}", backtrace);
-                }
-            }
+            tasks[index].1.run().map_err(format_error_chain);
             let elapsed_time = Instant::now() - start_time;
             interval = if tasks.len() > 0 {
                 period / (tasks.len() as u32)

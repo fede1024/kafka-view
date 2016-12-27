@@ -1,5 +1,5 @@
 use iron::typemap::Key;
-use iron::middleware::BeforeMiddleware;
+use iron::middleware::{AfterMiddleware, BeforeMiddleware};
 use iron::prelude::*;
 
 use error::*;
@@ -7,6 +7,8 @@ use cache::ReplicatedMap;
 use web_server::chain;
 use metadata::{ClusterId, Metadata};
 use std::sync::Arc;
+// use std::atomic::AtomicLong;
+use chrono::{DateTime, UTC};
 
 
 pub struct MetadataCache;
@@ -20,11 +22,31 @@ impl BeforeMiddleware for ReplicatedMap<ClusterId, Metadata> {
     }
 }
 
+pub struct RequestTimer;
+impl Key for RequestTimer { type Value = DateTime<UTC>; }
+
+impl BeforeMiddleware for RequestTimer {
+    fn before(&self, request: &mut Request) -> IronResult<()> {
+        request.extensions.insert::<RequestTimer>(UTC::now());
+        Ok(())
+    }
+}
+
+impl AfterMiddleware for RequestTimer {
+    fn after(&self, request: &mut Request, response: Response) -> IronResult<Response> {
+        let time = request.extensions.get::<RequestTimer>().unwrap();
+        println!(">> {}", UTC::now() - *time);
+        Ok(response)
+    }
+}
+
 pub fn run_server(metadata_cache: ReplicatedMap<ClusterId, Metadata>, debug: bool) -> Result<()> {
     // let metadata_cache_ref = MetadataCache { cache: metadata_cache };
 
     let mut chain = chain::chain();
+    chain.link_before(RequestTimer);
     chain.link_before(metadata_cache);
+    chain.link_after(RequestTimer);
 
     let port = 3000;
     let bind_addr = format!("localhost:{}", port);

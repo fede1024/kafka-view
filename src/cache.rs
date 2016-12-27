@@ -124,7 +124,7 @@ impl ReplicaReader {
             .name("replica consumer".to_string())
             .spawn(move || {
                 match rebuild_state(stream) {
-                    Err(ref e) => format_error_chain(e),
+                    Err(e) => format_error_chain(e),
                     Ok(state) => {
                         for (wrapped_key, message) in state {
                             (f)(wrapped_key.cache_name, wrapped_key.key, message);
@@ -145,11 +145,7 @@ fn rebuild_state(stream: MessageStream) -> Result<HashMap<WrappedKey, Message>> 
     trace!("Started creating state");
     for message in stream.wait() {
         match message {
-            Ok(m) => {
-                if let Err(ref e) = update_startup_map(m, &mut state) {
-                    format_error_chain(e);
-                };
-            },
+            Ok(m) => { update_startup_map(m, &mut state).map_err(format_error_chain); },
             Err(KafkaError::PartitionEOF(p)) => { EOF_set.insert(p); () },
             Err(e) => error!("Cosumption error: {}", e),
         };

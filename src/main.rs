@@ -31,7 +31,6 @@ use clap::{App, Arg, ArgMatches};
 
 use std::time;
 use std::thread;
-use std::sync::Arc;
 
 use rdkafka::message::Message;
 
@@ -79,9 +78,7 @@ fn run_kafka_web(config_path: &str) -> Result<()> {
 
     let metadata_cache_alias = metadata_cache.alias();
     replica_reader.start(move |name, key_str, msg| {
-        if let Err(ref e) = state_update(name, key_str, msg, &metadata_cache_alias) {
-            format_error_chain(e);
-        }
+        state_update(name, key_str, msg, &metadata_cache_alias).map_err(format_error_chain);
     })
         .chain_err(|| format!("Replica reader start failed (brokers: {}, topic: {})", brokers, topic_name))?;
 
@@ -124,7 +121,7 @@ fn main() {
 
     let config_path = matches.value_of("conf").unwrap();
 
-    if let Err(ref e) = run_kafka_web(config_path) {
+    if let Err(e) = run_kafka_web(config_path) {
         format_error_chain(e);
         std::process::exit(1);
     }
