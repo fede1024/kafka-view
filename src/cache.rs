@@ -1,7 +1,7 @@
 use futures::stream::Stream;
 use rdkafka::config::{ClientConfig, TopicConfig};
-use rdkafka::consumer::stream_consumer::StreamConsumer;
-use rdkafka::consumer::{Consumer, EmptyConsumerContext, TopicPartitionList};
+use rdkafka::consumer::stream_consumer::{MessageStream, StreamConsumer};
+use rdkafka::consumer::{Consumer, EmptyConsumerContext};
 use rdkafka::producer::{FutureProducer, EmptyProducerContext, FutureProducerTopic};
 use rdkafka::error::KafkaError;
 use rdkafka::message::Message;
@@ -16,6 +16,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 
 use error::*;
+use utils::format_error_chain;
 
 #[derive(Serialize, Deserialize, Debug, Hash, Eq, PartialEq)]
 struct WrappedKey {
@@ -117,31 +118,19 @@ impl ReplicaReader {
         })
     }
 
-    pub fn start(&mut self) -> Result<()> {
+    pub fn start<F: 'static + Fn(String, String, Message) + Send>(&mut self, f: F) -> Result<()> {
         let stream = self.consumer.start();
         let handle = thread::Builder::new()
             .name("replica consumer".to_string())
             .spawn(move || {
-                let mut EOF_set = HashSet::new();
-                let mut state: HashMap<WrappedKey, Message> = HashMap::new();
-                trace!("Replica consumer loop started");
-                for message in stream.wait() {
-                    match message {
-                        Ok(m) => {
-                            update_startup_map(m, &mut state);
-                            ()
-                        },
-                        Err(KafkaError::PartitionEOF(p)) => { EOF_set.insert(p); () },
-                        Err(e) => error!("Cosumption error: {}", e),
-                    };
-                    if EOF_set.len() == 3 { // TODO: make configurable
-                        for (k, v) in state {
-                            println!(">> {:?} {:?}", k, v);
+                match rebuild_state(stream) {
+                    Err(ref e) => format_error_chain(e),
+                    Ok(state) => {
+                        for (wrapped_key, message) in state {
+                            (f)(wrapped_key.cache_name, wrapped_key.key, message);
                         }
-                        break; // TODO: should stop consumer
                     }
-                }
-                trace!("Replica consumer loop terminated");
+                };
             })
             .chain_err(|| "Failed to start polling thread")?;
         self.thread_handle = Some(handle);
@@ -149,15 +138,34 @@ impl ReplicaReader {
     }
 }
 
+fn rebuild_state(stream: MessageStream) -> Result<HashMap<WrappedKey, Message>> {
+    let mut EOF_set = HashSet::new();
+    let mut state: HashMap<WrappedKey, Message> = HashMap::new();
+
+    trace!("Started creating state");
+    for message in stream.wait() {
+        match message {
+            Ok(m) => {
+                if let Err(ref e) = update_startup_map(m, &mut state) {
+                    format_error_chain(e);
+                };
+            },
+            Err(KafkaError::PartitionEOF(p)) => { EOF_set.insert(p); () },
+            Err(e) => error!("Cosumption error: {}", e),
+        };
+        if EOF_set.len() == 3 { // TODO: make configurable
+            break; // TODO: should stop consumer
+        }
+    }
+    trace!("State creation terminated");
+
+    Ok(state)
+}
+
 fn update_startup_map(message: Message, state: &mut HashMap<WrappedKey, Message>) -> Result<()> {
     let wrapped_key = parse_message_key(&message)
         .chain_err(|| "Failed to parse message key")?;
-
-    match message.payload() {
-        Some(_) => state.insert(wrapped_key, message),
-        None => state.remove(&wrapped_key),
-    };
-
+    state.insert(wrapped_key, message);
     Ok(())
 }
 
@@ -234,15 +242,19 @@ impl<K, V> ReplicatedMap<K, V>
         }
     }
 
-    pub fn insert(&self, key: K, value: V) -> Result<Arc<V>> {
-        self.replica_writer.write_update(&self.name, &key, &value)
-            .chain_err(|| "Failed to write cache update")?;
+    pub fn sync_value_update(&self, key: K, value: V) -> Result<Arc<V>> {
         let value_arc = Arc::new(value);
         match self.cache_lock.write() {
             Ok(mut cache) => (*cache).insert(key, value_arc.clone()),
             Err(_) => panic!("Poison error"),
         };
         Ok(value_arc.clone())
+    }
+
+    pub fn insert(&self, key: K, value: V) -> Result<Arc<V>> {
+        self.replica_writer.write_update(&self.name, &key, &value)
+            .chain_err(|| "Failed to write cache update")?;
+        self.sync_value_update(key, value)
     }
 
     pub fn get(&self, key: &K) -> Option<Arc<V>> {

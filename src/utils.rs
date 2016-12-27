@@ -6,6 +6,7 @@ use self::chrono::Local;
 use self::log::{LogRecord, LogLevelFilter};
 use self::env_logger::LogBuilder;
 
+use error::*;
 use std::thread;
 
 pub fn setup_logger(log_thread: bool, rust_log: Option<&str>, date_format: &str) {
@@ -26,4 +27,14 @@ pub fn setup_logger(log_thread: bool, rust_log: Option<&str>, date_format: &str)
     rust_log.map(|conf| builder.parse(conf));
 
     builder.init().unwrap();
+}
+
+pub fn format_error_chain(err: &Error) {
+    error!("error: {}", err);
+    for e in err.iter().skip(1) {
+        error!("caused by: {}", e);
+    }
+    if let Some(backtrace) = err.backtrace() {
+        error!("backtrace: {:?}", backtrace);
+    }
 }
