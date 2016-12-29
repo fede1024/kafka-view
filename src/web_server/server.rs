@@ -9,14 +9,14 @@ use web_server::chain;
 use metadata::{ClusterId, Metadata};
 use std::sync::Arc;
 // use std::atomic::AtomicLong;
-use chrono::{DateTime, UTC, Duration};
+use chrono::{DateTime, UTC};
 
 
 pub struct MetadataCache;
 
-impl Key for MetadataCache { type Value = ReplicatedMap<ClusterId, Metadata>; }
+impl Key for MetadataCache { type Value = ReplicatedMap<ClusterId, Arc<Metadata>>; }
 
-impl BeforeMiddleware for ReplicatedMap<ClusterId, Metadata> {
+impl BeforeMiddleware for ReplicatedMap<ClusterId, Arc<Metadata>> {
     fn before(&self, request: &mut Request) -> IronResult<()> {
         request.extensions.insert::<MetadataCache>(self.alias());
         Ok(())
@@ -37,13 +37,13 @@ impl AfterMiddleware for RequestTimer {
     fn after(&self, request: &mut Request, mut response: Response) -> IronResult<Response> {
         let time = request.extensions.get::<RequestTimer>().unwrap();
         let millis = (UTC::now() - *time).num_milliseconds().to_string();
-        let mut pair = headers::CookiePair::new("request_time".to_owned(), millis.to_string());
+        let pair = headers::CookiePair::new("request_time".to_owned(), millis.to_string());
         response.headers.set(headers::SetCookie(vec![pair]));
         Ok(response)
     }
 }
 
-pub fn run_server(metadata_cache: ReplicatedMap<ClusterId, Metadata>, debug: bool) -> Result<()> {
+pub fn run_server(metadata_cache: ReplicatedMap<ClusterId, Arc<Metadata>>, debug: bool) -> Result<()> {
     // let metadata_cache_ref = MetadataCache { cache: metadata_cache };
 
     let mut chain = chain::chain();

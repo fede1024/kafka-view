@@ -1,10 +1,12 @@
-// extern crate futures;
-// extern crate futures_cpupool;
-
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use std::thread;
 use std::sync::{Arc, RwLock};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::collections::VecDeque;
+use std::cmp;
+
+use futures_cpupool::{Builder, CpuPool};
+use futures::{Async, Future, BoxFuture};
 
 use error::*;
 use utils::format_error_chain;
@@ -17,19 +19,21 @@ pub trait ScheduledTask: Send + Sync + 'static {
 }
 
 pub struct Scheduler<I: Eq + Send + Sync + 'static, T: ScheduledTask> {
-    tasks: Arc<RwLock<Vec<(I, T)>>>,
+    tasks: Arc<RwLock<Vec<Arc<(I, T)>>>>,
     period: Duration,
     thread: Option<thread::JoinHandle<()>>,
     should_stop: Arc<AtomicBool>,
+    cpu_pool: CpuPool,
 }
 
 impl<I: Eq + Send + Sync + 'static, T: ScheduledTask> Scheduler<I, T> {
-    pub fn new(period: Duration) -> Scheduler<I, T> {
+    pub fn new(period: Duration, pool_size: usize) -> Scheduler<I, T> {
         Scheduler {
             tasks: Arc::new(RwLock::new(Vec::new())),
             period: period,
             thread: None,
             should_stop: Arc::new(AtomicBool::new(false)),
+            cpu_pool: Builder::new().pool_size(pool_size).create(),
         }
     }
 
@@ -38,18 +42,21 @@ impl<I: Eq + Send + Sync + 'static, T: ScheduledTask> Scheduler<I, T> {
             let tasks_clone = self.tasks.clone();
             let period_clone = self.period.clone();
             let should_stop_clone = self.should_stop.clone();
+            let cpu_pool_clone = self.cpu_pool.clone();
             let builder = thread::Builder::new().name("Scheduler".into());
-            let thread = builder.spawn(move || scheduler_clock_loop(period_clone, tasks_clone, should_stop_clone)).unwrap();
+            let thread = builder.spawn(move || scheduler_clock_loop(period_clone, tasks_clone,
+                                                                    cpu_pool_clone, should_stop_clone))
+                .unwrap();
             self.thread = Some(thread);
         }
         let mut tasks = self.tasks.write().unwrap();
         for i in 0..tasks.len() {
             if tasks[i].0 == id {
-                tasks[i].1 = task;
+                tasks[i] = Arc::new((id, task));
                 return;
             }
         }
-        tasks.push((id, task));
+        tasks.push(Arc::new((id, task)));
     }
 
     pub fn stop(&self) {
@@ -66,34 +73,39 @@ impl<I: Eq + Send + Sync + 'static, T: ScheduledTask> Scheduler<I, T> {
 //     ret_value
 // }
 
-fn scheduler_clock_loop<I: Eq, T: ScheduledTask>(period: Duration, tasks: Arc<RwLock<Vec<(I, T)>>>, should_stop: Arc<AtomicBool>) {
+fn scheduler_clock_loop<I, T>(period: Duration, tasks: Arc<RwLock<Vec<Arc<(I, T)>>>>,
+                              cpu_pool: CpuPool, should_stop: Arc<AtomicBool>)
+    where I: Eq + Send + Sync + 'static,
+          T: ScheduledTask {
     let mut index = 0;
-    // let pool = CpuPool::new(4);
+    let mut futures: VecDeque<BoxFuture<(), Error>> = VecDeque::new();
     thread::sleep(Duration::from_millis(100));  // Wait for task enqueuing
     while !should_stop.load(Ordering::Relaxed) {
-        let start_time = Instant::now();
-        let mut interval;
-        {
-            let tasks = tasks.read().unwrap();
-            if index >= tasks.len() {
-                index = 0;
-            }
-            // let boh = run_task(&tasks[index].1, &pool);
-            // info!(">> {:?}", boh.wait());
-            tasks[index].1.run().map_err(format_error_chain);
-            let elapsed_time = Instant::now() - start_time;
-            interval = if tasks.len() > 0 {
-                period / (tasks.len() as u32)
-            } else {
-                Duration::from_secs(1)
+        /// Removes completed futures from the deque
+        loop {
+            match futures.front_mut() {
+                Some(f) => {
+                    match f.poll() {
+                        Ok(Async::NotReady) => { trace!("Future not ready"); break; },
+                        Ok(Async::Ready(_)) => trace!("Future completed correctly"),
+                        Err(e) => format_error_chain(e),
+                    };
+                },
+                None => break,
             };
-            if interval > elapsed_time {
-                interval -= elapsed_time;
-            } else {
-                interval = Duration::from_secs(0);
-            }
+            futures.pop_front();
         }
-        index += 1;
+        let n_tasks = {
+            let tasks = tasks.read().unwrap();
+            let task_clone = tasks[index].clone();
+            let f = cpu_pool.spawn_fn(move || {
+                task_clone.1.run()
+            });
+            futures.push_back(f.boxed());
+            index = (index + 1) % tasks.len();
+            tasks.len()
+        };
+        let interval = cmp::max(period / (n_tasks as u32), Duration::from_millis(100));
         thread::sleep(interval);
     }
 }

@@ -9,6 +9,7 @@ use scheduler::Scheduler;
 use cache::ReplicatedMap;
 use std::time::Duration;
 use std::collections::BTreeMap;
+use std::sync::Arc;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Partition {
@@ -104,11 +105,12 @@ struct MetadataFetcherTask {
     cluster_id: ClusterId,
     brokers: String,
     consumer: Option<BaseConsumer<EmptyConsumerContext>>,
-    cache: ReplicatedMap<ClusterId, Metadata>,
+    cache: ReplicatedMap<ClusterId, Arc<Metadata>>,
 }
 
 impl MetadataFetcherTask {
-    fn new(cluster_id: &ClusterId, brokers: &str, cache: ReplicatedMap<ClusterId, Metadata>) -> MetadataFetcherTask {
+    fn new(cluster_id: &ClusterId, brokers: &str, cache: ReplicatedMap<ClusterId, Arc<Metadata>>)
+            -> MetadataFetcherTask {
         MetadataFetcherTask {
             cluster_id: cluster_id.to_owned(),
             brokers: brokers.to_owned(),
@@ -135,7 +137,7 @@ impl ScheduledTask for MetadataFetcherTask {
                 .chain_err(|| format!("Metadata fetch failed, cluster: {}", self.cluster_id))?,
         };
         debug!("Metadata fetch end");
-        self.cache.insert(self.cluster_id.to_owned(), metadata)
+        self.cache.insert(self.cluster_id.to_owned(), Arc::new(metadata))
             .chain_err(|| "Failed to create new metadata container to cache")?;
         Ok(())
     }
@@ -143,13 +145,13 @@ impl ScheduledTask for MetadataFetcherTask {
 
 pub struct MetadataFetcher {
     scheduler: Scheduler<ClusterId, MetadataFetcherTask>,
-    cache: ReplicatedMap<ClusterId, Metadata>,
+    cache: ReplicatedMap<ClusterId, Arc<Metadata>>,
 }
 
 impl MetadataFetcher {
-    pub fn new(cache: ReplicatedMap<ClusterId, Metadata>, interval: Duration) -> MetadataFetcher {
+    pub fn new(cache: ReplicatedMap<ClusterId, Arc<Metadata>>, interval: Duration) -> MetadataFetcher {
         MetadataFetcher {
-            scheduler: Scheduler::new(interval),
+            scheduler: Scheduler::new(interval, 2),
             cache: cache,
         }
     }

@@ -8,8 +8,8 @@ chrono = { version = "0.2", features = ["serde"] }
 clap = "2.18.0"
 env_logger = "0.3.0"
 error-chain = "0.7.1"
-futures = "*"
-futures-cpupool = "*"
+futures = "0.1.7"
+futures-cpupool = "0.1.2"
 iron = "0.4.0"
 log = "0.3.0"
 maud = { version = "*", features = ["iron"] }

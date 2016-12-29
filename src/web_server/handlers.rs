@@ -3,7 +3,6 @@ use iron::{IronResult, status};
 use staticfile::Static;
 use mount;
 use maud::PreEscaped;
-use iron::modifier::{Modifier, Set};
 
 use std::path::Path;
 use std::sync::Arc;

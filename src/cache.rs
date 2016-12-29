@@ -202,15 +202,15 @@ fn parse_message_key(message: &Message) -> Result<WrappedKey> {
 // TODO? use inner object with one Arc?
 pub struct ReplicatedMap<K, V>
         where K: Eq + Hash + Clone + Serialize + Deserialize,
-              V: Serialize + Deserialize {
+              V: Clone + Serialize + Deserialize {
     name: String,
-    cache_lock: Arc<RwLock<HashMap<K, Arc<V>>>>,
+    cache_lock: Arc<RwLock<HashMap<K, V>>>,
     replica_writer: ReplicaWriter,
 }
 
 impl<K, V> ReplicatedMap<K, V>
         where K: Eq + Hash + Clone + Serialize + Deserialize,
-              V: Serialize + Deserialize {
+              V: Clone + Serialize + Deserialize {
     pub fn new(name: &str, replica_writer: ReplicaWriter) -> ReplicatedMap<K, V> {
         ReplicatedMap {
             name: name.to_owned(),
@@ -238,27 +238,25 @@ impl<K, V> ReplicatedMap<K, V>
         }
     }
 
-    pub fn sync_value_update(&self, key: K, value: V) -> Result<Arc<V>> {
-        let value_arc = Arc::new(value);
+    pub fn sync_value_update(&self, key: K, value: V) {
         match self.cache_lock.write() {
-            Ok(mut cache) => (*cache).insert(key, value_arc.clone()),
+            Ok(mut cache) => (*cache).insert(key, value),
             Err(_) => panic!("Poison error"),
         };
-        Ok(value_arc.clone())
     }
 
-    pub fn insert(&self, key: K, value: V) -> Result<Arc<V>> {
+    pub fn insert(&self, key: K, value: V) -> Result<()> {
         self.replica_writer.write_update(&self.name, &key, &value)
             .chain_err(|| "Failed to write cache update")?;
-        self.sync_value_update(key, value)
+        self.sync_value_update(key, value);
+        Ok(())
     }
 
-    pub fn get(&self, key: &K) -> Option<Arc<V>> {
-        let value = match self.cache_lock.read() {
-            Ok(cache) => (*cache).get(key).map(|arc| arc.clone()),
+    pub fn get(&self, key: &K) -> Option<V> {
+        match self.cache_lock.read() {
+            Ok(cache) => (*cache).get(key).map(|v| v.clone()),
             Err(_) => panic!("Poison error"),
-        };
-        value
+        }
     }
 }
 

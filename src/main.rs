@@ -10,6 +10,7 @@ extern crate env_logger;
 extern crate iron;
 extern crate chrono;
 extern crate futures;
+extern crate futures_cpupool;
 extern crate maud;
 extern crate mount;
 extern crate rdkafka;
@@ -31,6 +32,7 @@ use clap::{App, Arg, ArgMatches};
 
 use std::time;
 use std::thread;
+use std::sync::Arc;
 
 use rdkafka::message::Message;
 
@@ -40,18 +42,17 @@ use metadata::{Metadata, MetadataFetcher};
 use utils::format_error_chain;
 
 
-fn state_update(name: String, key_str: String, msg: Message, metadata: &ReplicatedMap<String, Metadata>) -> Result<()> {
+fn state_update(name: String, key_str: String, msg: Message, m_cache: &ReplicatedMap<String, Arc<Metadata>>) -> Result<()> {
     match name.as_ref() {
         "metadata" => {
             let key = serde_json::from_str::<String>(&key_str)
                 .chain_err(|| "Failed to parse key")?;
             match msg.payload() {
                 Some(bytes) => {
-                    let payload = serde_json::from_slice::<Metadata>(bytes)
+                    let metadata = serde_json::from_slice::<Metadata>(bytes)
                         .chain_err(|| "Failed to parse payload")?;
                     debug!("Sync metadata cache, key: {}", key);
-                    metadata.sync_value_update(key, payload)
-                        .chain_err(|| format!("Failed to sync value in cache {}", name))?;
+                    m_cache.sync_value_update(key, Arc::new(metadata));
                 },
                 None => bail!("Delete not implemented!"),
             };
@@ -71,7 +72,7 @@ fn run_kafka_web(config_path: &str) -> Result<()> {
 
     let replica_writer = ReplicaWriter::new(brokers, topic_name)
         .chain_err(|| format!("Replica writer creation failed (brokers: {}, topic: {})", brokers, topic_name))?;
-    let metadata_cache: ReplicatedMap<String, Metadata> = ReplicatedMap::new("metadata", replica_writer.alias());
+    let metadata_cache: ReplicatedMap<String, Arc<Metadata>> = ReplicatedMap::new("metadata", replica_writer.alias());
 
     let mut replica_reader = ReplicaReader::new(brokers, "replicator_topic")
         .chain_err(|| format!("Replica reader creation failed (brokers: {}, topic: {})", brokers, topic_name))?;
