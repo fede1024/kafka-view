@@ -93,6 +93,10 @@ impl ReplicaWriter {
 // ********* REPLICA READER **********
 //
 
+pub trait UpdateReceiver: Send + 'static {
+    fn update(&self, name: &str, key_bytes: &[u8], msg: Message) -> Result<()>;
+}
+
 type ReplicaConsumer = StreamConsumer<EmptyConsumerContext>;
 
 pub struct ReplicaReader {
@@ -126,7 +130,7 @@ impl ReplicaReader {
         })
     }
 
-    pub fn start<F: 'static + Fn(&str, &[u8], Message) + Send>(&mut self, f: F) -> Result<()> {
+    pub fn start<R: UpdateReceiver>(&mut self, rec: R) -> Result<()> {
         let stream = self.consumer.start();
         let handle = thread::Builder::new()
             .name("replica consumer".to_string())
@@ -135,7 +139,7 @@ impl ReplicaReader {
                     Err(e) => format_error_chain(e),
                     Ok(state) => {
                         for (wrapped_key, message) in state {
-                            (f)(wrapped_key.cache_name(), wrapped_key.serialized_key(), message);
+                            rec.update(wrapped_key.cache_name(), wrapped_key.serialized_key(), message);
                         }
                     }
                 };
@@ -295,8 +299,10 @@ impl Cache {
             watermarks: self.watermarks.alias(),
         }
     }
+}
 
-    pub fn update_from_store(&self, name: &str, key_bytes: &[u8], msg: Message) -> Result<()> {
+impl UpdateReceiver for Cache {
+    fn update(&self, name: &str, key_bytes: &[u8], msg: Message) -> Result<()> {
         match name.as_ref() {
             "metadata" => {
                 let key = serde_cbor::from_slice::<String>(&key_bytes)

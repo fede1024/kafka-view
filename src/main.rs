@@ -56,10 +56,7 @@ fn run_kafka_web(config_path: &str) -> Result<()> {
     let mut replica_reader = ReplicaReader::new(brokers, topic_name)
         .chain_err(|| format!("Replica reader creation failed (brokers: {}, topic: {})", brokers, topic_name))?;
 
-    let cache_alias = cache.alias();
-    replica_reader.start(move |name, key_bytes, msg| {
-        cache_alias.update_from_store(name, key_bytes, msg).map_err(format_error_chain);
-    })
+    replica_reader.start(cache.alias())
         .chain_err(|| format!("Replica reader start failed (brokers: {}, topic: {})", brokers, topic_name))?;
 
     let mut metadata_fetcher = MetadataFetcher::new(cache.metadata.alias(), time::Duration::from_secs(10));
