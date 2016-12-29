@@ -1,4 +1,3 @@
-use iron::Plugin;
 use iron::prelude::{Request, Response};
 use iron::{IronResult, status};
 use staticfile::Static;
@@ -23,7 +22,7 @@ fn format_broker_list(brokers: &Vec<i32>) -> String {
 
 fn format_metadata(cluster_id: &str, metadata: Arc<Metadata>) -> PreEscaped<String> {
     html! {
-        h1 { "Metadata for " (cluster_id) }
+        h2 { "Metadata for " (cluster_id) }
         p { "Last update: " (metadata.refresh_time()) }
         ol {
             @for (name, partitions) in metadata.topics() {
@@ -47,7 +46,7 @@ pub fn home_handler(req: &mut Request) -> IronResult<Response> {
         content += &format_metadata(&cluster_id, metadata).into_string();
     }
 
-    let html = layout::page(PreEscaped(content));
+    let html = layout::page("Clusters", PreEscaped(content));
 
     Ok(Response::with((status::Ok, html)))
 }

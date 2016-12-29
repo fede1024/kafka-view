@@ -1,5 +1,6 @@
 use iron::typemap::Key;
 use iron::middleware::{AfterMiddleware, BeforeMiddleware};
+use iron::headers;
 use iron::prelude::*;
 
 use error::*;
@@ -8,7 +9,7 @@ use web_server::chain;
 use metadata::{ClusterId, Metadata};
 use std::sync::Arc;
 // use std::atomic::AtomicLong;
-use chrono::{DateTime, UTC};
+use chrono::{DateTime, UTC, Duration};
 
 
 pub struct MetadataCache;
@@ -33,9 +34,11 @@ impl BeforeMiddleware for RequestTimer {
 }
 
 impl AfterMiddleware for RequestTimer {
-    fn after(&self, request: &mut Request, response: Response) -> IronResult<Response> {
+    fn after(&self, request: &mut Request, mut response: Response) -> IronResult<Response> {
         let time = request.extensions.get::<RequestTimer>().unwrap();
-        println!(">> {}", UTC::now() - *time);
+        let millis = (UTC::now() - *time).num_milliseconds().to_string();
+        let mut pair = headers::CookiePair::new("request_time".to_owned(), millis.to_string());
+        response.headers.set(headers::SetCookie(vec![pair]));
         Ok(response)
     }
 }
@@ -53,7 +56,7 @@ pub fn run_server(metadata_cache: ReplicatedMap<ClusterId, Metadata>, debug: boo
     let _server_guard = Iron::new(chain).http(bind_addr.as_str())
         .chain_err(|| "Failed to start iron server")?;
 
-    let version = option_env!("CARGO_PKG_VERSION").unwrap_or("");
+    let version = option_env!("CARGO_PKG_VERSION").unwrap_or("?");
     info!("Running kafka-web v{} on port {}.", version, port);
 
     Ok(())
