@@ -7,7 +7,7 @@ use rdkafka::error::KafkaError;
 use rdkafka::message::Message;
 use serde::de::Deserialize;
 use serde::ser::Serialize;
-use serde_json;
+use serde_cbor;
 
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
@@ -20,15 +20,20 @@ use utils::format_error_chain;
 use metadata::Metadata;
 
 #[derive(Serialize, Deserialize, Debug, Hash, Eq, PartialEq)]
-struct WrappedKey {
-    cache_name: String,
-    key: String, // Should be bytes
-}
+struct WrappedKey(String, Vec<u8>);
 
 impl WrappedKey {
     fn new<K>(cache_name: String, key: &K) -> WrappedKey
             where K: Serialize + Deserialize {
-        WrappedKey {cache_name: cache_name, key: serde_json::to_string(key).unwrap() }  //TODO: error handling
+        WrappedKey(cache_name, serde_cbor::to_vec(key).unwrap())  //TODO: error handling
+    }
+
+    pub fn cache_name(&self) -> &str {
+        &self.0
+    }
+
+    pub fn serialized_key(&self) -> &[u8] {
+        &self.1
     }
 }
 
@@ -42,7 +47,7 @@ type ReplicatorTopic = FutureProducerTopic<EmptyProducerContext>;
 pub struct ReplicaWriter {
 //    brokers: String,
 //    topic_name: String,
-    producer_topic: Arc<ReplicatorTopic>,
+    producer_topic: ReplicatorTopic,
 }
 
 impl ReplicaWriter {
@@ -62,24 +67,19 @@ impl ReplicaWriter {
         let writer = ReplicaWriter {
 //            brokers: brokers.to_owned(),
 //            topic_name: topic_name.to_owned(),
-            producer_topic: Arc::new(topic),
+            producer_topic: topic,
         };
 
         Ok(writer)
     }
 
-    pub fn alias(&self) -> ReplicaWriter {
-        ReplicaWriter { producer_topic: self.producer_topic.clone() }
-    }
-
-    // TODO: add name to key
     // TODO: use structure for value
     pub fn write_update<K, V>(&self, name: &str, key: &K, value: &V) -> Result<()>
             where K: Serialize + Deserialize + Clone,
                   V: Serialize + Deserialize {
-        let serialized_key = serde_json::to_vec(&WrappedKey::new(name.to_owned(), key))
+        let serialized_key = serde_cbor::to_vec(&WrappedKey::new(name.to_owned(), key))
             .chain_err(|| "Failed to serialize key")?;
-        let serialized_value = serde_json::to_vec(&value)
+        let serialized_value = serde_cbor::to_vec(&value)
             .chain_err(|| "Failed to serialize value")?;
         trace!("Serialized value size: {}", serialized_value.len());
         let _f = self.producer_topic.send_copy(None, Some(&serialized_value), Some(&serialized_key))
@@ -126,7 +126,7 @@ impl ReplicaReader {
         })
     }
 
-    pub fn start<F: 'static + Fn(String, String, Message) + Send>(&mut self, f: F) -> Result<()> {
+    pub fn start<F: 'static + Fn(&str, &[u8], Message) + Send>(&mut self, f: F) -> Result<()> {
         let stream = self.consumer.start();
         let handle = thread::Builder::new()
             .name("replica consumer".to_string())
@@ -135,7 +135,7 @@ impl ReplicaReader {
                     Err(e) => format_error_chain(e),
                     Ok(state) => {
                         for (wrapped_key, message) in state {
-                            (f)(wrapped_key.cache_name, wrapped_key.key, message);
+                            (f)(wrapped_key.cache_name(), wrapped_key.serialized_key(), message);
                         }
                     }
                 };
@@ -179,7 +179,7 @@ fn parse_message_key(message: &Message) -> Result<WrappedKey> {
         None => bail!("Empty key found"),
     };
 
-    let wrapped_key = serde_json::from_slice::<WrappedKey>(key_bytes)
+    let wrapped_key = serde_cbor::from_slice::<WrappedKey>(key_bytes)
         .chain_err(|| "Failed to decode wrapped key")?;
     Ok(wrapped_key)
 }
@@ -213,13 +213,13 @@ pub struct ReplicatedMap<K, V>
               V: Clone + Serialize + Deserialize {
     name: String,
     cache_lock: Arc<RwLock<HashMap<K, V>>>,
-    replica_writer: ReplicaWriter,
+    replica_writer: Arc<ReplicaWriter>,
 }
 
 impl<K, V> ReplicatedMap<K, V>
         where K: Eq + Hash + Clone + Serialize + Deserialize,
               V: Clone + Serialize + Deserialize {
-    pub fn new(name: &str, replica_writer: ReplicaWriter) -> ReplicatedMap<K, V> {
+    pub fn new(name: &str, replica_writer: Arc<ReplicaWriter>) -> ReplicatedMap<K, V> {
         ReplicatedMap {
             name: name.to_owned(),
             cache_lock: Arc::new(RwLock::new(HashMap::new())),
@@ -231,7 +231,7 @@ impl<K, V> ReplicatedMap<K, V>
         ReplicatedMap {
             name: self.name.clone(),
             cache_lock: self.cache_lock.clone(),
-            replica_writer: self.replica_writer.alias(),
+            replica_writer: self.replica_writer.clone(),
         }
     }
 
@@ -282,9 +282,10 @@ pub struct Cache {
 
 impl Cache {
     pub fn new(replica_writer: ReplicaWriter) -> Cache {
+        let replica_writer_arc = Arc::new(replica_writer);
         Cache {
-            metadata: ReplicatedMap::new("metadata", replica_writer.alias()),
-            watermarks: ReplicatedMap::new("watermarks", replica_writer.alias()),
+            metadata: ReplicatedMap::new("metadata", replica_writer_arc.clone()),
+            watermarks: ReplicatedMap::new("watermarks", replica_writer_arc),
         }
     }
 
@@ -295,14 +296,14 @@ impl Cache {
         }
     }
 
-    pub fn update_from_store(&self, name: String, key_str: String, msg: Message) -> Result<()> {
+    pub fn update_from_store(&self, name: &str, key_bytes: &[u8], msg: Message) -> Result<()> {
         match name.as_ref() {
             "metadata" => {
-                let key = serde_json::from_str::<String>(&key_str)
+                let key = serde_cbor::from_slice::<String>(&key_bytes)
                     .chain_err(|| "Failed to parse key")?;
                 match msg.payload() {
                     Some(bytes) => {
-                        let metadata = serde_json::from_slice::<Metadata>(bytes)
+                        let metadata = serde_cbor::from_slice::<Metadata>(bytes)
                             .chain_err(|| "Failed to parse payload")?;
                         debug!("Sync metadata cache, key: {}", key);
                         self.metadata.sync_value_update(key, Arc::new(metadata));

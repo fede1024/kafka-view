@@ -18,6 +18,7 @@ extern crate staticfile;
 extern crate urlencoded;
 extern crate serde;
 extern crate serde_json;
+extern crate serde_cbor;
 
 
 mod cache;
@@ -56,12 +57,12 @@ fn run_kafka_web(config_path: &str) -> Result<()> {
         .chain_err(|| format!("Replica reader creation failed (brokers: {}, topic: {})", brokers, topic_name))?;
 
     let cache_alias = cache.alias();
-    replica_reader.start(move |name, key_str, msg| {
-        cache_alias.update_from_store(name, key_str, msg).map_err(format_error_chain);
+    replica_reader.start(move |name, key_bytes, msg| {
+        cache_alias.update_from_store(name, key_bytes, msg).map_err(format_error_chain);
     })
         .chain_err(|| format!("Replica reader start failed (brokers: {}, topic: {})", brokers, topic_name))?;
 
-    let mut metadata_fetcher = MetadataFetcher::new(cache.metadata.alias(), time::Duration::from_secs(60));
+    let mut metadata_fetcher = MetadataFetcher::new(cache.metadata.alias(), time::Duration::from_secs(10));
     for (cluster_name, cluster_config) in config.clusters() {
         metadata_fetcher.add_cluster(cluster_name, &cluster_config.broker_string())
             .chain_err(|| format!("Failed to add cluster {}", cluster_name))?;

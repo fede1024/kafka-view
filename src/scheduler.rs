@@ -76,11 +76,12 @@ fn scheduler_clock_loop<I, T>(period: Duration, tasks: Arc<RwLock<Vec<Arc<(I, T)
         loop {
             match futures.front_mut() {
                 Some(f) => {
-                    match f.poll() {
-                        Ok(Async::NotReady) => { trace!("Future not ready"); break; },
-                        Ok(Async::Ready(_)) => trace!("Future completed correctly"),
-                        Err(e) => format_error_chain(e),
-                    };
+                    // match f.poll() {
+                    //     Ok(Async::NotReady) => { trace!("Future not ready"); break; },
+                    //     Ok(Async::Ready(_)) => trace!("Future completed correctly"),
+                    //     Err(e) => format_error_chain(e),
+                    // };
+                    f.wait();  // TODO: fixme
                 },
                 None => break,
             };
