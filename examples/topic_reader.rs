@@ -23,7 +23,10 @@ fn cbor_to_json_str(cbor: &[u8]) -> String {
     let mut json_vec = Vec::new();
     {
         let mut serializer = serde_json::Serializer::new(&mut json_vec);
-        serde_transcode::transcode(&mut deserializer, &mut serializer).unwrap();
+        if let Err(e) = serde_transcode::transcode(&mut deserializer, &mut serializer) {
+            println!("Error: {:?}", e);
+            return "ERR".to_string();
+        };
         serializer.into_inner().flush().unwrap();
     }
     String::from_utf8(json_vec).unwrap()
@@ -72,7 +75,12 @@ fn consume_and_print(brokers: &str, topics: &Vec<&str>) {
                 };
                 println!("\n#### partition: {}, offset: {}", m.partition(), m.offset());
                 println!("Key wrapper: {}", cbor_to_json_str(key));
-                println!("Payload: {}...", &cbor_to_json_str(payload)[..120]);
+                let payload_dec = cbor_to_json_str(payload);
+                if payload_dec.len() > 400 {
+                    println!("Payload: {}...", &payload_dec[..400]);
+                } else {
+                    println!("Payload: {}", payload_dec);
+                }
                 consumer.commit_message(&m, CommitMode::Async);
             },
         };

@@ -135,7 +135,7 @@ impl ReplicaReader {
         let handle = thread::Builder::new()
             .name("replica consumer".to_string())
             .spawn(move || {
-                match rebuild_state(stream) {
+                match last_message_per_key(stream) {
                     Err(e) => format_error_chain(e),
                     Ok(state) => {
                         for (wrapped_key, message) in state {
@@ -150,14 +150,19 @@ impl ReplicaReader {
     }
 }
 
-fn rebuild_state(stream: MessageStream) -> Result<HashMap<WrappedKey, Message>> {
+fn last_message_per_key(stream: MessageStream) -> Result<HashMap<WrappedKey, Message>> {
     let mut EOF_set = HashSet::new();
     let mut state: HashMap<WrappedKey, Message> = HashMap::new();
 
     trace!("Started creating state");
     for message in stream.wait() {
         match message {
-            Ok(m) => { update_startup_map(m, &mut state).map_err(format_error_chain); },
+            Ok(m) => {
+                match parse_message_key(&m).chain_err(|| "Failed to parse message key") {
+                    Ok(wrapped_key) => { state.insert(wrapped_key, m); () },
+                    Err(e) => format_error_chain(e),
+                };
+            },
             Err(KafkaError::PartitionEOF(p)) => { EOF_set.insert(p); () },
             Err(e) => error!("Cosumption error: {}", e),
         };
@@ -168,13 +173,6 @@ fn rebuild_state(stream: MessageStream) -> Result<HashMap<WrappedKey, Message>> 
     trace!("State creation terminated");
 
     Ok(state)
-}
-
-fn update_startup_map(message: Message, state: &mut HashMap<WrappedKey, Message>) -> Result<()> {
-    let wrapped_key = parse_message_key(&message)
-        .chain_err(|| "Failed to parse message key")?;
-    state.insert(wrapped_key, message);
-    Ok(())
 }
 
 fn parse_message_key(message: &Message) -> Result<WrappedKey> {
