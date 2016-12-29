@@ -64,15 +64,6 @@ impl<I: Eq + Send + Sync + 'static, T: ScheduledTask> Scheduler<I, T> {
     }
 }
 
-// fn run_task<T: ScheduledTask>(task: &T, pool: &CpuPool) -> CpuFuture<(), error::Error> {
-//     let ret_value = pool.spawn_fn(|| {
-//         let result = futures::done(task.run());
-//         result
-//     });
-//
-//     ret_value
-// }
-
 fn scheduler_clock_loop<I, T>(period: Duration, tasks: Arc<RwLock<Vec<Arc<(I, T)>>>>,
                               cpu_pool: CpuPool, should_stop: Arc<AtomicBool>)
     where I: Eq + Send + Sync + 'static,

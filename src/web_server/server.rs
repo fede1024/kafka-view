@@ -10,15 +10,16 @@ use metadata::{ClusterId, Metadata};
 use std::sync::Arc;
 // use std::atomic::AtomicLong;
 use chrono::{DateTime, UTC};
+use cache::Cache;
 
 
-pub struct MetadataCache;
+pub struct CacheType;
 
-impl Key for MetadataCache { type Value = ReplicatedMap<ClusterId, Arc<Metadata>>; }
+impl Key for CacheType { type Value = Cache; }
 
-impl BeforeMiddleware for ReplicatedMap<ClusterId, Arc<Metadata>> {
+impl BeforeMiddleware for Cache {
     fn before(&self, request: &mut Request) -> IronResult<()> {
-        request.extensions.insert::<MetadataCache>(self.alias());
+        request.extensions.insert::<CacheType>(self.alias());
         Ok(())
     }
 }
@@ -43,12 +44,10 @@ impl AfterMiddleware for RequestTimer {
     }
 }
 
-pub fn run_server(metadata_cache: ReplicatedMap<ClusterId, Arc<Metadata>>, debug: bool) -> Result<()> {
-    // let metadata_cache_ref = MetadataCache { cache: metadata_cache };
-
+pub fn run_server(cache: Cache, debug: bool) -> Result<()> {
     let mut chain = chain::chain();
     chain.link_before(RequestTimer);
-    chain.link_before(metadata_cache);
+    chain.link_before(cache);
     chain.link_after(RequestTimer);
 
     let port = 3000;

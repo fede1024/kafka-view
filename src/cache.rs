@@ -17,6 +17,7 @@ use std::thread;
 
 use error::*;
 use utils::format_error_chain;
+use metadata::Metadata;
 
 #[derive(Serialize, Deserialize, Debug, Hash, Eq, PartialEq)]
 struct WrappedKey {
@@ -30,6 +31,10 @@ impl WrappedKey {
         WrappedKey {cache_name: cache_name, key: serde_json::to_string(key).unwrap() }  //TODO: error handling
     }
 }
+
+//
+// ********* REPLICA WRITER **********
+//
 
 type ReplicatorProducer = FutureProducer<EmptyProducerContext>;
 type ReplicatorTopic = FutureProducerTopic<EmptyProducerContext>;
@@ -84,6 +89,9 @@ impl ReplicaWriter {
     }
 }
 
+//
+// ********* REPLICA READER **********
+//
 
 type ReplicaConsumer = StreamConsumer<EmptyConsumerContext>;
 
@@ -260,6 +268,55 @@ impl<K, V> ReplicatedMap<K, V>
     }
 }
 
+//
+// ********** CACHE **********
+//
+
+pub type MetadataCache = ReplicatedMap<String, Arc<Metadata>>;
+pub type WatermarkCache = ReplicatedMap<String, (i64, i64)>;
+
+pub struct Cache {
+    pub metadata: MetadataCache,
+    pub watermarks: WatermarkCache,
+}
+
+impl Cache {
+    pub fn new(replica_writer: ReplicaWriter) -> Cache {
+        Cache {
+            metadata: ReplicatedMap::new("metadata", replica_writer.alias()),
+            watermarks: ReplicatedMap::new("watermarks", replica_writer.alias()),
+        }
+    }
+
+    pub fn alias(&self) -> Cache {
+        Cache {
+            metadata: self.metadata.alias(),
+            watermarks: self.watermarks.alias(),
+        }
+    }
+
+    pub fn update_from_store(&self, name: String, key_str: String, msg: Message) -> Result<()> {
+        match name.as_ref() {
+            "metadata" => {
+                let key = serde_json::from_str::<String>(&key_str)
+                    .chain_err(|| "Failed to parse key")?;
+                match msg.payload() {
+                    Some(bytes) => {
+                        let metadata = serde_json::from_slice::<Metadata>(bytes)
+                            .chain_err(|| "Failed to parse payload")?;
+                        debug!("Sync metadata cache, key: {}", key);
+                        self.metadata.sync_value_update(key, Arc::new(metadata));
+                    },
+                    None => bail!("Delete not implemented!"),
+                };
+            },
+            _ => {
+                bail!("Unknown cache name: {}", name);
+            },
+        };
+        Ok(())
+    }
+}
 // pub struct Cache<K, V>
 //   where K: Eq + Hash + Serialize + Deserialize,
 //         V: Serialize + Deserialize {

@@ -7,7 +7,7 @@ use maud::PreEscaped;
 use std::path::Path;
 use std::sync::Arc;
 
-use web_server::server::MetadataCache;
+use web_server::server::CacheType;
 use web_server::view::layout;
 use metadata::Metadata;
 
@@ -37,11 +37,11 @@ fn format_metadata(cluster_id: &str, metadata: Arc<Metadata>) -> PreEscaped<Stri
 }
 
 pub fn home_handler(req: &mut Request) -> IronResult<Response> {
-    let metadata_cache = req.extensions.get::<MetadataCache>().unwrap();
+    let cache = req.extensions.get::<CacheType>().unwrap();
 
     let mut content = "".to_string();
-    for cluster_id in metadata_cache.keys() {
-        let metadata = metadata_cache.get(&cluster_id.to_string()).unwrap();
+    for cluster_id in cache.metadata.keys() {
+        let metadata = cache.metadata.get(&cluster_id.to_string()).unwrap();
         content += &format_metadata(&cluster_id, metadata).into_string();
     }
 
