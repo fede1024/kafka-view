@@ -4,24 +4,28 @@ use rdkafka::config::ClientConfig;
 use rdkafka::error as rderror;
 
 use error::*;
-use scheduler::ScheduledTask;
-use scheduler::Scheduler;
+use scheduler::{Scheduler, ScheduledTask};
 use cache::ReplicatedMap;
 use std::time::Duration;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
+// TODO: Use structs?
+pub type BrokerId = i32;
+pub type ClusterId = String;
+pub type TopicName = String;
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Partition {
     pub id: i32,
-    pub leader: i32,
-    pub replicas: Vec<i32>,
-    pub isr: Vec<i32>,
+    pub leader: BrokerId,
+    pub replicas: Vec<BrokerId>,
+    pub isr: Vec<BrokerId>,
     pub error: Option<String>
 }
 
 impl Partition {
-    fn new(id: i32, leader: i32, replicas: Vec<i32>, isr: Vec<i32>, error: Option<String>) -> Partition {
+    fn new(id: i32, leader: BrokerId, replicas: Vec<BrokerId>, isr: Vec<BrokerId>, error: Option<String>) -> Partition {
         Partition {
             id: id,
             leader: leader,
@@ -34,28 +38,27 @@ impl Partition {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Broker {
-    id: i32,
-    host: String,
-    port: i32
+    pub id: BrokerId,
+    pub hostname: String,
+    pub port: i32
 }
 
 impl Broker {
-    fn new(id: i32, host: String, port: i32) -> Broker {
+    fn new(id: BrokerId, hostname: String, port: i32) -> Broker {
         Broker {
             id: id,
-            host: host,
+            hostname: hostname,
             port: port
         }
     }
 }
 
-pub type TopicName = String;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Metadata {
-    brokers: Vec<Broker>,
-    topics: BTreeMap<TopicName, Vec<Partition>>,
-    refresh_time: DateTime<UTC>,
+    pub brokers: Vec<Broker>,
+    pub topics: BTreeMap<TopicName, Vec<Partition>>,
+    pub refresh_time: DateTime<UTC>,
 }
 
 impl Metadata {
@@ -65,14 +68,6 @@ impl Metadata {
             topics: topics,
             refresh_time: UTC::now(),
         }
-    }
-
-    pub fn topics(&self) -> &BTreeMap<TopicName, Vec<Partition>> {
-        &self.topics
-    }
-
-    pub fn refresh_time(&self) -> DateTime<UTC> {
-        self.refresh_time
     }
 }
 
@@ -99,7 +94,6 @@ fn fetch_metadata(consumer: &BaseConsumer<EmptyConsumerContext>, timeout_ms: i32
     Ok(Metadata::new(brokers, topics))
 }
 
-pub type ClusterId = String;
 
 struct MetadataFetcherTask {
     cluster_id: ClusterId,
@@ -162,12 +156,4 @@ impl MetadataFetcher {
         self.scheduler.add_task(cluster_id.to_owned(), task);
         Ok(())
     }
-
-    // pub fn clusters(&self) -> Vec<ClusterId> {
-    //     self.cache.keys()
-    // }
-
-    // pub fn get_metadata(&self, cluster_id: &ClusterId) -> Option<Arc<Metadata>> {
-    //     self.cache.get(cluster_id)
-    // }
 }

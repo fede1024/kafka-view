@@ -6,7 +6,7 @@ use std::collections::VecDeque;
 use std::cmp;
 
 use futures_cpupool::{Builder, CpuPool};
-use futures::{Async, Future, BoxFuture};
+use futures::{Future, BoxFuture};
 
 use error::*;
 use utils::format_error_chain;
@@ -69,31 +69,38 @@ fn scheduler_clock_loop<I, T>(period: Duration, tasks: Arc<RwLock<Vec<Arc<(I, T)
     where I: Eq + Send + Sync + 'static,
           T: ScheduledTask {
     let mut index = 0;
-    let mut futures: VecDeque<BoxFuture<(), Error>> = VecDeque::new();
+    let mut futures: VecDeque<(Arc<AtomicBool>, BoxFuture<(), Error>)> = VecDeque::new();
     thread::sleep(Duration::from_millis(100));  // Wait for task enqueuing
     while !should_stop.load(Ordering::Relaxed) {
-        /// Removes completed futures from the deque
+        // Removes completed futures from the deque
         loop {
-            match futures.front_mut() {
+            match futures.pop_front() {
                 Some(f) => {
-                    // match f.poll() {
-                    //     Ok(Async::NotReady) => { trace!("Future not ready"); break; },
-                    //     Ok(Async::Ready(_)) => trace!("Future completed correctly"),
-                    //     Err(e) => format_error_chain(e),
-                    // };
-                    f.wait();  // TODO: fixme
+                    if f.0.load(Ordering::Relaxed) {
+                        match f.1.wait() {
+                            Ok(_) => trace!("Future completed correctly, {} pending", futures.len()),
+                            Err(e) => format_error_chain(e),
+                        };
+                    } else {
+                        trace!("Future not ready");
+                        futures.push_back(f);
+                        break;
+                    }
                 },
                 None => break,
             };
-            futures.pop_front();
         }
         let n_tasks = {
             let tasks = tasks.read().unwrap();
+            let complete = Arc::new(AtomicBool::new(false));
             let task_clone = tasks[index].clone();
+            let complete_clone = complete.clone();
             let f = cpu_pool.spawn_fn(move || {
-                task_clone.1.run()
+                let res = task_clone.1.run();
+                complete_clone.store(true, Ordering::Relaxed);
+                res
             });
-            futures.push_back(f.boxed());
+            futures.push_back((complete, f.boxed()));
             index = (index + 1) % tasks.len();
             tasks.len()
         };

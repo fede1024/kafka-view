@@ -1,22 +1,27 @@
+#![feature(proc_macro)]
+
 #[macro_use] extern crate log;
 extern crate env_logger;
 extern crate clap;
 extern crate futures;
 extern crate rdkafka;
 extern crate serde;
+#[macro_use] extern crate serde_derive;
 extern crate serde_cbor;
 extern crate serde_json;
 extern crate serde_transcode;
 
 use clap::{App, Arg};
 use futures::stream::Stream;
-
 use rdkafka::consumer::{Consumer, CommitMode};
 use rdkafka::consumer::stream_consumer::StreamConsumer;
 use rdkafka::config::{ClientConfig, TopicConfig};
 use rdkafka::util::get_rdkafka_version;
 use std::io::Write;
 
+
+#[derive(Deserialize)]
+struct WrappedKey(String, Vec<u8>);
 
 fn cbor_to_json_str(cbor: &[u8]) -> String {
     let mut deserializer = serde_cbor::de::Deserializer::new(cbor);
@@ -30,6 +35,17 @@ fn cbor_to_json_str(cbor: &[u8]) -> String {
         serializer.into_inner().flush().unwrap();
     }
     String::from_utf8(json_vec).unwrap()
+}
+
+fn parse_key(cbor: &[u8]) -> (String, String) {
+    let wrapped_key = serde_cbor::from_slice::<WrappedKey>(cbor);
+    if let Err(e) = wrapped_key {
+        println!("Error parsing wrapped key: {:?}", e);
+        return ("?".to_owned(), "?".to_owned());
+    }
+    let wrapped_key = wrapped_key.unwrap();
+
+    (wrapped_key.0.clone(), cbor_to_json_str(&wrapped_key.1))
 }
 
 fn consume_and_print(brokers: &str, topics: &Vec<&str>) {
@@ -47,11 +63,7 @@ fn consume_and_print(brokers: &str, topics: &Vec<&str>) {
 
     consumer.subscribe(topics).expect("Can't subscribe to specified topics");
 
-    // consumer.start() returns a stream. The stream can be used ot chain together expensive steps,
-    // such as complext computations on a thread pool or asynchronous IO.
-    let message_stream = consumer.start();
-
-    for message in message_stream.wait() {
+    for message in consumer.start().wait() {
         match message {
             Err(e) => {
                 warn!("Can't receive message: {:?}", e);
@@ -73,13 +85,15 @@ fn consume_and_print(brokers: &str, topics: &Vec<&str>) {
                         &[]
                     },
                 };
-                println!("\n#### partition: {}, offset: {}", m.partition(), m.offset());
-                println!("Key wrapper: {}", cbor_to_json_str(key));
+                println!("\n#### {}:{}, o:{}, s:{:.3}KB", topics[0], m.partition(), m.offset(),
+                         (m.payload_len() as f64 / 1000f64));
+                let (cache_name, cache_key) = parse_key(key);
+                println!("{}: {}", cache_name, cache_key);
                 let payload_dec = cbor_to_json_str(payload);
                 if payload_dec.len() > 400 {
-                    println!("Payload: {}...", &payload_dec[..400]);
+                    println!("{}...", &payload_dec[..400]);
                 } else {
-                    println!("Payload: {}", payload_dec);
+                    println!("{}", payload_dec);
                 }
                 consumer.commit_message(&m, CommitMode::Async);
             },

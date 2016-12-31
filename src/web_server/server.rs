@@ -4,11 +4,8 @@ use iron::headers;
 use iron::prelude::*;
 
 use error::*;
-use cache::ReplicatedMap;
 use web_server::chain;
-use metadata::{ClusterId, Metadata};
 use std::sync::Arc;
-// use std::atomic::AtomicLong;
 use chrono::{DateTime, UTC};
 use cache::Cache;
 
@@ -44,7 +41,7 @@ impl AfterMiddleware for RequestTimer {
     }
 }
 
-pub fn run_server(cache: Cache, debug: bool) -> Result<()> {
+pub fn run_server(cache: Cache) -> Result<()> {
     let mut chain = chain::chain();
     chain.link_before(RequestTimer);
     chain.link_before(cache);

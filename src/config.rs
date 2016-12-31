@@ -23,15 +23,20 @@ impl ClusterConfig {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+pub struct CachingConfig {
+    pub cluster: String,
+    pub topic: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Config {
-    clusters: HashMap<String, ClusterConfig>
+    pub metadata_refresh: u64,
+    pub metrics_refresh: u64,
+    pub clusters: HashMap<String, ClusterConfig>,
+    pub caching: CachingConfig,
 }
 
 impl Config {
-    pub fn clusters(&self) -> &HashMap<String, ClusterConfig> {
-        &self.clusters
-    }
-
     pub fn cluster(&self, cluster_name: &str) -> Option<&ClusterConfig> {
         self.clusters.get(cluster_name)
     }

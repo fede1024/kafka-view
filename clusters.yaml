@@ -1,6 +1,0 @@
----
-  clusters:
-    local_cluster:
-      broker_list:
-        - "localhost:9092"
-      zookeeper: "localhost"

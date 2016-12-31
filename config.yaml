@@ -1,0 +1,12 @@
+---
+  metadata_refresh: 20
+  metrics_refresh: 60
+  caching:
+    cluster: local_cluster
+    topic: replicator_topic
+
+  clusters:
+    local_cluster:
+      broker_list:
+        - localhost:9092
+      zookeeper: localhost

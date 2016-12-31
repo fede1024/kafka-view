@@ -17,7 +17,9 @@ use std::thread;
 
 use error::*;
 use utils::format_error_chain;
-use metadata::Metadata;
+use metadata::{BrokerId, ClusterId, Metadata};
+use metrics::BrokerMetrics;
+
 
 #[derive(Serialize, Deserialize, Debug, Hash, Eq, PartialEq)]
 struct WrappedKey(String, Vec<u8>);
@@ -138,8 +140,10 @@ impl ReplicaReader {
                 match last_message_per_key(stream) {
                     Err(e) => format_error_chain(e),
                     Ok(state) => {
-                        for (wrapped_key, message) in state {
-                            rec.update(wrapped_key.cache_name(), wrapped_key.serialized_key(), message);
+                        for (w_key, message) in state {
+                            if let Err(e) = rec.update(w_key.cache_name(), w_key.serialized_key(), message) {
+                                format_error_chain(e);
+                            }
                         }
                     }
                 };
@@ -208,13 +212,15 @@ fn parse_message_key(message: &Message) -> Result<WrappedKey> {
 //     }
 // }
 
+//
+// ********** REPLICATEDMAP **********
+//
 
-// TODO? use inner object with one Arc?
 pub struct ReplicatedMap<K, V>
         where K: Eq + Hash + Clone + Serialize + Deserialize,
               V: Clone + Serialize + Deserialize {
     name: String,
-    cache_lock: Arc<RwLock<HashMap<K, V>>>,
+    cache_lock: Arc<RwLock<HashMap<K, RwLock<V>>>>,
     replica_writer: Arc<ReplicaWriter>,
 }
 
@@ -249,8 +255,21 @@ impl<K, V> ReplicatedMap<K, V>
     }
 
     pub fn sync_value_update(&self, key: K, value: V) {
+        match self.cache_lock.read() {
+            Ok(cache) => {
+                let cell_lock = (*cache).get(&key);
+                if cell_lock.is_some() {
+                    match cell_lock.unwrap().write() {
+                        Ok(mut cell) => (*cell) = value,
+                        Err(_) => panic!("Poison error"),
+                    };
+                    return;
+                }
+            },
+            Err(_) => panic!("Poison error"),
+        };
         match self.cache_lock.write() {
-            Ok(mut cache) => (*cache).insert(key, value),
+            Ok(mut cache) => (*cache).insert(key, RwLock::new(value)),
             Err(_) => panic!("Poison error"),
         };
     }
@@ -264,7 +283,15 @@ impl<K, V> ReplicatedMap<K, V>
 
     pub fn get(&self, key: &K) -> Option<V> {
         match self.cache_lock.read() {
-            Ok(cache) => (*cache).get(key).map(|v| v.clone()),
+            Ok(cache) => match (*cache).get(key) {
+                Some(cell_lock) => {
+                    match cell_lock.read() {
+                        Ok(value) => Some(value.clone()),
+                        Err(_) => panic!("Poison error"),
+                    }
+                },
+                None => None,
+            },
             Err(_) => panic!("Poison error"),
         }
     }
@@ -274,12 +301,12 @@ impl<K, V> ReplicatedMap<K, V>
 // ********** CACHE **********
 //
 
-pub type MetadataCache = ReplicatedMap<String, Arc<Metadata>>;
-pub type WatermarkCache = ReplicatedMap<String, (i64, i64)>;
+pub type MetadataCache = ReplicatedMap<ClusterId, Arc<Metadata>>;
+pub type MetricsCache = ReplicatedMap<(ClusterId, BrokerId), BrokerMetrics>;
 
 pub struct Cache {
     pub metadata: MetadataCache,
-    pub watermarks: WatermarkCache,
+    pub metrics: MetricsCache,
 }
 
 impl Cache {
@@ -287,41 +314,55 @@ impl Cache {
         let replica_writer_arc = Arc::new(replica_writer);
         Cache {
             metadata: ReplicatedMap::new("metadata", replica_writer_arc.clone()),
-            watermarks: ReplicatedMap::new("watermarks", replica_writer_arc),
+            metrics: ReplicatedMap::new("metrics", replica_writer_arc),
         }
     }
 
     pub fn alias(&self) -> Cache {
         Cache {
             metadata: self.metadata.alias(),
-            watermarks: self.watermarks.alias(),
+            metrics: self.metrics.alias(),
         }
     }
 }
 
 impl UpdateReceiver for Cache {
-    fn update(&self, name: &str, key_bytes: &[u8], msg: Message) -> Result<()> {
-        match name.as_ref() {
+    fn update(&self, cache_name: &str, key_bytes: &[u8], msg: Message) -> Result<()> {
+        match cache_name.as_ref() {
             "metadata" => {
-                let key = serde_cbor::from_slice::<String>(&key_bytes)
-                    .chain_err(|| "Failed to parse key")?;
+                let cluster_id = serde_cbor::from_slice::<ClusterId>(&key_bytes)
+                    .chain_err(|| "Failed to parse cluster_id in key")?;
                 match msg.payload() {
                     Some(bytes) => {
                         let metadata = serde_cbor::from_slice::<Metadata>(bytes)
-                            .chain_err(|| "Failed to parse payload")?;
-                        debug!("Sync metadata cache, key: {}", key);
-                        self.metadata.sync_value_update(key, Arc::new(metadata));
+                            .chain_err(|| "Failed to parse metadata payload")?;
+                        debug!("Sync metadata cache, cluster_id: {}", cluster_id);
+                        self.metadata.sync_value_update(cluster_id, Arc::new(metadata));
+                    },
+                    None => bail!("Delete not implemented!"),
+                };
+            },
+            "metrics" => {
+                let broker = serde_cbor::from_slice::<(ClusterId, BrokerId)>(&key_bytes)
+                    .chain_err(|| "Failed to parse key")?;
+                match msg.payload() {
+                    Some(bytes) => {
+                        let broker_metrics = serde_cbor::from_slice::<BrokerMetrics>(bytes)
+                            .chain_err(|| "Failed to parse metrics payload")?;
+                        debug!("Sync metadata cache, key: {:?}", broker);
+                        self.metrics.sync_value_update(broker, broker_metrics);
                     },
                     None => bail!("Delete not implemented!"),
                 };
             },
             _ => {
-                bail!("Unknown cache name: {}", name);
+                bail!("Unknown cache name: {}", cache_name);
             },
         };
         Ok(())
     }
 }
+
 // pub struct Cache<K, V>
 //   where K: Eq + Hash + Serialize + Deserialize,
 //         V: Serialize + Deserialize {

@@ -13,10 +13,12 @@ extern crate futures;
 extern crate futures_cpupool;
 extern crate maud;
 extern crate mount;
+extern crate regex;
 extern crate rdkafka;
 extern crate staticfile;
 extern crate urlencoded;
 extern crate serde;
+extern crate curl;
 extern crate serde_json;
 extern crate serde_cbor;
 
@@ -25,6 +27,7 @@ mod cache;
 mod config;
 mod error;
 mod metadata;
+mod metrics;
 mod scheduler;
 mod utils;
 mod web_server;
@@ -33,40 +36,51 @@ use clap::{App, Arg, ArgMatches};
 
 use std::time;
 use std::thread;
-use std::sync::Arc;
+use time::Duration;
 
-use rdkafka::message::Message;
-
-use cache::{Cache, ReplicatedMap, ReplicaReader, ReplicaWriter};
+use cache::{Cache, ReplicaReader, ReplicaWriter};
 use error::*;
-use metadata::{Metadata, MetadataFetcher};
+use metrics::MetricsFetcher;
+use metadata::MetadataFetcher;
 use utils::format_error_chain;
+
 
 fn run_kafka_web(config_path: &str) -> Result<()> {
     let config = config::read_config(config_path)
         .chain_err(|| format!("Unable to load configuration from '{}'", config_path))?;
-    let brokers = "localhost:9092";
-    let topic_name = "replicator_topic";
+    let brokers = match config.cluster(&config.caching.cluster) {
+        Some(cluster) => cluster.broker_string(),
+        None => bail!("Can't find cache cluster {}", config.caching.cluster),
+    };
+    let topic_name = &config.caching.topic;
 
-    let replica_writer = ReplicaWriter::new(brokers, topic_name)
+    let replica_writer = ReplicaWriter::new(&brokers, topic_name)
         .chain_err(|| format!("Replica writer creation failed (brokers: {}, topic: {})", brokers, topic_name))?;
-
     let cache = Cache::new(replica_writer);
-
-    let mut replica_reader = ReplicaReader::new(brokers, topic_name)
+    let mut replica_reader = ReplicaReader::new(&brokers, topic_name)
         .chain_err(|| format!("Replica reader creation failed (brokers: {}, topic: {})", brokers, topic_name))?;
-
     replica_reader.start(cache.alias())
         .chain_err(|| format!("Replica reader start failed (brokers: {}, topic: {})", brokers, topic_name))?;
 
-    let mut metadata_fetcher = MetadataFetcher::new(cache.metadata.alias(), time::Duration::from_secs(10));
-    for (cluster_name, cluster_config) in config.clusters() {
+    let mut metadata_fetcher = MetadataFetcher::new(cache.metadata.alias(),
+                                                    Duration::from_secs(config.metadata_refresh));
+    for (cluster_name, cluster_config) in &config.clusters {
         metadata_fetcher.add_cluster(cluster_name, &cluster_config.broker_string())
             .chain_err(|| format!("Failed to add cluster {}", cluster_name))?;
         info!("Added cluster {}", cluster_name);
     }
 
-    web_server::server::run_server(cache, true)
+    thread::sleep_ms(15000);
+    let mut metrics_fetcher = MetricsFetcher::new(cache.metrics.alias(),
+                                                  Duration::from_secs(config.metrics_refresh));
+    for cluster_id in &cache.metadata.keys() {
+        let metadata = cache.metadata.get(cluster_id).unwrap(); //TODO: fix race condition?
+        for broker in &metadata.brokers {
+            metrics_fetcher.add_broker(cluster_id, broker.id, &broker.hostname);
+        }
+    }
+
+    web_server::server::run_server(cache)
         .chain_err(|| "Server initialization failed")?;
 
     loop {
@@ -98,6 +112,7 @@ fn main() {
 
     let config_path = matches.value_of("conf").unwrap();
 
+    info!("Kafka-web is starting up!");
     if let Err(e) = run_kafka_web(config_path) {
         format_error_chain(e);
         std::process::exit(1);
