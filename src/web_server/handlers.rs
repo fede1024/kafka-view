@@ -51,9 +51,9 @@ fn build_topic_metrics(cluster_id: &str, metadata: &Metadata, metrics: &MetricsC
     for broker in &metadata.brokers {
         if let Some(broker_metrics) = metrics.get(&(cluster_id.to_owned(), broker.id)) {
             for (topic_name, rate) in broker_metrics.topics {
-                if rate < 0.001 {
-                    continue;
-                }
+                // if rate < 0.001 {
+                //     continue;
+                // }
                 // Keep an eye on RFC 1769
                 *result.entry(topic_name.to_owned()).or_insert(0f64) += rate;
             }
@@ -77,6 +77,30 @@ pub fn home_handler(req: &mut Request) -> IronResult<Response> {
     Ok(Response::with((status::Ok, html)))
 }
 
+
+
+fn topic_table(metadata: Arc<Metadata>, topic_metrics: &HashMap<String, f64>) -> PreEscaped<String> {
+    html! {
+        table width="100%" class="table table-striped table-bordered table-hover load-datatable" {
+            thead {
+                tr { th "Topic name" th "#Partitions" th "Byte rate" }
+            }
+            tbody {
+                @for (topic_name, partitions) in &metadata.topics {
+                    @let rate = topic_metrics.get(topic_name).unwrap_or(&-1000f64) / 1000f64 {
+                        tr {
+                            td (topic_name)
+                            td (partitions.len())
+                            td data-toggle="tooltip" title="Average over the last 15 minutes"
+                                (format!("{:.1} KB/s", rate))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 pub fn cluster_handler(req: &mut Request) -> IronResult<Response> {
     let cache = req.extensions.get::<CacheType>().unwrap();
     let cluster_id = req.extensions.get::<Router>().unwrap().find("cluster_id").unwrap();
@@ -89,25 +113,11 @@ pub fn cluster_handler(req: &mut Request) -> IronResult<Response> {
         return Ok(Response::with((status::Ok, html)));
     }
 
-    // let mut content = "".to_string();
-    // for cluster_id in cache.metadata.keys() {
-    //     let metadata = cache.metadata.get(&cluster_id.to_string()).unwrap();
-    //     let topic_metrics = build_topic_metrics(&cluster_id, &metadata, &cache.metrics);
-    //     content += &format_metadata(&cluster_id, metadata, topic_metrics).into_string();
-    // }
-
-    let heads = vec![html!("Name"), html!("Partitions"), html!("Traffic"), html!("Errors")];
-    let rows = vec![
-        vec![html!("Name"), html!("Partitions"), html!("Traffic"), html!("Errors")],
-        vec![html!("Name"), html!("Partitions"), html!("Traffic"), html!("Errors")],
-        vec![html!("Name"), html!("Partitions"), html!("Traffic"), html!("Errors")],
-        vec![html!("Name"), html!("Partitions"), html!("Traffic"), html!("Errors")],
-    ];
-
-    let content = layout::panel(html!((cluster_id)), layout::table(heads.iter(), rows.iter())).into_string();
-
-    let page_title = format!("Cluster: {}", cluster_id);
-    let html = layout::page(&page_title, PreEscaped(content));
+    let metadata = cache.metadata.get(&cluster_id.to_string()).unwrap();
+    let topic_metrics = build_topic_metrics(&cluster_id, &metadata, &cache.metrics);
+    let html = layout::page(&format!("Cluster: {}", cluster_id),
+                            layout::panel(html! { "Topics - last update: " (metadata.refresh_time) },
+                                          topic_table(metadata, &topic_metrics)));
 
     Ok(Response::with((status::Ok, html)))
 }

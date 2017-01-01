@@ -35,8 +35,9 @@ impl AfterMiddleware for RequestTimer {
     fn after(&self, request: &mut Request, mut response: Response) -> IronResult<Response> {
         let time = request.extensions.get::<RequestTimer>().unwrap();
         let millis = (UTC::now() - *time).num_milliseconds().to_string();
-        let pair = headers::CookiePair::new("request_time".to_owned(), millis.to_string());
-        response.headers.set(headers::SetCookie(vec![pair]));
+        let mut cookie = headers::CookiePair::new("request_time".to_owned(), millis.to_string());
+        cookie.max_age = Some(10);
+        response.headers.set(headers::SetCookie(vec![cookie]));
         Ok(response)
     }
 }

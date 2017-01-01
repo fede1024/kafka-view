@@ -23,7 +23,7 @@ pub fn table<'a, H, R>(headers: H, rows: R) -> PreEscaped<String>
           R: Iterator<Item=&'a Vec<PreEscaped<String>>>
     {
     html! {
-        table width="100%" class="table table-striped table-bordered table-hover table-responsive" {
+        table width="100%" class="table table-striped table-bordered table-hover load-datatable" {
             thead {
                 tr {
                     @for header in headers {
@@ -164,7 +164,7 @@ fn body(page_title: &str, content: PreEscaped<String>) -> PreEscaped<String> {
                 div class="row" {
                     div class="col-md-4" style="text-align: center;" { "Kafka-web" }
                     div class="col-md-4" style="text-align: center;" {
-                        "Version:" (option_env!("CARGO_PKG_VERSION").unwrap_or("unknown"))
+                        "Version: " (option_env!("CARGO_PKG_VERSION").unwrap_or("unknown"))
                     }
                     div class="col-md-4" style="text-align: center;" {
                         "Request time: " span id="request_time" "loading"
