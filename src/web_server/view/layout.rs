@@ -1,5 +1,49 @@
 use maud::PreEscaped;
 
+pub fn notification(n_type: &str, content: PreEscaped<String>) -> PreEscaped<String> {
+    let alert_class = format!("alert alert-{}", n_type);
+    html! {
+        div class=(alert_class) {
+            (content)
+        }
+    }
+}
+
+pub fn panel(title: PreEscaped<String>, content: PreEscaped<String>) -> PreEscaped<String> {
+    html! {
+        div class="panel panel-default" {
+            div class="panel-heading" (title)
+            div class="panel-body" (content)
+        }
+    }
+}
+
+pub fn table<'a, H, R>(headers: H, rows: R) -> PreEscaped<String>
+    where H: Iterator<Item=&'a PreEscaped<String>>,
+          R: Iterator<Item=&'a Vec<PreEscaped<String>>>
+    {
+    html! {
+        table width="100%" class="table table-striped table-bordered table-hover table-responsive" {
+            thead {
+                tr {
+                    @for header in headers {
+                        th (header)
+                    }
+                }
+            }
+            tbody {
+                @for row in rows {
+                    tr class="odd" {
+                        @for column in row {
+                            td (column)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 fn header(title: &str) -> PreEscaped<String> {
     html! {
         meta charset="utf-8" {}
@@ -8,9 +52,10 @@ fn header(title: &str) -> PreEscaped<String> {
         title (title)
         link href="/public/sb-admin-2/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet" {}
         link href="/public/sb-admin-2/vendor/metisMenu/metisMenu.min.css" rel="stylesheet" {}
+        link href="/public/sb-admin-2/vendor/datatables-plugins/dataTables.bootstrap.css" rel="stylesheet" {}
+        link href="/public/sb-admin-2/vendor/datatables-responsive/dataTables.responsive.css" rel="stylesheet" {}
         link href="/public/sb-admin-2/dist/css/sb-admin-2.css" rel="stylesheet" {}
-        link href="/public/sb-admin-2/vendor/font-awesome/css/font-awesome.min.css" rel="stylesheet"
-            type="text/css" {}
+        link href="/public/sb-admin-2/vendor/font-awesome/css/font-awesome.min.css" rel="stylesheet" type="text/css" {}
     }
 }
 
@@ -23,7 +68,7 @@ fn navbar_header() -> PreEscaped<String> {
                 span class="icon-bar" {}
                 span class="icon-bar" {}
             }
-            a class="navbar-brand" href="index.html" {
+            a class="navbar-brand" href="/" {
                     img src="/public/images/kafka_logo_small.png"
                         style="float:left;max-width:170%;max-height:170%; margin-top: -0.06in" align="bottom"
                 "Kafka-web"
@@ -117,11 +162,11 @@ fn body(page_title: &str, content: PreEscaped<String>) -> PreEscaped<String> {
                     div class="col-md-12" style="border-bottom: 1px solid #eee;" {}
                 }
                 div class="row" {
-                    div class="col-md-4" style="" {}
-                    div class="col-md-4" style="" {
+                    div class="col-md-4" style="text-align: center;" { "Kafka-web" }
+                    div class="col-md-4" style="text-align: center;" {
                         "Version:" (option_env!("CARGO_PKG_VERSION").unwrap_or("unknown"))
                     }
-                    div class="col-md-4" style="" {
+                    div class="col-md-4" style="text-align: center;" {
                         "Request time: " span id="request_time" "loading"
                     }
                 }
@@ -131,6 +176,9 @@ fn body(page_title: &str, content: PreEscaped<String>) -> PreEscaped<String> {
         script src="/public/sb-admin-2/vendor/jquery/jquery.min.js" {}
         script src="/public/sb-admin-2/vendor/bootstrap/js/bootstrap.min.js" {}
         script src="/public/sb-admin-2/vendor/metisMenu/metisMenu.min.js" {}
+        script src="/public/sb-admin-2/vendor/datatables/js/jquery.dataTables.min.js" {}
+        script src="/public/sb-admin-2/vendor/datatables-plugins/dataTables.bootstrap.min.js" {}
+        script src="/public/sb-admin-2/vendor/datatables-responsive/dataTables.responsive.js" {}
         script src="/public/sb-admin-2/dist/js/sb-admin-2.js" {}
         script src="/public/my_js.js" {}
     }

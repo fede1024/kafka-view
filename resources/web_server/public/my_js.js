@@ -7,3 +7,10 @@ function getCookie(name) {
 $(document).ready(function() {
     $("#request_time").text(getCookie("request_time") + " ms");
 });
+
+// Load responsive tables
+$(document).ready(function() {
+    $('.table-responsive').each(function(index) {
+        $( this ).DataTable({ responsive: true })
+    });
+});

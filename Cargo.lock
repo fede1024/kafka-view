@@ -529,7 +529,6 @@ dependencies = [
  "libz-sys 1.0.10 (registry+https://github.com/rust-lang/crates.io-index)",
  "lz4-sys 1.0.1+1.7.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "num_cpus 0.2.13 (registry+https://github.com/rust-lang/crates.io-index)",
- "openssl-sys 0.9.4 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]

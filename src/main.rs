@@ -11,6 +11,7 @@ extern crate iron;
 extern crate chrono;
 extern crate futures;
 extern crate futures_cpupool;
+extern crate router;
 extern crate maud;
 extern crate mount;
 extern crate regex;
@@ -70,6 +71,10 @@ fn run_kafka_web(config_path: &str) -> Result<()> {
         info!("Added cluster {}", cluster_name);
     }
 
+    web_server::server::run_server(cache.alias())
+        .chain_err(|| "Server initialization failed")?;
+
+    // TODO: fixme?
     thread::sleep_ms(15000);
     let mut metrics_fetcher = MetricsFetcher::new(cache.metrics.alias(),
                                                   Duration::from_secs(config.metrics_refresh));
@@ -79,9 +84,6 @@ fn run_kafka_web(config_path: &str) -> Result<()> {
             metrics_fetcher.add_broker(cluster_id, broker.id, &broker.hostname);
         }
     }
-
-    web_server::server::run_server(cache)
-        .chain_err(|| "Server initialization failed")?;
 
     loop {
         thread::sleep_ms(100000);
