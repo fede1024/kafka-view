@@ -35,13 +35,15 @@ jQuery.fn.dataTable.ext.type.order['file-size-pre'] = function ( data ) {
 
 // Load responsive tables
 $(document).ready(function() {
-    $('.load-datatable').each(function(index) {
-        $( this ).dataTable({
+    $('.datatable-marker').each(function(index) {
+        $(this).dataTable({
             "lengthMenu": [ [10, 50, 200, -1], [10, 50, 200, "All"] ],
             "columnDefs": [
                 { "type": "file-size", "targets": 2 }
             ]
         });
+        $(this).parents('.panel-body').children('.table-loader-marker').css({"display": "none"});
+        $(this).css({"display": "table"})
     });
 });
 

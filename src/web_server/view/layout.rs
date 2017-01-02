@@ -1,5 +1,9 @@
 use maud::PreEscaped;
 
+pub fn format_cluster_path(cluster_id: &str) -> String {
+    format!("/clusters/{}/", cluster_id)
+}
+
 pub fn notification(n_type: &str, content: PreEscaped<String>) -> PreEscaped<String> {
     let alert_class = format!("alert alert-{}", n_type);
     html! {
@@ -56,6 +60,7 @@ fn header(title: &str) -> PreEscaped<String> {
         link href="/public/sb-admin-2/vendor/datatables-responsive/dataTables.responsive.css" rel="stylesheet" {}
         link href="/public/sb-admin-2/dist/css/sb-admin-2.css" rel="stylesheet" {}
         link href="/public/sb-admin-2/vendor/font-awesome/css/font-awesome.min.css" rel="stylesheet" type="text/css" {}
+        link href="/public/my_css.css" rel="stylesheet" type="text/css" {}
     }
 }
 
@@ -82,7 +87,7 @@ fn navbar_top() -> PreEscaped<String> {
         ul class="nav navbar-top-links navbar-right" {
             li class="dropdown" {
                 a class="dropdown-toggle" data-toggle="dropdown" href="#" {
-                    i class="fa fa-user fa-fw" {}
+                    i class="fa fa-gear fa-fw" {}
                     i class="fa fa-caret-down" {}
                 }
                 ul class="dropdown-menu dropdown-user" {
@@ -96,7 +101,7 @@ fn navbar_top() -> PreEscaped<String> {
     }
 }
 
-fn navbar_side() -> PreEscaped<String> {
+fn navbar_side(clusters: &Vec<String>) -> PreEscaped<String> {
     html! {
         div class="navbar-default sidebar" role="navigation" {
             div class="sidebar-nav navbar-collapse" {
@@ -111,24 +116,26 @@ fn navbar_side() -> PreEscaped<String> {
                             }
                         }
                     }
-                    li a href="index.html" { i class="fa fa-dashboard fa-fw" {}  " Dashboard" }
+                    // li a href="/" { i class="fa fa-dashboard fa-fw" {}  " Home" }
+                    li a href="/" { i class="fa fa-info-circle fa-fw" {}  " Home" }
                     li {
                         a href="#" {
-                            i class="fa fa-sitemap fa-fw" {} " Multi-Level Dropdown"
+                            i class="fa fa-server fa-fw" {} " Clusters"
                             span class="fa arrow" {}
                         }
                         ul class="nav nav-second-level" {
-                            li a href="#" "Second Level Item"
-                            li a href="#" "Second Level Item"
-                            li {
-                                a href="#" { "Third Level" span class="fa arrow" {} }
-                                ul class="nav nav-third-level" {
-                                    li a href="#" "Third Level Item"
-                                    li a href="#" "Third Level Item"
-                                    li a href="#" "Third Level Item"
-                                    li a href="#" "Third Level Item"
-                                }
+                            @for cluster_id in clusters.iter() {
+                                li a href=(format_cluster_path(cluster_id)) (cluster_id)
                             }
+                            // li {
+                            //     a href="#" { "Third Level" span class="fa arrow" {} }
+                            //     ul class="nav nav-third-level" {
+                            //         li a href="#" "Third Level Item"
+                            //         li a href="#" "Third Level Item"
+                            //         li a href="#" "Third Level Item"
+                            //         li a href="#" "Third Level Item"
+                            //     }
+                            // }
                         }
                     }
                 }
@@ -137,14 +144,14 @@ fn navbar_side() -> PreEscaped<String> {
     }
 }
 
-fn body(page_title: &str, content: PreEscaped<String>) -> PreEscaped<String> {
+fn body(page_title: &str, clusters: &Vec<String>, content: PreEscaped<String>) -> PreEscaped<String> {
     html! {
         div id="wrapper" {
             // Navigation
             nav class="navbar navbar-default navbar-static-top" role="navigation" style="margin-bottom: 0" {
                 (navbar_header())
                 (navbar_top())
-                (navbar_side())
+                (navbar_side(clusters))
             }
 
             div id="page-wrapper" {
@@ -184,12 +191,12 @@ fn body(page_title: &str, content: PreEscaped<String>) -> PreEscaped<String> {
     }
 }
 
-pub fn page(page_title: &str, page_content: PreEscaped<String>) -> PreEscaped<String> {
+pub fn page(page_title: &str, clusters: &Vec<String>, page_content: PreEscaped<String>) -> PreEscaped<String> {
     html! {
         (PreEscaped("<!DOCTYPE html>"))
         html {
             head (header("Kafka-web"))
-            body (body(page_title, page_content))
+            body (body(page_title, clusters, page_content))
         }
     }
 }

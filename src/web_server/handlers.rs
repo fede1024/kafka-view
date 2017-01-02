@@ -72,18 +72,24 @@ pub fn home_handler(req: &mut Request) -> IronResult<Response> {
         content += &format_metadata(&cluster_id, metadata, topic_metrics).into_string();
     }
 
-    let html = layout::page("Clusters", PreEscaped(content));
+    let clusters = cache.metadata.keys();
+    let html = layout::page("Clusters", &clusters, PreEscaped(content));
 
     Ok(Response::with((status::Ok, html)))
 }
 
-
-
 fn topic_table(metadata: Arc<Metadata>, topic_metrics: &HashMap<String, f64>) -> PreEscaped<String> {
     html! {
-        table width="100%" class="table table-striped table-bordered table-hover load-datatable" {
+        div class="table-loader-marker" style="text-align: center; padding: 0.3in;" {
+            div style="display: inline-block;" {
+                i class="fa fa-refresh fa-spin fa-5x fa-fw" {}
+                span class="sr-only" "Loading..."
+            }
+        }
+        table width="100%" class="datatable-marker table table-striped table-bordered table-hover"
+            style="display: none" {
             thead {
-                tr { th "Topic name" th "#Partitions" th "Byte rate" }
+                tr { th "Topic name" th "#Partitions" th "Byte rate" th "More" }
             }
             tbody {
                 @for (topic_name, partitions) in &metadata.topics {
@@ -91,8 +97,15 @@ fn topic_table(metadata: Arc<Metadata>, topic_metrics: &HashMap<String, f64>) ->
                         tr {
                             td (topic_name)
                             td (partitions.len())
-                            td data-toggle="tooltip" title="Average over the last 15 minutes"
+                            td span data-toggle="tooltip" data-container="body"
+                                title="Average over the last 15 minutes"
                                 (format!("{:.1} KB/s", rate))
+                            td {
+                                a href="http://lol.com" data-toggle="tooltip" data-container="body"
+                                    title="Topic chart" {
+                                    i class="fa fa-bar-chart" {}
+                                }
+                            }
                         }
                     }
                 }
@@ -104,20 +117,25 @@ fn topic_table(metadata: Arc<Metadata>, topic_metrics: &HashMap<String, f64>) ->
 pub fn cluster_handler(req: &mut Request) -> IronResult<Response> {
     let cache = req.extensions.get::<CacheType>().unwrap();
     let cluster_id = req.extensions.get::<Router>().unwrap().find("cluster_id").unwrap();
+    let clusters = cache.metadata.keys();
 
     let metadata = cache.metadata.get(&cluster_id.to_owned());
     if metadata.is_none() {
         let content = layout::notification("danger", html! { "The specified cluster doesn't exist." });
         let page_title = format!("Cluster: {}", cluster_id);
-        let html = layout::page(&page_title, content);
+        let html = layout::page(&page_title, &clusters, content);
         return Ok(Response::with((status::Ok, html)));
     }
 
     let metadata = cache.metadata.get(&cluster_id.to_string()).unwrap();
     let topic_metrics = build_topic_metrics(&cluster_id, &metadata, &cache.metrics);
-    let html = layout::page(&format!("Cluster: {}", cluster_id),
-                            layout::panel(html! { "Topics - last update: " (metadata.refresh_time) },
-                                          topic_table(metadata, &topic_metrics)));
+    let content = html! {
+        (layout::panel(html! { "Brokers - last update: " (metadata.refresh_time) },
+                     html!("LOL")))
+        (layout::panel(html! { "Topics - last update: " (metadata.refresh_time) },
+                      topic_table(metadata, &topic_metrics)))
+    };
+    let html = layout::page(&format!("Cluster: {}", cluster_id), &clusters, content);
 
     Ok(Response::with((status::Ok, html)))
 }

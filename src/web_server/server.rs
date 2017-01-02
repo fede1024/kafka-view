@@ -36,7 +36,7 @@ impl AfterMiddleware for RequestTimer {
         let time = request.extensions.get::<RequestTimer>().unwrap();
         let millis = (UTC::now() - *time).num_milliseconds().to_string();
         let mut cookie = headers::CookiePair::new("request_time".to_owned(), millis.to_string());
-        cookie.max_age = Some(10);
+        cookie.max_age = Some(20);
         response.headers.set(headers::SetCookie(vec![cookie]));
         Ok(response)
     }
