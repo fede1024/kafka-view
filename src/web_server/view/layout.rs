@@ -14,10 +14,33 @@ pub fn notification(n_type: &str, content: PreEscaped<String>) -> PreEscaped<Str
 }
 
 pub fn panel(title: PreEscaped<String>, content: PreEscaped<String>) -> PreEscaped<String> {
+    panel_right(title, html!{}, content)
+}
+
+pub fn panel_right(title: PreEscaped<String>, right_side: PreEscaped<String>, content: PreEscaped<String>) -> PreEscaped<String> {
     html! {
         div class="panel panel-default" {
-            div class="panel-heading" (title)
+            div class="panel-heading" {
+                (title)
+                div class="pull-right" (right_side)
+            }
             div class="panel-body" (content)
+        }
+    }
+}
+
+pub fn datatable(table_header: PreEscaped<String>, table_body: PreEscaped<String>) -> PreEscaped<String> {
+    html! {
+        div class="table-loader-marker" style="text-align: center; padding: 0.3in;" {
+            div style="display: inline-block;" {
+                i class="fa fa-refresh fa-spin fa-5x" {}
+                span class="sr-only" "Loading..."
+            }
+        }
+        table width="100%" class="datatable-marker table table-striped table-bordered table-hover"
+            style="display: none" {
+            thead { (table_header) }
+            tbody { (table_body) }
         }
     }
 }

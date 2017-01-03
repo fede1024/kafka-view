@@ -4,6 +4,7 @@ use staticfile::Static;
 use mount;
 use maud::PreEscaped;
 use router::Router;
+use chrono::UTC;
 
 use std::path::Path;
 use std::sync::Arc;
@@ -11,12 +12,8 @@ use std::collections::HashMap;
 
 use web_server::server::CacheType;
 use web_server::view::layout;
-use metadata::Metadata;
-
-
+use metadata::{Metadata, Broker};
 use cache::MetricsCache;
-
-use chrono::UTC;
 
 
 fn format_broker_list(brokers: &Vec<i32>) -> String {
@@ -78,40 +75,60 @@ pub fn home_handler(req: &mut Request) -> IronResult<Response> {
     Ok(Response::with((status::Ok, html)))
 }
 
-fn topic_table(metadata: Arc<Metadata>, topic_metrics: &HashMap<String, f64>) -> PreEscaped<String> {
+fn broker_table_row(cluster_id: &str, broker: &Broker, metrics: &MetricsCache) -> PreEscaped<String> {
+    let rate = metrics.get(&(cluster_id.to_owned(), broker.id))
+        .and_then(|broker_metrics| { broker_metrics.topics.get("__TOTAL__").cloned() })
+        .map(|r| format!("{:.1} KB/s", (r / 1000f64)))
+        .unwrap_or("no data".to_string());
+    let broker_link = format!("/clusters/{}/broker/{}/", cluster_id, broker.id);
     html! {
-        div class="table-loader-marker" style="text-align: center; padding: 0.3in;" {
-            div style="display: inline-block;" {
-                i class="fa fa-refresh fa-spin fa-5x fa-fw" {}
-                span class="sr-only" "Loading..."
-            }
+        tr {
+            td a href=(broker_link) (broker.id)
+            td (broker.hostname)
+            td data-toggle="tooltip" data-container="body"
+                title="Total average over the last 15 minutes" (rate)
         }
-        table width="100%" class="datatable-marker table table-striped table-bordered table-hover"
-            style="display: none" {
-            thead {
-                tr { th "Topic name" th "#Partitions" th "Byte rate" th "More" }
-            }
-            tbody {
-                @for (topic_name, partitions) in &metadata.topics {
-                    @let rate = topic_metrics.get(topic_name).unwrap_or(&-1000f64) / 1000f64 {
-                        tr {
-                            td (topic_name)
-                            td (partitions.len())
-                            td span data-toggle="tooltip" data-container="body"
-                                title="Average over the last 15 minutes"
-                                (format!("{:.1} KB/s", rate))
-                            td {
-                                a href="http://lol.com" data-toggle="tooltip" data-container="body"
-                                    title="Topic chart" {
-                                    i class="fa fa-bar-chart" {}
-                                }
-                            }
-                        }
-                    }
+    }
+}
+
+fn broker_table(cluster_id: &str, metadata: &Metadata, metrics: &MetricsCache) -> PreEscaped<String> {
+    layout::datatable(html! { tr { th "Broker id" th "Hostname" th "Total byte rate" } },
+        html! { @for broker in &metadata.brokers {
+                    (broker_table_row(cluster_id, broker, metrics))
+                }
+
+    })
+}
+
+fn topic_table_row(cluster_id: &str, name: &str, n_part: usize, topic_metrics: &HashMap<String, f64>) -> PreEscaped<String> {
+    let rate = topic_metrics.get(name)
+        .map(|r| format!("{:.1} KB/s", (r / 1000f64)))
+        .unwrap_or("no data".to_string());
+    let chart_link = format!("https://app.signalfx.com/#/dashboard/CM0CgE0AgAA?variables%5B%5D=Topic%3Dtopic:{}", name);
+    let topic_link = format!("/clusters/{}/topic/{}/", cluster_id, name);
+    html! {
+        tr {
+            td a href=(topic_link) (name)
+            td (n_part)
+            td data-toggle="tooltip" data-container="body"
+                title="Average over the last 15 minutes" (rate)
+            td {
+                a href=(chart_link) data-toggle="tooltip" data-container="body"
+                    title="Topic chart" {
+                    i class="fa fa-bar-chart" {}
                 }
             }
         }
     }
+}
+
+fn topic_table(cluster_id: &str, metadata: &Metadata, topic_metrics: &HashMap<String, f64>) -> PreEscaped<String> {
+    layout::datatable(html! { tr { th "Topic name" th "#Partitions" th "Byte rate" th "More" } },
+        html! { @for (topic_name, partitions) in &metadata.topics {
+                    (topic_table_row(cluster_id, topic_name, partitions.len(), topic_metrics))
+                }
+
+    })
 }
 
 pub fn cluster_handler(req: &mut Request) -> IronResult<Response> {
@@ -121,7 +138,7 @@ pub fn cluster_handler(req: &mut Request) -> IronResult<Response> {
 
     let metadata = cache.metadata.get(&cluster_id.to_owned());
     if metadata.is_none() {
-        let content = layout::notification("danger", html! { "The specified cluster doesn't exist." });
+        let content = layout::notification("danger", html! { i class="fa fa-frown-o fa-3x" "" " The specified cluster doesn't exist." });
         let page_title = format!("Cluster: {}", cluster_id);
         let html = layout::page(&page_title, &clusters, content);
         return Ok(Response::with((status::Ok, html)));
@@ -130,10 +147,12 @@ pub fn cluster_handler(req: &mut Request) -> IronResult<Response> {
     let metadata = cache.metadata.get(&cluster_id.to_string()).unwrap();
     let topic_metrics = build_topic_metrics(&cluster_id, &metadata, &cache.metrics);
     let content = html! {
-        (layout::panel(html! { "Brokers - last update: " (metadata.refresh_time) },
-                     html!("LOL")))
-        (layout::panel(html! { "Topics - last update: " (metadata.refresh_time) },
-                      topic_table(metadata, &topic_metrics)))
+        (layout::panel_right(html! { i class="fa fa-server fa-fw" "" " Brokers" },
+            html! { "Last update: " (metadata.refresh_time) },
+            broker_table(cluster_id, &metadata, &cache.metrics)))
+        (layout::panel_right(html! { i class="fa fa-exchange fa-fw" "" " Topics" },
+            html! { "Last update: " (metadata.refresh_time) },
+            topic_table(cluster_id, &metadata, &topic_metrics)))
     };
     let html = layout::page(&format!("Cluster: {}", cluster_id), &clusters, content);
 
