@@ -156,10 +156,10 @@ fn navbar_side() -> PreEscaped<String> {
                         }
                     }
                     // li a href="/" { i class="fa fa-dashboard fa-fw" {}  " Home" }
-                    li a href="/" { i class="fa fa-info-circle fa-fw" {}  " Home" }
-                    li a href="/clusters/" { i class="fa fa-server fa-fw" {}  " Clusters" }
-                    li a href="/topics/" { i class="fa fa-exchange fa-fw" {}  " Topics" }
-                    li a href="/consumers/" { i class="fa fa-cubes fa-fw" {}  " Consumers" }
+                    li a href="/" style="font-size: 12pt" { i class="fa fa-info-circle fa-fw" {}  " Home" }
+                    li a href="/clusters/" style="font-size: 12pt" { i class="fa fa-server fa-fw" {}  " Clusters" }
+                    li a href="/topics/" style="font-size: 12pt" { i class="fa fa-exchange fa-fw" {}  " Topics" }
+                    li a href="/consumers/" style="font-size: 12pt" { i class="fa fa-cubes fa-fw" {}  " Consumers" }
                     //li {
                     //    a href="#" {
                     //        i class="fa fa-server fa-fw" {} " Clusters"

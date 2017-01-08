@@ -6,13 +6,12 @@ function getCookie(name) {
 
 $(document).ready(function() {
     $("#request_time").text(getCookie("request_time") + " ms");
-    //console.log(document.cookie);
+    console.log(">", document.cookie);
     //$("#request_time").text(document.cookie);
 });
 
 jQuery.fn.dataTable.ext.type.order['file-size-pre'] = function (data) {
     var matches = data.match( /^(\d+(?:\.\d+)?)\s*([a-z]+)/i );
-    console.log(data)
     var multipliers = {
         b:  1,
         kb: 1000,
