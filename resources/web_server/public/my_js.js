@@ -5,13 +5,14 @@ function getCookie(name) {
 }
 
 $(document).ready(function() {
-    console.log(document.cookie);
     $("#request_time").text(getCookie("request_time") + " ms");
+    //console.log(document.cookie);
     //$("#request_time").text(document.cookie);
 });
 
-jQuery.fn.dataTable.ext.type.order['file-size-pre'] = function ( data ) {
+jQuery.fn.dataTable.ext.type.order['file-size-pre'] = function (data) {
     var matches = data.match( /^(\d+(?:\.\d+)?)\s*([a-z]+)/i );
+    console.log(data)
     var multipliers = {
         b:  1,
         kb: 1000,
@@ -33,13 +34,51 @@ jQuery.fn.dataTable.ext.type.order['file-size-pre'] = function ( data ) {
     };
 };
 
+jQuery.fn.dataTable.ext.type.order['my-numeric-pre'] = function (data) {
+    var matches = data.match( /^(\d+(?:\.\d+)?)/ );
+    if (matches) {
+        return parseFloat(matches[1]);
+    } else {
+        return -1;
+    };
+};
+
+jQuery.fn.dataTable.ext.type.order['my-err-pre'] = function (data) {
+    if (data.indexOf("times") !== -1) {
+        return 2; // Error
+    } else {
+        return 0; // Ok
+    };
+};
+
 // Load responsive tables
 $(document).ready(function() {
-    $('.datatable-marker').each(function(index) {
+    $('.datatable-broker-marker').each(function(index) {
         $( this ).dataTable({
             "lengthMenu": [ [10, 50, 200, -1], [10, 50, 200, "All"] ],
+            "language": {
+              "search": "Regex search:"
+            },
             "columnDefs": [
-                { "type": "file-size", "targets": 2 }
+                { "targets": [2, 3], "type": "my-numeric" }
+            ]
+        });
+        // $(this).parents('.panel-body').children('.table-loader-marker').css({"display": "none"});
+        $(this).parents('.loader-parent-marker').children('.table-loader-marker').css({"display": "none"});
+        $(this).css({"display": "table"})
+    });
+    $('.datatable-topic-marker').each(function(index) {
+        $( this ).dataTable({
+            "search": { "regex": true},
+            "lengthMenu": [ [10, 50, 200, -1], [10, 50, 200, "All"] ],
+            "language": {
+              "search": "Regex search:"
+            },
+            "columnDefs": [
+                { "type": "my-numeric",  "targets": [3, 4] },
+                { "orderable": false, "targets": [5] },
+                { "searchable": false, "targets": [1, 2, 3, 4, 5] },
+                { "type": "my-error", "targets": [2] }
             ]
         });
         // $(this).parents('.panel-body').children('.table-loader-marker').css({"display": "none"});

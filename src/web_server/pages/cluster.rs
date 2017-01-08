@@ -27,27 +27,23 @@ fn build_topic_metrics(cluster_id: &str, metadata: &Metadata, metrics: &MetricsC
 }
 
 fn broker_table_row(cluster_id: &str, broker: &Broker, metrics: &MetricsCache) -> PreEscaped<String> {
-    let byte_rate = metrics.get(&(cluster_id.to_owned(), broker.id))
+    let rate = metrics.get(&(cluster_id.to_owned(), broker.id))
         .and_then(|broker_metrics| { broker_metrics.topics.get("__TOTAL__").cloned() })
-        .map(|r| format!("{:.1} KB/s", (r.0 / 1000f64)))
-        .unwrap_or("no data".to_string());
-    let msg_rate = metrics.get(&(cluster_id.to_owned(), broker.id))
-        .and_then(|broker_metrics| { broker_metrics.topics.get("__TOTAL__").cloned() })
-        .map(|r| format!("{:.1} msg/s", r.1))
-        .unwrap_or("no data".to_string());
+        .map(|r| (format!("{:.1} KB/s", (r.0 / 1000f64)), format!("{:.0} msg/s", r.1)))
+        .unwrap_or(("no data".to_string(), "no data".to_string()));
     let broker_link = format!("/clusters/{}/broker/{}/", cluster_id, broker.id);
     html! {
         tr {
             td a href=(broker_link) (broker.id)
             td (broker.hostname)
-            td (byte_rate)
-            td (msg_rate)
+            td (rate.0)
+            td (rate.1)
         }
     }
 }
 
 fn broker_table(cluster_id: &str, metadata: &Metadata, metrics: &MetricsCache) -> PreEscaped<String> {
-    layout::datatable(html! { tr { th "Broker id" th "Hostname"
+    layout::datatable_broker(html! { tr { th "Broker id" th "Hostname"
         th data-toggle="tooltip" data-container="body"
             title="Total average over the last 15 minutes" "Total byte rate"
         th data-toggle="tooltip" data-container="body"
@@ -61,27 +57,23 @@ fn broker_table(cluster_id: &str, metadata: &Metadata, metrics: &MetricsCache) -
 }
 
 fn topic_table_row(cluster_id: &str, name: &str, partitions: &Vec<Partition>, topic_metrics: &HashMap<String, (f64, f64)>) -> PreEscaped<String> {
-    let byte_rate = topic_metrics.get(name)
-        .map(|r| format!("{:.1} KB/s", (r.0 / 1000f64)))
-        .unwrap_or("no data".to_string());
-    let msg_rate = topic_metrics.get(name)
-        .map(|r| format!("{:.1} msg/s", r.1))
-        .unwrap_or("no data".to_string());
+    let rate = topic_metrics.get(name)
+        .map(|r| (format!("{:.1} KB/s", (r.0 / 1000f64)), format!("{:.0} msg/s", r.1)))
+        .unwrap_or(("no data".to_string(), "no data".to_string()));
     let chart_link = format!("https://app.signalfx.com/#/dashboard/CM0CgE0AgAA?variables%5B%5D=Topic%3Dtopic:{}", name);
     let topic_link = format!("/clusters/{}/topic/{}/", cluster_id, name);
     let errors = partitions.iter().map(|p| (p.id, p.error.clone())).filter(|&(_, ref error)| error.is_some()).collect::<Vec<_>>();
     let err_str = if errors.len() == 0 {
-        "None".to_owned()
+        html!{ i class="fa fa-check fa-fw" style="color: green" {} }
     } else {
-        format!("{:?}", errors)
+        //html!{ i class="fa fa-exclamation-triangle fa-fw" style="color: yellow" {} }
+        html!{ i class="fa fa-times fa-fw" style="color: red" {} }
     };
     html! {
         tr {
             td a href=(topic_link) (name)
-            td (partitions.len())
-            td (err_str)
-            td (byte_rate)
-            td (msg_rate)
+            td (partitions.len()) td (err_str)
+            td (rate.0) td (rate.1)
             td {
                 a href=(chart_link) data-toggle="tooltip" data-container="body"
                     title="Topic chart" {
@@ -93,7 +85,7 @@ fn topic_table_row(cluster_id: &str, name: &str, partitions: &Vec<Partition>, to
 }
 
 fn topic_table(cluster_id: &str, metadata: &Metadata, topic_metrics: &HashMap<String, (f64, f64)>) -> PreEscaped<String> {
-    layout::datatable(html! { tr { th "Topic name" th "#Partitions" th "Errors"
+    layout::datatable_topic(html! { tr { th "Topic name" th "#Partitions" th "Status"
         th data-toggle="tooltip" data-container="body" title="Average over the last 15 minutes" "Byte rate"
         th data-toggle="tooltip" data-container="body" title="Average over the last 15 minutes" "Msg rate"
         th "More"} },
