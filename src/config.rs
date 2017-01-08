@@ -6,10 +6,10 @@ use std::collections::HashMap;
 use std::io::prelude::*;
 use std::fs::File;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ClusterConfig {
-    broker_list: Vec<String>,
-    zookeeper: String,
+    pub broker_list: Vec<String>,
+    pub zookeeper: String,
 }
 
 impl ClusterConfig {
@@ -22,13 +22,13 @@ impl ClusterConfig {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct CachingConfig {
     pub cluster: String,
     pub topic: String,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Config {
     pub metadata_refresh: u64,
     pub metrics_refresh: u64,

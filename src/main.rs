@@ -23,7 +23,6 @@ extern crate curl;
 extern crate serde_json;
 extern crate serde_cbor;
 
-
 mod cache;
 mod config;
 mod error;
@@ -82,7 +81,7 @@ fn run_kafka_web(config_path: &str) -> Result<()> {
         }
     }
 
-    web_server::server::run_server(cache.alias())
+    web_server::server::run_server(cache.alias(), &config)
         .chain_err(|| "Server initialization failed")?;
 
     loop {

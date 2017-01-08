@@ -21,7 +21,7 @@ pub fn panel_right(title: PreEscaped<String>, right_side: PreEscaped<String>, co
     html! {
         div class="panel panel-default" {
             div class="panel-heading" {
-                (title)
+                span style="font-weight: bold" (title)
                 div class="pull-right" (right_side)
             }
             div class="panel-body" (content)
@@ -32,8 +32,8 @@ pub fn panel_right(title: PreEscaped<String>, right_side: PreEscaped<String>, co
 pub fn datatable(table_header: PreEscaped<String>, table_body: PreEscaped<String>) -> PreEscaped<String> {
     html! {
         div class="table-loader-marker" style="text-align: center; padding: 0.3in;" {
-            div style="display: inline-block;" {
-                i class="fa fa-refresh fa-spin fa-5x" {}
+            div style="display: inline-block" {
+                i class="fa fa-spinner fa-spin fa-4x" {}
                 span class="sr-only" "Loading..."
             }
         }
@@ -124,7 +124,7 @@ fn navbar_top() -> PreEscaped<String> {
     }
 }
 
-fn navbar_side(clusters: &Vec<String>) -> PreEscaped<String> {
+fn navbar_side() -> PreEscaped<String> {
     html! {
         div class="navbar-default sidebar" role="navigation" {
             div class="sidebar-nav navbar-collapse" {
@@ -141,40 +141,43 @@ fn navbar_side(clusters: &Vec<String>) -> PreEscaped<String> {
                     }
                     // li a href="/" { i class="fa fa-dashboard fa-fw" {}  " Home" }
                     li a href="/" { i class="fa fa-info-circle fa-fw" {}  " Home" }
-                    li {
-                        a href="#" {
-                            i class="fa fa-server fa-fw" {} " Clusters"
-                            span class="fa arrow" {}
-                        }
-                        ul class="nav nav-second-level" {
-                            @for cluster_id in clusters.iter() {
-                                li a href=(format_cluster_path(cluster_id)) (cluster_id)
-                            }
-                            // li {
-                            //     a href="#" { "Third Level" span class="fa arrow" {} }
-                            //     ul class="nav nav-third-level" {
-                            //         li a href="#" "Third Level Item"
-                            //         li a href="#" "Third Level Item"
-                            //         li a href="#" "Third Level Item"
-                            //         li a href="#" "Third Level Item"
-                            //     }
-                            // }
-                        }
-                    }
+                    li a href="/clusters/" { i class="fa fa-server fa-fw" {}  " Clusters" }
+                    li a href="/topics/" { i class="fa fa-exchange fa-fw" {}  " Topics" }
+                    li a href="/consumers/" { i class="fa fa-cubes fa-fw" {}  " Consumers" }
+                    //li {
+                    //    a href="#" {
+                    //        i class="fa fa-server fa-fw" {} " Clusters"
+                    //        span class="fa arrow" {}
+                    //    }
+                    //    ul class="nav nav-second-level" {
+                    //        @for cluster_id in clusters.iter() {
+                    //            li a href=(format_cluster_path(cluster_id)) (cluster_id)
+                    //        }
+                    //        // li {
+                    //        //     a href="#" { "Third Level" span class="fa arrow" {} }
+                    //        //     ul class="nav nav-third-level" {
+                    //        //         li a href="#" "Third Level Item"
+                    //        //         li a href="#" "Third Level Item"
+                    //        //         li a href="#" "Third Level Item"
+                    //        //         li a href="#" "Third Level Item"
+                    //        //     }
+                    //        // }
+                    //    }
+                    //}
                 }
             }
         }
     }
 }
 
-fn body(page_title: &str, clusters: &Vec<String>, content: PreEscaped<String>) -> PreEscaped<String> {
+fn body(page_title: &str, content: PreEscaped<String>) -> PreEscaped<String> {
     html! {
         div id="wrapper" {
             // Navigation
             nav class="navbar navbar-default navbar-static-top" role="navigation" style="margin-bottom: 0" {
                 (navbar_header())
                 (navbar_top())
-                (navbar_side(clusters))
+                (navbar_side())
             }
 
             div id="page-wrapper" {
@@ -214,12 +217,12 @@ fn body(page_title: &str, clusters: &Vec<String>, content: PreEscaped<String>) -
     }
 }
 
-pub fn page(page_title: &str, clusters: &Vec<String>, page_content: PreEscaped<String>) -> PreEscaped<String> {
+pub fn page(page_title: &str, page_content: PreEscaped<String>) -> PreEscaped<String> {
     html! {
         (PreEscaped("<!DOCTYPE html>"))
         html {
             head (header("Kafka-web"))
-            body (body(page_title, clusters, page_content))
+            body (body(page_title, page_content))
         }
     }
 }

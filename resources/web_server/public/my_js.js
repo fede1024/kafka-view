@@ -42,7 +42,8 @@ $(document).ready(function() {
                 { "type": "file-size", "targets": 2 }
             ]
         });
-        $(this).parents('.panel-body').children('.table-loader-marker').css({"display": "none"});
+        // $(this).parents('.panel-body').children('.table-loader-marker').css({"display": "none"});
+        $(this).parents('.loader-parent-marker').children('.table-loader-marker').css({"display": "none"});
         $(this).css({"display": "table"})
     });
 });
