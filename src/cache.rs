@@ -2,7 +2,7 @@ use futures::stream::Stream;
 use rdkafka::config::{ClientConfig, TopicConfig};
 use rdkafka::consumer::stream_consumer::{MessageStream, StreamConsumer};
 use rdkafka::consumer::{Consumer, EmptyConsumerContext};
-use rdkafka::producer::{FutureProducer, EmptyProducerContext, FutureProducerTopic};
+use rdkafka::producer::{FutureProducer, FutureProducerTopic};
 use rdkafka::error::KafkaError;
 use rdkafka::message::Message;
 use serde::de::Deserialize;
@@ -43,8 +43,7 @@ impl WrappedKey {
 // ********* REPLICA WRITER **********
 //
 
-type ReplicatorProducer = FutureProducer<EmptyProducerContext>;
-type ReplicatorTopic = FutureProducerTopic<EmptyProducerContext>;
+type ReplicatorTopic = FutureProducerTopic;
 
 pub struct ReplicaWriter {
 //    brokers: String,
@@ -58,7 +57,7 @@ impl ReplicaWriter {
             .set("bootstrap.servers", brokers)
             .set("compression.codec", "gzip")
             .set("message.max.bytes", "10000000")
-            .create::<FutureProducer<_>>()
+            .create::<FutureProducer<>>()
             .expect("Producer creation error");
 
         producer.start();
@@ -161,14 +160,15 @@ fn last_message_per_key(stream: MessageStream) -> Result<HashMap<WrappedKey, Mes
     trace!("Started creating state");
     for message in stream.wait() {
         match message {
-            Ok(m) => {
+            Ok(Ok(m)) => {
                 match parse_message_key(&m).chain_err(|| "Failed to parse message key") {
                     Ok(wrapped_key) => { state.insert(wrapped_key, m); () },
                     Err(e) => format_error_chain(e),
                 };
             },
-            Err(KafkaError::PartitionEOF(p)) => { EOF_set.insert(p); () },
-            Err(e) => error!("Cosumption error: {}", e),
+            Ok(Err(KafkaError::PartitionEOF(p))) => { EOF_set.insert(p); () },
+            Ok(Err(e)) => error!("Error while reading from Kafka: {}", e),
+            Err(_) => error!("Stream receive error"),
         };
         if EOF_set.len() == 3 { // TODO: make configurable
             break; // TODO: should stop consumer

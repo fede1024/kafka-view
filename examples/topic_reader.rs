@@ -66,9 +66,9 @@ fn consume_and_print(brokers: &str, topics: &Vec<&str>) {
     for message in consumer.start().wait() {
         match message {
             Err(e) => {
-                warn!("Can't receive message: {:?}", e);
+                warn!("Can't receive data from stream: {:?}", e);
             },
-            Ok(m) => {
+            Ok(Ok(m)) => {
                 let key = match m.key_view::<[u8]>() {
                     None => &[],
                     Some(Ok(s)) => s,
@@ -96,6 +96,9 @@ fn consume_and_print(brokers: &str, topics: &Vec<&str>) {
                     println!("{}", payload_dec);
                 }
                 consumer.commit_message(&m, CommitMode::Async);
+            },
+            Ok(Err(e)) => {
+                warn!("Kafka error: {:?}", e);
             },
         };
     }

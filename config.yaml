@@ -1,6 +1,6 @@
 ---
-  metadata_refresh: 20
-  metrics_refresh: 60
+  metadata_refresh: 60
+  metrics_refresh: 600
   caching:
     cluster: local_cluster
     topic: replicator_topic

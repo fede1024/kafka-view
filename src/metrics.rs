@@ -56,10 +56,10 @@ fn jolokia_response_get_value(json_response: &Value) -> Result<&BTreeMap<String,
     }
 }
 
-fn parse_broker_metrics(jolokia_json_response: &Value) -> Result<BrokerMetrics> {
+fn parse_broker_rate_metrics(jolokia_json_response: &Value) -> Result<HashMap<TopicName, f64>> {
     let value_map = jolokia_response_get_value(jolokia_json_response)
         .chain_err(|| "Failed to extract 'value' from jolokia response.")?;
-    let mut metrics = BrokerMetrics::new();
+    let mut metrics = HashMap::new();
     let re = Regex::new(r"topic=([^,]+),").unwrap();
 
     for (mbean_name, value) in value_map.iter() {
@@ -70,7 +70,7 @@ fn parse_broker_metrics(jolokia_json_response: &Value) -> Result<BrokerMetrics> 
         match *value {
             Value::Object(ref obj) => {
                 match obj.get("FifteenMinuteRate") {
-                    Some(&Value::F64(rate)) => metrics.set(topic, rate),
+                    Some(&Value::F64(rate)) => metrics.insert(topic.to_owned(), rate),
                     None => bail!("Can't find key in metric"),
                     _ => bail!("Unexpected metric type"),
                 };
@@ -87,7 +87,7 @@ fn log_elapsed_time(task_name: &str, start: DateTime<UTC>) {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct BrokerMetrics {
-    pub topics: HashMap<TopicName, f64>,
+    pub topics: HashMap<TopicName, (f64, f64)>,
 }
 
 impl BrokerMetrics {
@@ -95,8 +95,8 @@ impl BrokerMetrics {
         BrokerMetrics { topics: HashMap::new() }
     }
 
-    fn set(&mut self, topic: &str, fifteen_minute_rate: f64) {
-        self.topics.insert(topic.to_owned(), fifteen_minute_rate);
+    fn set(&mut self, topic: &str, fifteen_minute_byte_rate: f64, fifteen_minute_msg_rate: f64) {
+        self.topics.insert(topic.to_owned(), (fifteen_minute_byte_rate, fifteen_minute_msg_rate));
     }
 }
 
@@ -123,10 +123,19 @@ impl ScheduledTask for MetricsFetcherTask {
     fn run(&self) -> Result<()> {
         debug!("Starting fetch for {}", self.hostname);
         let start = UTC::now();
-        let resp_json = fetch_metrics_json(&self.hostname, 8778, "kafka.server:name=BytesInPerSec,*,type=BrokerTopicMetrics/FifteenMinuteRate")
-            .chain_err(|| format!("Failed to fetch metrics from {}", self.hostname))?;
-        let metrics = parse_broker_metrics(&resp_json)
-            .chain_err(|| "Failed to parse broker metrics")?;
+        let byte_rate_json = fetch_metrics_json(&self.hostname, 8778, "kafka.server:name=BytesInPerSec,*,type=BrokerTopicMetrics/FifteenMinuteRate")
+            .chain_err(|| format!("Failed to fetch byte rate metrics from {}", self.hostname))?;
+        let byte_rate_metrics = parse_broker_rate_metrics(&byte_rate_json)
+            .chain_err(|| "Failed to parse byte rate broker metrics")?;
+        let msg_rate_json = fetch_metrics_json(&self.hostname, 8778, "kafka.server:name=MessagesInPerSec,*,type=BrokerTopicMetrics/FifteenMinuteRate")
+            .chain_err(|| format!("Failed to fetch message rate metrics from {}", self.hostname))?;
+        let msg_rate_metrics = parse_broker_rate_metrics(&msg_rate_json)
+            .chain_err(|| "Failed to parse message rate broker metrics")?;
+        let mut metrics = BrokerMetrics::new();
+        for (topic, byte_rate) in byte_rate_metrics {
+            let msg_rate = msg_rate_metrics.get(&topic).unwrap_or(&-1f64).clone();
+            metrics.set(&topic, byte_rate, msg_rate);
+        }
         self.cache.insert((self.cluster_id.clone(), self.broker_id), metrics)
             .chain_err(|| "Failed to update metrics cache")?;
         log_elapsed_time("metrics fetch", start);

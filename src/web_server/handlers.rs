@@ -12,7 +12,7 @@ use std::collections::HashMap;
 
 use web_server::server::CacheType;
 use web_server::view::layout;
-use metadata::{Metadata, Broker};
+use metadata::{Metadata, Broker, Partition};
 use cache::MetricsCache;
 
 
@@ -23,14 +23,14 @@ fn format_broker_list(brokers: &Vec<i32>) -> String {
     res
 }
 
-fn format_metadata(cluster_id: &str, metadata: Arc<Metadata>, topic_metrics: HashMap<String, f64>) -> PreEscaped<String> {
+fn format_metadata(cluster_id: &str, metadata: Arc<Metadata>, topic_metrics: HashMap<String, (f64, f64)>) -> PreEscaped<String> {
     let title = html! { "Metadata for cluster: " (cluster_id) };
     let content = html! {
         p { "Last update: " (metadata.refresh_time) }
         ol {
             @for (topic_name, partitions) in &metadata.topics {
-                @let rate = topic_metrics.get(topic_name).unwrap_or(&-1f64) / 1000f64 {
-                    li  { (topic_name) " - 15 min rate: " (format!("{:.1} KB/s", rate)) }
+                @let rate = topic_metrics.get(topic_name).unwrap_or(&(-1f64, -1f64)).clone() {
+                    li  { (topic_name) " - 15 min rate: " (format!("{:.1} KB/s", rate.0 / 1000f64)) }
                     ul {
                         @for partition in partitions {
                             li { (partition.id) " - " (partition.leader) " " (format_broker_list(&partition.isr)) }
@@ -43,16 +43,14 @@ fn format_metadata(cluster_id: &str, metadata: Arc<Metadata>, topic_metrics: Has
     layout::panel(title, content)
 }
 
-fn build_topic_metrics(cluster_id: &str, metadata: &Metadata, metrics: &MetricsCache) -> HashMap<String, f64> {
-    let mut result: HashMap<String, f64> = HashMap::with_capacity(metadata.topics.len());
+fn build_topic_metrics(cluster_id: &str, metadata: &Metadata, metrics: &MetricsCache) -> HashMap<String, (f64, f64)> {
+    let mut result = HashMap::with_capacity(metadata.topics.len());
     for broker in &metadata.brokers {
         if let Some(broker_metrics) = metrics.get(&(cluster_id.to_owned(), broker.id)) {
             for (topic_name, rate) in broker_metrics.topics {
-                // if rate < 0.001 {
-                //     continue;
-                // }
                 // Keep an eye on RFC 1769
-                *result.entry(topic_name.to_owned()).or_insert(0f64) += rate;
+                let mut entry_ref = result.entry(topic_name.to_owned()).or_insert((0f64, 0f64));
+                *entry_ref = (entry_ref.0 + rate.0, entry_ref.1 + rate.1);
             }
         }
     }
@@ -76,23 +74,32 @@ pub fn home_handler(req: &mut Request) -> IronResult<Response> {
 }
 
 fn broker_table_row(cluster_id: &str, broker: &Broker, metrics: &MetricsCache) -> PreEscaped<String> {
-    let rate = metrics.get(&(cluster_id.to_owned(), broker.id))
+    let byte_rate = metrics.get(&(cluster_id.to_owned(), broker.id))
         .and_then(|broker_metrics| { broker_metrics.topics.get("__TOTAL__").cloned() })
-        .map(|r| format!("{:.1} KB/s", (r / 1000f64)))
+        .map(|r| format!("{:.1} KB/s", (r.0 / 1000f64)))
+        .unwrap_or("no data".to_string());
+    let msg_rate = metrics.get(&(cluster_id.to_owned(), broker.id))
+        .and_then(|broker_metrics| { broker_metrics.topics.get("__TOTAL__").cloned() })
+        .map(|r| format!("{:.1} msg/s", r.1))
         .unwrap_or("no data".to_string());
     let broker_link = format!("/clusters/{}/broker/{}/", cluster_id, broker.id);
     html! {
         tr {
             td a href=(broker_link) (broker.id)
             td (broker.hostname)
-            td data-toggle="tooltip" data-container="body"
-                title="Total average over the last 15 minutes" (rate)
+            td (byte_rate)
+            td (msg_rate)
         }
     }
 }
 
 fn broker_table(cluster_id: &str, metadata: &Metadata, metrics: &MetricsCache) -> PreEscaped<String> {
-    layout::datatable(html! { tr { th "Broker id" th "Hostname" th "Total byte rate" } },
+    layout::datatable(html! { tr { th "Broker id" th "Hostname"
+        th data-toggle="tooltip" data-container="body"
+            title="Total average over the last 15 minutes" "Total byte rate"
+        th data-toggle="tooltip" data-container="body"
+            title="Total average over the last 15 minutes" "Total msg rate"
+        } },
         html! { @for broker in &metadata.brokers {
                     (broker_table_row(cluster_id, broker, metrics))
                 }
@@ -100,18 +107,28 @@ fn broker_table(cluster_id: &str, metadata: &Metadata, metrics: &MetricsCache) -
     })
 }
 
-fn topic_table_row(cluster_id: &str, name: &str, n_part: usize, topic_metrics: &HashMap<String, f64>) -> PreEscaped<String> {
-    let rate = topic_metrics.get(name)
-        .map(|r| format!("{:.1} KB/s", (r / 1000f64)))
+fn topic_table_row(cluster_id: &str, name: &str, partitions: &Vec<Partition>, topic_metrics: &HashMap<String, (f64, f64)>) -> PreEscaped<String> {
+    let byte_rate = topic_metrics.get(name)
+        .map(|r| format!("{:.1} KB/s", (r.0 / 1000f64)))
+        .unwrap_or("no data".to_string());
+    let msg_rate = topic_metrics.get(name)
+        .map(|r| format!("{:.1} msg/s", r.1))
         .unwrap_or("no data".to_string());
     let chart_link = format!("https://app.signalfx.com/#/dashboard/CM0CgE0AgAA?variables%5B%5D=Topic%3Dtopic:{}", name);
     let topic_link = format!("/clusters/{}/topic/{}/", cluster_id, name);
+    let errors = partitions.iter().map(|p| (p.id, p.error.clone())).filter(|&(_, ref error)| error.is_some()).collect::<Vec<_>>();
+    let err_str = if errors.len() == 0 {
+        "None".to_owned()
+    } else {
+        format!("{:?}", errors)
+    };
     html! {
         tr {
             td a href=(topic_link) (name)
-            td (n_part)
-            td data-toggle="tooltip" data-container="body"
-                title="Average over the last 15 minutes" (rate)
+            td (partitions.len())
+            td (err_str)
+            td (byte_rate)
+            td (msg_rate)
             td {
                 a href=(chart_link) data-toggle="tooltip" data-container="body"
                     title="Topic chart" {
@@ -122,10 +139,13 @@ fn topic_table_row(cluster_id: &str, name: &str, n_part: usize, topic_metrics: &
     }
 }
 
-fn topic_table(cluster_id: &str, metadata: &Metadata, topic_metrics: &HashMap<String, f64>) -> PreEscaped<String> {
-    layout::datatable(html! { tr { th "Topic name" th "#Partitions" th "Byte rate" th "More" } },
+fn topic_table(cluster_id: &str, metadata: &Metadata, topic_metrics: &HashMap<String, (f64, f64)>) -> PreEscaped<String> {
+    layout::datatable(html! { tr { th "Topic name" th "#Partitions" th "Errors"
+        th data-toggle="tooltip" data-container="body" title="Average over the last 15 minutes" "Byte rate"
+        th data-toggle="tooltip" data-container="body" title="Average over the last 15 minutes" "Msg rate"
+        th "More"} },
         html! { @for (topic_name, partitions) in &metadata.topics {
-                    (topic_table_row(cluster_id, topic_name, partitions.len(), topic_metrics))
+                    (topic_table_row(cluster_id, topic_name, partitions, topic_metrics))
                 }
 
     })
