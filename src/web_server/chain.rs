@@ -7,8 +7,9 @@ use web_server::handlers;
 pub fn chain() -> iron::Chain {
     let mut router = router::Router::new();
     router.get("/", handlers::home_handler, "get_home");
-    router.get("/clusters/", pages::clusters_page_root, "clusters");
-    router.get("/clusters/:cluster_id/", pages::cluster_page_root, "get_cluster");
+    router.get("/clusters/", pages::clusters_page, "clusters");
+    router.get("/clusters/:cluster_id/", pages::cluster_page, "get_cluster");
+    router.get("/clusters/:cluster_id/topic/:topic_name/", pages::topic_page, "get_page");
     // router.post("/new_task", handlers::new_task_handler, "new_task");
     router.get("/public/*", handlers::AssetsHandler::new("/public/", "resources/web_server/public/"), "public_assets");
     iron::Chain::new(router)

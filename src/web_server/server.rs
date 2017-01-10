@@ -73,7 +73,7 @@ struct ErrorHandler;
 impl AfterMiddleware for ErrorHandler {
     fn catch(&self, request: &mut Request, err: IronError) -> IronResult<Response> {
         if err.error.is::<NoRoute>() {
-            pages::not_found(request)
+            pages::not_found_page(request)
         } else {
             Ok(err.response)
         }

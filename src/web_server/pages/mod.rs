@@ -1,7 +1,10 @@
 mod cluster;
 mod clusters;
 mod error_defaults;
+mod topic;
 
-pub use self::cluster::cluster_page_root;
-pub use self::clusters::clusters_page_root;
-pub use self::error_defaults::not_found_page_root as not_found;
+pub use self::cluster::cluster_page;
+pub use self::clusters::clusters_page;
+pub use self::error_defaults::not_found_page;
+pub use self::error_defaults::warning_page;
+pub use self::topic::topic_page;

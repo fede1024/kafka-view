@@ -113,8 +113,9 @@ fn navbar_header() -> PreEscaped<String> {
                 span class="icon-bar" {}
             }
             a class="navbar-brand" href="/" {
-                    img src="/public/images/kafka_logo_small.png"
-                        style="float:left;max-width:170%;max-height:170%; margin-top: -0.06in" align="bottom"
+                    img src="/public/images/kafka_logo.png"
+                        style="float:left;max-width:160%;max-height:160%; margin-top: -0.06in; margin-right: 0.02in"
+                        align="bottom"
                 "Kafka-web"
             }
         }

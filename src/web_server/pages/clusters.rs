@@ -43,7 +43,7 @@ fn cluster_pane(name: &str, metadata: &Metadata) -> PreEscaped<String> {
     cluster_pane_layout(name, broker_count, topics_count)
 }
 
-pub fn clusters_page_root(req: &mut Request) -> IronResult<Response> {
+pub fn clusters_page(req: &mut Request) -> IronResult<Response> {
     let cache = req.extensions.get::<CacheType>().unwrap();
     let mut clusters = cache.metadata.keys();
     clusters.sort();

@@ -6,13 +6,14 @@ use chrono::UTC;
 
 use std::collections::HashMap;
 
+use web_server::pages;
 use web_server::server::{CacheType, ConfigArc};
 use web_server::view::layout;
 use metadata::{Metadata, Broker, Partition};
 use cache::MetricsCache;
 
 
-fn build_topic_metrics(cluster_id: &str, metadata: &Metadata, metrics: &MetricsCache) -> HashMap<String, (f64, f64)> {
+pub fn build_topic_metrics(cluster_id: &str, metadata: &Metadata, metrics: &MetricsCache) -> HashMap<String, (f64, f64)> {
     let mut result = HashMap::with_capacity(metadata.topics.len());
     for broker in &metadata.brokers {
         if let Some(broker_metrics) = metrics.get(&(cluster_id.to_owned(), broker.id)) {
@@ -96,28 +97,32 @@ fn topic_table(cluster_id: &str, metadata: &Metadata, topic_metrics: &HashMap<St
     })
 }
 
-pub fn cluster_page_root(req: &mut Request) -> IronResult<Response> {
+pub fn cluster_page(req: &mut Request) -> IronResult<Response> {
     let cache = req.extensions.get::<CacheType>().unwrap();
     let ref config = req.extensions.get::<ConfigArc>().unwrap().config;
     let cluster_id = req.extensions.get::<Router>().unwrap().find("cluster_id").unwrap();
 
     let metadata = cache.metadata.get(&cluster_id.to_owned());
     if metadata.is_none() {
-        let content = layout::notification("danger", html! { i class="fa fa-frown-o fa-3x" "" " The specified cluster doesn't exist." });
-        let page_title = format!("Cluster: {}", cluster_id);
-        let html = layout::page(&page_title, content);
-        return Ok(Response::with((status::Ok, html)));
+        return pages::warning_page(req,
+            &format!("Cluster: {}", cluster_id),
+            "The specified cluster doesn't exist.")
     }
 
     let metadata = cache.metadata.get(&cluster_id.to_string()).unwrap();
-    let cluster_config = config.clusters.get(cluster_id).unwrap();
+    let cluster_config = config.clusters.get(cluster_id);
     let topic_metrics = build_topic_metrics(&cluster_id, &metadata, &cache.metrics);
     let content = html! {
         h3 style="margin-top: 0px" "Cluster info"
         dl class="dl-horizontal" {
             dt "Cluster name: " dd (cluster_id)
-            dt "Bootstrap list: " dd (cluster_config.broker_list.join(", "))
-            dt "Zookeeper: " dd (cluster_config.zookeeper)
+            @if cluster_config.is_some() {
+                dt "Bootstrap list: " dd (cluster_config.unwrap().broker_list.join(", "))
+                dt "Zookeeper: " dd (cluster_config.unwrap().zookeeper)
+            } else {
+                dt "Bootstrap list: " dd "Cluster configuration is missing"
+                dt "Zookeeper: " dd "Cluster configuration is missing"
+            }
             dt "Last metadata update:" dd (metadata.refresh_time)
         }
         h3 "Brokers"
