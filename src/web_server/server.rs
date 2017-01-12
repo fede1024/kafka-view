@@ -5,6 +5,8 @@ use maud::PreEscaped;
 use iron::headers;
 use iron::prelude::*;
 use router::NoRoute;
+use rand;
+use std::sync::Mutex;
 
 use error::*;
 use web_server::view::layout;
@@ -47,23 +49,41 @@ impl BeforeMiddleware for ConfigArc {
     }
 }
 
-pub struct RequestTimer;
-impl Key for RequestTimer { type Value = DateTime<UTC>; }
+#[derive(Clone)]
+pub struct RequestTimer {
+    timings: Arc<Mutex<Vec<(i32, i64, DateTime<UTC>)>>>
+}
+
+impl RequestTimer {
+    fn new() -> RequestTimer {
+        RequestTimer { timings: Arc::new(Mutex::new(Vec::new())) }
+    }
+}
+
+impl Key for RequestTimer { type Value = (i32, DateTime<UTC>); }
 
 impl BeforeMiddleware for RequestTimer {
     fn before(&self, request: &mut Request) -> IronResult<()> {
-        request.extensions.insert::<RequestTimer>(UTC::now());
+        let path_len = request.url.path().last().unwrap_or(&"").len();
+        if path_len == 0 {
+            let request_id = rand::random::<i32>();
+            request.extensions.insert::<RequestTimer>((request_id, UTC::now()));
+        }
         Ok(())
     }
 }
 
 impl AfterMiddleware for RequestTimer {
     fn after(&self, request: &mut Request, mut response: Response) -> IronResult<Response> {
-        let time = request.extensions.get::<RequestTimer>().unwrap();
-        let millis = (UTC::now() - *time).num_milliseconds().to_string();
-        let mut cookie = headers::CookiePair::new("request_time".to_owned(), millis.to_string());
-        cookie.max_age = Some(20);
-        response.headers.set(headers::SetCookie(vec![cookie]));
+        let timer = request.extensions.get::<RequestTimer>();
+        if timer.is_some() {
+            let &(request_id, start_time) = timer.unwrap();
+            let now = UTC::now();
+            let elapsed_millis = (now - start_time).num_milliseconds();
+            let mut timings = self.timings.lock().expect("Poison error");
+            timings.push((request_id, elapsed_millis, now));
+            timings.retain(|&(_, _, request_time)| (now - request_time).num_seconds() < 20);
+        }
         Ok(response)
     }
 }
@@ -81,11 +101,12 @@ impl AfterMiddleware for ErrorHandler {
 }
 
 pub fn run_server(cache: Cache, config: &Config) -> Result<()> {
+    let request_timer = RequestTimer::new();
     let mut chain = chain::chain();
-    chain.link_before(RequestTimer);
+    chain.link_before(request_timer.clone());
     chain.link_before(cache);
     chain.link_before(ConfigArc::new(config.clone()));
-    chain.link_after(RequestTimer);
+    chain.link_after(request_timer.clone());
     chain.link_after(ErrorHandler);
 
     let port = 3000;

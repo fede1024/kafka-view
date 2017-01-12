@@ -10,7 +10,7 @@ use std::path::Path;
 use std::sync::Arc;
 use std::collections::HashMap;
 
-use web_server::server::CacheType;
+use web_server::server::{CacheType, RequestTimer};
 use web_server::view::layout;
 use metadata::{Metadata, Broker, Partition};
 use cache::MetricsCache;
@@ -59,6 +59,7 @@ fn build_topic_metrics(cluster_id: &str, metadata: &Metadata, metrics: &MetricsC
 
 pub fn home_handler(req: &mut Request) -> IronResult<Response> {
     let cache = req.extensions.get::<CacheType>().unwrap();
+    let &(request_id, _) = req.extensions.get::<RequestTimer>().unwrap();
 
     let mut content = "".to_string();
     for cluster_id in cache.metadata.keys() {
@@ -68,7 +69,7 @@ pub fn home_handler(req: &mut Request) -> IronResult<Response> {
     }
 
     let clusters = cache.metadata.keys();
-    let html = layout::page("Clusters", PreEscaped(content));
+    let html = layout::page(request_id, "Clusters", PreEscaped(content));
 
     Ok(Response::with((status::Ok, html)))
 }

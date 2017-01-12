@@ -3,15 +3,29 @@ use iron;
 
 use web_server::pages;
 use web_server::handlers;
+use router::Router;
+
+use iron::prelude::*;
+use iron::modifiers::Redirect;
+use iron::{Url, status};
+
+
+fn request_timing(req: &mut Request) -> IronResult<Response> {
+    let request_id = req.extensions.get::<Router>().unwrap().find("request_id").unwrap();
+
+    Ok(Response::with((status::Ok, request_id)))
+}
 
 pub fn chain() -> iron::Chain {
     let mut router = router::Router::new();
     router.get("/", handlers::home_handler, "get_home");
+    //router.get("/", redirect_to_clusters_page, "get_home");
     router.get("/clusters/", pages::clusters_page, "clusters");
     router.get("/clusters/:cluster_id/", pages::cluster_page, "get_cluster");
     router.get("/clusters/:cluster_id/topic/:topic_name/", pages::topic_page, "get_page");
     // router.post("/new_task", handlers::new_task_handler, "new_task");
     router.get("/public/*", handlers::AssetsHandler::new("/public/", "resources/web_server/public/"), "public_assets");
+    router.get("/meta/request_time/:request_id/", request_timing, "request_timing");
     iron::Chain::new(router)
 }
 

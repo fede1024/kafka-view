@@ -1,9 +1,11 @@
+use web_server::server::RequestTimer;
 use web_server::view::layout;
 use maud::PreEscaped;
 use iron::status;
 use iron::prelude::*;
 
-pub fn warning_page(_: &Request, title: &str, message: &str) -> IronResult<Response> {
+pub fn warning_page(req: &Request, title: &str, message: &str) -> IronResult<Response> {
+    let &(request_id, _) = req.extensions.get::<RequestTimer>().unwrap();
     let content = layout::notification("warning",
         html! {
             div class="flex-container" {
@@ -13,7 +15,7 @@ pub fn warning_page(_: &Request, title: &str, message: &str) -> IronResult<Respo
                 }
             }
         });
-    let html = layout::page(title, content);
+    let html = layout::page(request_id, title, content);
     Ok(Response::with((status::NotFound, html)))   // TODO fix return status
 }
 

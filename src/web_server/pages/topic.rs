@@ -3,7 +3,7 @@ use router::Router;
 use iron::{IronResult, status};
 use maud::PreEscaped;
 
-use web_server::server::CacheType;
+use web_server::server::{CacheType, RequestTimer};
 use web_server::view::layout;
 use web_server::pages;
 use metadata::{Metadata, Partition};
@@ -12,64 +12,44 @@ use cache::{MetadataCache, MetricsCache};
 use std::collections::HashMap;
 
 
-fn cluster_pane_layout(name: &str, brokers: usize, topics: usize) -> PreEscaped<String> {
-    let link = format!("/clusters/{}/", name);
+fn format_broker_list(cluster_id: &str, brokers: &Vec<i32>) -> PreEscaped<String> {
     html! {
-        div class="col-lg-4 col-md-6" {
-            div class="panel panel-primary" {
-                div class="panel-heading" {
-                    div class="row" {
-                        div class="col-xs-3" i class="fa fa-server fa-5x" {}
-                        div class="col-xs-9 text-right" {
-                            div style="font-size: 24px" {
-                                a href=(link) style="color: inherit; text-decoration: inherit;" (name)
-                            }
-                            div { (brokers) " brokers" }
-                            div { (topics) " topics" }
-                        }
-                    }
-                }
-                a href=(link) {
-                    div class="panel-footer" {
-                        span class="pull-left" "View Details"
-                        span class="pull-right" i class="fa fa-arrow-circle-right" {}
-                        div class="clearfix" {}
-                    }
-                }
-            }
+        @for (n, broker) in brokers.iter().enumerate() {
+            a href=(format!("/clusters/{}/broker/{}/", cluster_id, broker)) (broker)
+            @if n < brokers.len() - 1 { ", " }
         }
     }
 }
 
-fn cluster_pane(name: &str, metadata: &Metadata) -> PreEscaped<String> {
-    let broker_count = metadata.brokers.len();
-    let topics_count = metadata.topics.len();
-    cluster_pane_layout(name, broker_count, topics_count)
-}
-
-fn format_broker_list(brokers: &Vec<i32>) -> String {
-    let mut res = "[".to_string();
-    res += &brokers.iter().map(|id| id.to_string()).collect::<Vec<String>>().join(", ");
-    res += "]";
-    res
-}
-
-fn format_metadata(cluster_id: &str, topic_name: &str, partitions: &Vec<Partition>,
-        topic_metrics: HashMap<String, (f64, f64)>) -> PreEscaped<String> {
-
-    let content = html! {
-        ul {
-            @for partition in partitions {
-                li { (partition.id) " - " (partition.leader) " " (format_broker_list(&partition.isr)) }
-            }
-        }
+fn topic_table_row(cluster_id: &str, partition: &Partition) -> PreEscaped<String> {
+    let status = if partition.error.is_none() {
+        html!{ i class="fa fa-check fa-fw" style="color: green" {} }
+    } else {
+        //html!{ i class="fa fa-exclamation-triangle fa-fw" style="color: yellow" {} }
+        html!{ i class="fa fa-times fa-fw" style="color: red" {} (partition.error.clone().unwrap()) }
     };
-    layout::panel(html!("Topology"), content)
+    html! {
+        tr {
+            td (partition.id)
+            td a href=(format!("/clusters/{}/broker/{}/", cluster_id, partition.leader)) (partition.leader)
+            td (format_broker_list(cluster_id, &partition.replicas))
+            td (format_broker_list(cluster_id, &partition.isr))
+            td (status)
+        }
+    }
+}
+
+fn topic_table(cluster_id: &str, partitions: &Vec<Partition>) -> PreEscaped<String> {
+    layout::datatable (
+        html! { tr { th "Id" th "Leader" th "Replicas" th "ISR" th "Status" } },
+        html! { @for partition in partitions.iter() { (topic_table_row(cluster_id, partition)) }}
+    )
 }
 
 pub fn topic_page(req: &mut Request) -> IronResult<Response> {
     let cache = req.extensions.get::<CacheType>().unwrap();
     let cluster_id = req.extensions.get::<Router>().unwrap().find("cluster_id").unwrap();
+    let &(request_id, _) = req.extensions.get::<RequestTimer>().unwrap();
     let topic_name = req.extensions.get::<Router>().unwrap().find("topic_name").unwrap();
 
     let metadata = match cache.metadata.get(&cluster_id.to_owned()) {
@@ -90,12 +70,30 @@ pub fn topic_page(req: &mut Request) -> IronResult<Response> {
         }
     };
 
-    let topic_metrics = pages::cluster::build_topic_metrics(&cluster_id, &metadata, &cache.metrics);
+    let topic_metrics = pages::cluster::build_topic_metrics(&cluster_id, &metadata, &cache.metrics)
+        .get(topic_name).cloned();
     let content = html! {
-        (format_metadata(cluster_id, topic_name, partitions, topic_metrics))
+        h3 style="margin-top: 0px" "Cluster info"
+        dl class="dl-horizontal" {
+            dt "Cluster name " dd (cluster_id)
+            dt "Topic name " dd (topic_name)
+            dt "Number of partitions " dd (partitions.len())
+            dt "Number of replicas " dd (partitions[0].replicas.len())
+            dt "Last metadata update" dd (metadata.refresh_time)
+            @if topic_metrics.is_some() {
+                dt "Traffic last 15 minutes" dd (format!("{:.1} KB/s", topic_metrics.unwrap().0 / 1000f64))
+                dt "" dd (format!("{:.0} msg/s", topic_metrics.unwrap().1))
+            } @else {
+                dt "Traffic data" dd "Not available"
+            }
+        }
+        h3 "Topic topology"
+        (topic_table(cluster_id, partitions))
+        h3 "Active consumers"
+        p "Coming soon."
     };
 
-    let html = layout::page(&format!("Topic: {}", topic_name), content);
+    let html = layout::page(request_id, &format!("Topic: {}", topic_name), content);
 
     Ok(Response::with((status::Ok, html)))
 }

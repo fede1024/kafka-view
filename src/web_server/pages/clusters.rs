@@ -2,7 +2,7 @@ use iron::prelude::{Request, Response};
 use iron::{IronResult, status};
 use maud::PreEscaped;
 
-use web_server::server::CacheType;
+use web_server::server::{CacheType, RequestTimer};
 use web_server::view::layout;
 use metadata::Metadata;
 use cache::{MetadataCache, MetricsCache};
@@ -45,6 +45,7 @@ fn cluster_pane(name: &str, metadata: &Metadata) -> PreEscaped<String> {
 
 pub fn clusters_page(req: &mut Request) -> IronResult<Response> {
     let cache = req.extensions.get::<CacheType>().unwrap();
+    let &(request_id, _) = req.extensions.get::<RequestTimer>().unwrap();
     let mut clusters = cache.metadata.keys();
     clusters.sort();
 
@@ -54,7 +55,7 @@ pub fn clusters_page(req: &mut Request) -> IronResult<Response> {
 		}
     };
 
-    let html = layout::page("Clusters", content);
+    let html = layout::page(request_id, "Clusters", content);
 
     Ok(Response::with((status::Ok, html)))
 }

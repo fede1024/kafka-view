@@ -7,7 +7,7 @@ use chrono::UTC;
 use std::collections::HashMap;
 
 use web_server::pages;
-use web_server::server::{CacheType, ConfigArc};
+use web_server::server::{CacheType, ConfigArc, RequestTimer};
 use web_server::view::layout;
 use metadata::{Metadata, Broker, Partition};
 use cache::MetricsCache;
@@ -101,6 +101,7 @@ pub fn cluster_page(req: &mut Request) -> IronResult<Response> {
     let cache = req.extensions.get::<CacheType>().unwrap();
     let ref config = req.extensions.get::<ConfigArc>().unwrap().config;
     let cluster_id = req.extensions.get::<Router>().unwrap().find("cluster_id").unwrap();
+    let &(request_id, _) = req.extensions.get::<RequestTimer>().unwrap();
 
     let metadata = cache.metadata.get(&cluster_id.to_owned());
     if metadata.is_none() {
@@ -119,7 +120,7 @@ pub fn cluster_page(req: &mut Request) -> IronResult<Response> {
             @if cluster_config.is_some() {
                 dt "Bootstrap list: " dd (cluster_config.unwrap().broker_list.join(", "))
                 dt "Zookeeper: " dd (cluster_config.unwrap().zookeeper)
-            } else {
+            } @else {
                 dt "Bootstrap list: " dd "Cluster configuration is missing"
                 dt "Zookeeper: " dd "Cluster configuration is missing"
             }
@@ -130,7 +131,7 @@ pub fn cluster_page(req: &mut Request) -> IronResult<Response> {
         h3 "Topics"
         div class="loader-parent-marker" (topic_table(cluster_id, &metadata, &topic_metrics))
     };
-    let html = layout::page(&format!("Cluster: {}", cluster_id), content);
+    let html = layout::page(request_id, &format!("Cluster: {}", cluster_id), content);
 
     Ok(Response::with((status::Ok, html)))
 }

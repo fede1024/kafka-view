@@ -7,6 +7,7 @@ extern crate alloc_system;
 #[macro_use] extern crate serde_derive;
 extern crate clap;
 extern crate env_logger;
+extern crate rand;
 extern crate iron;
 extern crate chrono;
 extern crate futures;

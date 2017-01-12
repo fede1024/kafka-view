@@ -1,13 +1,10 @@
-function getCookie(name) {
-  var value = "; " + document.cookie;
-  var parts = value.split("; " + name + "=");
-  if (parts.length >= 2) return parts.pop().split(";").shift();
-}
-
 $(document).ready(function() {
-    $("#request_time").text(getCookie("request_time") + " ms");
-    console.log(">", document.cookie);
-    //$("#request_time").text(document.cookie);
+    var request_id = $("#request_id").html();
+    var url = "http://localhost:3000/meta/request_time/" + request_id + "/"
+    console.log(url)
+    $.ajax({url: url, success: function(result){
+        $("#request_time").html(result);
+    }});
 });
 
 jQuery.fn.dataTable.ext.type.order['file-size-pre'] = function (data) {
@@ -63,8 +60,8 @@ $(document).ready(function() {
             ]
         });
         // $(this).parents('.panel-body').children('.table-loader-marker').css({"display": "none"});
-        $(this).parents('.loader-parent-marker').children('.table-loader-marker').css({"display": "none"});
-        $(this).css({"display": "table"})
+        //$(this).parents('.loader-parent-marker').children('.table-loader-marker').css({"display": "none"});
+        //$(this).css({"display": "table"})
     });
     $('.datatable-topic-marker').each(function(index) {
         $( this ).dataTable({

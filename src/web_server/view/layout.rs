@@ -47,14 +47,16 @@ pub fn datatable_topic(table_header: PreEscaped<String>, table_body: PreEscaped<
 
 pub fn datatable_broker(table_header: PreEscaped<String>, table_body: PreEscaped<String>) -> PreEscaped<String> {
     html! {
-        div class="table-loader-marker" style="text-align: center; padding: 0.3in;" {
-            div style="display: inline-block" {
-                i class="fa fa-spinner fa-spin fa-4x" {}
-                span class="sr-only" "Loading..."
-            }
+        table width="100%" class="datatable-broker-marker table table-striped table-bordered table-hover" {
+            thead { (table_header) }
+            tbody { (table_body) }
         }
-        table width="100%" class="datatable-broker-marker table table-striped table-bordered table-hover"
-            style="display: none" {
+    }
+}
+
+pub fn datatable(table_header: PreEscaped<String>, table_body: PreEscaped<String>) -> PreEscaped<String> {
+    html! { // TODO fixme
+        table width="100%" class="datatable-broker-marker table table-striped table-bordered table-hover" {
             thead { (table_header) }
             tbody { (table_body) }
         }
@@ -87,19 +89,22 @@ pub fn table<'a, H, R>(headers: H, rows: R) -> PreEscaped<String>
     }
 }
 
-fn header(title: &str) -> PreEscaped<String> {
+fn html_head(title: &str) -> PreEscaped<String> {
     html! {
-        meta charset="utf-8" {}
-        meta http-equiv="X-UA-Compatible" content="IE=edge" {}
-        meta name="viewport" content="width=device-width, initial-scale=1" {}
-        title (title)
-        link href="/public/sb-admin-2/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet" {}
-        link href="/public/sb-admin-2/vendor/metisMenu/metisMenu.min.css" rel="stylesheet" {}
-        link href="/public/sb-admin-2/vendor/datatables-plugins/dataTables.bootstrap.css" rel="stylesheet" {}
-        link href="/public/sb-admin-2/vendor/datatables-responsive/dataTables.responsive.css" rel="stylesheet" {}
-        link href="/public/sb-admin-2/dist/css/sb-admin-2.css" rel="stylesheet" {}
-        link href="/public/sb-admin-2/vendor/font-awesome/css/font-awesome.min.css" rel="stylesheet" type="text/css" {}
-        link href="/public/my_css.css" rel="stylesheet" type="text/css" {}
+        head profile="http://www.w3.org/2005/10/profile" {
+            link rel="icon" type="image/png" href="/public/images/webkafka_favicon.png" {}
+            meta charset="utf-8" {}
+            meta http-equiv="X-UA-Compatible" content="IE=edge" {}
+            meta name="viewport" content="width=device-width, initial-scale=1" {}
+            title (title)
+            link href="/public/sb-admin-2/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet" {}
+            link href="/public/sb-admin-2/vendor/metisMenu/metisMenu.min.css" rel="stylesheet" {}
+            link href="/public/sb-admin-2/vendor/datatables-plugins/dataTables.bootstrap.css" rel="stylesheet" {}
+            link href="/public/sb-admin-2/vendor/datatables-responsive/dataTables.responsive.css" rel="stylesheet" {}
+            link href="/public/sb-admin-2/dist/css/sb-admin-2.css" rel="stylesheet" {}
+            link href="/public/sb-admin-2/vendor/font-awesome/css/font-awesome.min.css" rel="stylesheet" type="text/css" {}
+            link href="/public/my_css.css" rel="stylesheet" type="text/css" {}
+        }
     }
 }
 
@@ -234,12 +239,13 @@ fn body(page_title: &str, content: PreEscaped<String>) -> PreEscaped<String> {
     }
 }
 
-pub fn page(page_title: &str, page_content: PreEscaped<String>) -> PreEscaped<String> {
+pub fn page(request_id: i32, page_title: &str, page_content: PreEscaped<String>) -> PreEscaped<String> {
     html! {
         (PreEscaped("<!DOCTYPE html>"))
         html {
-            head (header("Kafka-web"))
+            (html_head(page_title))
             body (body(page_title, page_content))
+            span id="request_id" style="display: none" (request_id)
         }
     }
 }
