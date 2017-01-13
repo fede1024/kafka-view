@@ -51,23 +51,31 @@ impl BeforeMiddleware for ConfigArc {
 
 #[derive(Clone)]
 pub struct RequestTimer {
-    timings: Arc<Mutex<Vec<(i32, i64, DateTime<UTC>)>>>
+    pub request_id: i32,
+    pub start_time: DateTime<UTC>,
+    pub timings: Arc<Mutex<Vec<(i32, i64, DateTime<UTC>)>>>
 }
 
 impl RequestTimer {
     fn new() -> RequestTimer {
-        RequestTimer { timings: Arc::new(Mutex::new(Vec::new())) }
+        RequestTimer {
+            request_id: 0,           // Value not used
+            start_time: UTC::now(),  // Value not used
+            timings: Arc::new(Mutex::new(Vec::new())),
+        }
     }
 }
 
-impl Key for RequestTimer { type Value = (i32, DateTime<UTC>); }
+impl Key for RequestTimer { type Value = RequestTimer; }
 
 impl BeforeMiddleware for RequestTimer {
     fn before(&self, request: &mut Request) -> IronResult<()> {
         let path_len = request.url.path().last().unwrap_or(&"").len();
         if path_len == 0 {
-            let request_id = rand::random::<i32>();
-            request.extensions.insert::<RequestTimer>((request_id, UTC::now()));
+            let mut request_timer = self.clone();
+            request_timer.request_id = rand::random::<i32>();
+            request_timer.start_time = UTC::now();
+            request.extensions.insert::<RequestTimer>(request_timer);
         }
         Ok(())
     }
@@ -75,13 +83,13 @@ impl BeforeMiddleware for RequestTimer {
 
 impl AfterMiddleware for RequestTimer {
     fn after(&self, request: &mut Request, mut response: Response) -> IronResult<Response> {
-        let timer = request.extensions.get::<RequestTimer>();
-        if timer.is_some() {
-            let &(request_id, start_time) = timer.unwrap();
+        let request_timer = request.extensions.get::<RequestTimer>();
+        if request_timer.is_some() {
+            let request_timer = request_timer.unwrap();
             let now = UTC::now();
-            let elapsed_millis = (now - start_time).num_milliseconds();
-            let mut timings = self.timings.lock().expect("Poison error");
-            timings.push((request_id, elapsed_millis, now));
+            let elapsed_millis = (now - request_timer.start_time).num_milliseconds();
+            let mut timings = request_timer.timings.lock().expect("Poison error");
+            timings.push((request_timer.request_id, elapsed_millis, now));
             timings.retain(|&(_, _, request_time)| (now - request_time).num_seconds() < 20);
         }
         Ok(response)

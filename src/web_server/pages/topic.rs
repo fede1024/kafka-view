@@ -49,7 +49,7 @@ fn topic_table(cluster_id: &str, partitions: &Vec<Partition>) -> PreEscaped<Stri
 pub fn topic_page(req: &mut Request) -> IronResult<Response> {
     let cache = req.extensions.get::<CacheType>().unwrap();
     let cluster_id = req.extensions.get::<Router>().unwrap().find("cluster_id").unwrap();
-    let &(request_id, _) = req.extensions.get::<RequestTimer>().unwrap();
+    let request_timer = req.extensions.get::<RequestTimer>().unwrap();
     let topic_name = req.extensions.get::<Router>().unwrap().find("topic_name").unwrap();
 
     let metadata = match cache.metadata.get(&cluster_id.to_owned()) {
@@ -93,7 +93,7 @@ pub fn topic_page(req: &mut Request) -> IronResult<Response> {
         p "Coming soon."
     };
 
-    let html = layout::page(request_id, &format!("Topic: {}", topic_name), content);
+    let html = layout::page(request_timer.request_id, &format!("Topic: {}", topic_name), content);
 
     Ok(Response::with((status::Ok, html)))
 }

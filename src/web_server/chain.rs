@@ -3,6 +3,7 @@ use iron;
 
 use web_server::pages;
 use web_server::handlers;
+use web_server::server::RequestTimer;
 use router::Router;
 
 use iron::prelude::*;
@@ -12,8 +13,15 @@ use iron::{Url, status};
 
 fn request_timing(req: &mut Request) -> IronResult<Response> {
     let request_id = req.extensions.get::<Router>().unwrap().find("request_id").unwrap();
+    let request_timer = req.extensions.get::<RequestTimer>().unwrap();
 
-    Ok(Response::with((status::Ok, request_id)))
+    let time_str = request_id.parse::<i32>().ok()
+        .and_then(|r_id| request_timer.timings.lock().expect("Poison error")
+                            .iter().find(|&&(req_id, time, _)| req_id == r_id)
+                            .map(|&(_, time, _)| time.to_string()))
+        .unwrap_or("?".to_owned());
+
+    Ok(Response::with((status::Ok, time_str)))
 }
 
 pub fn chain() -> iron::Chain {

@@ -101,7 +101,7 @@ pub fn cluster_page(req: &mut Request) -> IronResult<Response> {
     let cache = req.extensions.get::<CacheType>().unwrap();
     let ref config = req.extensions.get::<ConfigArc>().unwrap().config;
     let cluster_id = req.extensions.get::<Router>().unwrap().find("cluster_id").unwrap();
-    let &(request_id, _) = req.extensions.get::<RequestTimer>().unwrap();
+    let request_timer = req.extensions.get::<RequestTimer>().unwrap();
 
     let metadata = cache.metadata.get(&cluster_id.to_owned());
     if metadata.is_none() {
@@ -131,7 +131,7 @@ pub fn cluster_page(req: &mut Request) -> IronResult<Response> {
         h3 "Topics"
         div class="loader-parent-marker" (topic_table(cluster_id, &metadata, &topic_metrics))
     };
-    let html = layout::page(request_id, &format!("Cluster: {}", cluster_id), content);
+    let html = layout::page(request_timer.request_id, &format!("Cluster: {}", cluster_id), content);
 
     Ok(Response::with((status::Ok, html)))
 }
