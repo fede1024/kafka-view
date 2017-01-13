@@ -1,0 +1,8 @@
+# .dataTables_filter label { width: 100% }
+.dataTables_info { margin-top: 12px }
+
+.flex-container {  /* https://css-tricks.com/snippets/css/a-guide-to-flexbox/ */
+    display:flex;
+    align-items: center; /* Vertical center alignment */
+    justify-content: center; /* Horizontal center alignment */
+}
