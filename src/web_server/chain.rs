@@ -17,8 +17,8 @@ fn request_timing(req: &mut Request) -> IronResult<Response> {
 
     let time_str = request_id.parse::<i32>().ok()
         .and_then(|r_id| request_timer.timings.lock().expect("Poison error")
-                            .iter().find(|&&(req_id, time, _)| req_id == r_id)
-                            .map(|&(_, time, _)| time.to_string()))
+                            .iter().find(|&&(req_id, _, _)| req_id == r_id)
+                            .map(|&(_, time, _)| format!("{:.3} ms", time as f64 / 1000f64)))
         .unwrap_or("?".to_owned());
 
     Ok(Response::with((status::Ok, time_str)))

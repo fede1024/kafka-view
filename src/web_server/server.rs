@@ -64,6 +64,16 @@ impl RequestTimer {
             timings: Arc::new(Mutex::new(Vec::new())),
         }
     }
+
+    fn update_timing(&self) {
+        let now = UTC::now();
+        let elapsed_micros = (now - self.start_time).num_microseconds().unwrap();
+        let mut timings = self.timings.lock().expect("Poison error");
+        timings.retain(|&(_, _, request_time)| (now - request_time).num_seconds() < 20);
+        if timings.len() < 1000 {
+            timings.push((self.request_id, elapsed_micros, now));
+        }
+    }
 }
 
 impl Key for RequestTimer { type Value = RequestTimer; }
@@ -83,16 +93,15 @@ impl BeforeMiddleware for RequestTimer {
 
 impl AfterMiddleware for RequestTimer {
     fn after(&self, request: &mut Request, mut response: Response) -> IronResult<Response> {
-        let request_timer = request.extensions.get::<RequestTimer>();
-        if request_timer.is_some() {
-            let request_timer = request_timer.unwrap();
-            let now = UTC::now();
-            let elapsed_millis = (now - request_timer.start_time).num_milliseconds();
-            let mut timings = request_timer.timings.lock().expect("Poison error");
-            timings.push((request_timer.request_id, elapsed_millis, now));
-            timings.retain(|&(_, _, request_time)| (now - request_time).num_seconds() < 20);
-        }
+        request.extensions.get::<RequestTimer>()
+            .map(|request_timer| request_timer.update_timing());
         Ok(response)
+    }
+
+    fn catch(&self, request: &mut Request, err: IronError) -> IronResult<Response> {
+        request.extensions.get::<RequestTimer>()
+            .map(|request_timer| request_timer.update_timing());
+        Err(err)
     }
 }
 

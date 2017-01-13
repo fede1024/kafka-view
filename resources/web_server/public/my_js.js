@@ -1,7 +1,5 @@
 $(document).ready(function() {
-    var request_id = $("#request_id").html();
-    var url = "http://localhost:3000/meta/request_time/" + request_id + "/"
-    console.log(url)
+    var url = "/meta/request_time/" + $("#request_id").html() + "/"
     $.ajax({url: url, success: function(result){
         $("#request_time").html(result);
     }});
@@ -50,7 +48,7 @@ jQuery.fn.dataTable.ext.type.order['my-err-pre'] = function (data) {
 // Load responsive tables
 $(document).ready(function() {
     $('.datatable-broker-marker').each(function(index) {
-        $( this ).dataTable({
+        $(this).dataTable({
             "lengthMenu": [ [10, 50, 200, -1], [10, 50, 200, "All"] ],
             "language": {
               "search": "Regex search:"
@@ -59,12 +57,9 @@ $(document).ready(function() {
                 { "targets": [2, 3], "type": "my-numeric" }
             ]
         });
-        // $(this).parents('.panel-body').children('.table-loader-marker').css({"display": "none"});
-        //$(this).parents('.loader-parent-marker').children('.table-loader-marker').css({"display": "none"});
-        //$(this).css({"display": "table"})
     });
     $('.datatable-topic-marker').each(function(index) {
-        $( this ).dataTable({
+        $(this).dataTable({
             "search": { "regex": true},
             "lengthMenu": [ [10, 50, 200, -1], [10, 50, 200, "All"] ],
             "language": {
@@ -77,7 +72,6 @@ $(document).ready(function() {
                 { "type": "my-error", "targets": [2] }
             ]
         });
-        // $(this).parents('.panel-body').children('.table-loader-marker').css({"display": "none"});
         $(this).parents('.loader-parent-marker').children('.table-loader-marker').css({"display": "none"});
         $(this).css({"display": "table"})
     });

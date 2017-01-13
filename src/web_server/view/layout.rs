@@ -214,9 +214,9 @@ fn body(page_title: &str, content: PreEscaped<String>) -> PreEscaped<String> {
                     }
                 }
                 div class="row" {
-                    div class="col-md-12" style="border-bottom: 1px solid #eee;" {}
+                    div class="col-md-12" {}
                 }
-                div class="row" {
+                div class="row" style="border-top: 1px solid #eee; margin-top: 0.2in"  {
                     div class="col-md-4" style="text-align: center;" { "Kafka-web" }
                     div class="col-md-4" style="text-align: center;" {
                         "Version: " (option_env!("CARGO_PKG_VERSION").unwrap_or("unknown"))
