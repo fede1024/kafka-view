@@ -170,7 +170,7 @@ fn last_message_per_key(stream: MessageStream) -> Result<HashMap<WrappedKey, Mes
             Ok(Err(e)) => error!("Error while reading from Kafka: {}", e),
             Err(_) => error!("Stream receive error"),
         };
-        if EOF_set.len() == 3 { // TODO: make configurable
+        if EOF_set.len() == 2 { // TODO: make configurable
             break; // TODO: should stop consumer
         }
     }
