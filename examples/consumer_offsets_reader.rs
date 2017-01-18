@@ -13,7 +13,7 @@ use rdkafka::config::{ClientConfig, TopicConfig};
 use rdkafka::util::get_rdkafka_version;
 use std::str;
 
-use std::io::{self, Cursor, Seek, SeekFrom};
+use std::io::{self, Cursor, BufRead};
 use byteorder::{BigEndian, ReadBytesExt};
 
 
@@ -36,36 +36,42 @@ impl From<str::Utf8Error> for ParserError {
     }
 }
 
+#[derive(Debug)]
+enum ConsumerUpdate {
+    Metadata,
+    SetCommit { group: String, topic: String, partition: i32, offset: i64 },
+    DeleteCommit { group: String, topic: String, partition: i32 },
+}
 
-fn read_string<'a>(rdr: &'a mut Cursor<&[u8]>) -> Result<&'a str, ParserError> {
+fn read_str<'a>(rdr: &'a mut Cursor<&[u8]>) -> Result<&'a str, ParserError> {
     let strlen = try!(rdr.read_i16::<BigEndian>()) as usize;
     let pos = rdr.position() as usize;
     let slice = try!(str::from_utf8(&rdr.get_ref()[pos..(pos+strlen)]));
-    rdr.seek(SeekFrom::Current(strlen as i64));
+    rdr.consume(strlen);
     Ok(slice)
 }
 
-fn parse_group_offset(key_rdr: &mut Cursor<&[u8]>, payload: &[u8]) -> Result<(), ParserError> {
-    let group = try!(read_string(key_rdr)).to_owned();
-    let topic = try!(read_string(key_rdr)).to_owned();
+fn parse_group_offset(key_rdr: &mut Cursor<&[u8]>,
+                      payload_rdr: &mut Cursor<&[u8]>) -> Result<ConsumerUpdate, ParserError> {
+    let group = try!(read_str(key_rdr)).to_owned();
+    let topic = try!(read_str(key_rdr)).to_owned();
     let partition = try!(key_rdr.read_i32::<BigEndian>());
-    println!("group offset {:?} {:?} {}", group, topic, partition);
-    Ok(())
+    if payload_rdr.get_ref().len() != 0 {
+        try!(payload_rdr.read_i16::<BigEndian>());
+        let offset = try!(payload_rdr.read_i64::<BigEndian>());
+        Ok(ConsumerUpdate::SetCommit { group: group, topic: topic, partition: partition, offset: offset })
+    } else {
+        Ok(ConsumerUpdate::DeleteCommit { group: group, topic: topic, partition: partition })
+    }
 }
 
-fn parse_group_metadata(key_rdr: &mut Cursor<&[u8]>, payload: &[u8]) -> Result<(), ParserError> {
-    let group = read_string(key_rdr);
-    println!("group metadata {:?}", group);
-    Ok(())
-}
-
-fn parse_message(key: &[u8], payload: &[u8]) -> Result<(), ParserError> {
+fn parse_message(key: &[u8], payload: &[u8]) -> Result<ConsumerUpdate, ParserError> {
     let mut key_rdr = Cursor::new(key);
+    let mut payload_rdr = Cursor::new(payload);
     let key_version = try!(key_rdr.read_i16::<BigEndian>());
-    println!(">> {:?}", key_version);
     match key_version {
-        0 | 1 => Ok(try!(parse_group_offset(&mut key_rdr, payload))),
-        2 => Ok(try!(parse_group_metadata(&mut key_rdr, payload))),
+        0 | 1 => Ok(try!(parse_group_offset(&mut key_rdr, &mut payload_rdr))),
+        2 => Ok(ConsumerUpdate::Metadata),
         _ => Err(ParserError::Format),
     }
 }
@@ -111,8 +117,8 @@ fn consume_and_print(brokers: &str) {
                 println!("\n#### P:{}, o:{}, s:{:.3}KB", m.partition(), m.offset(),
                          (m.payload_len() as f64 / 1000f64));
 
-                parse_message(key, payload);
-
+                let msg = parse_message(key, payload);
+                println!("{:?}", msg);
             },
             Ok(Err(e)) => {
                 warn!("Kafka error: {:?}", e);
