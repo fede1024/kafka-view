@@ -1,4 +1,5 @@
 use futures::stream::Stream;
+use rdkafka::client::EmptyContext;
 use rdkafka::config::{ClientConfig, TopicConfig};
 use rdkafka::consumer::stream_consumer::{MessageStream, StreamConsumer};
 use rdkafka::consumer::{Consumer, EmptyConsumerContext};
@@ -43,12 +44,10 @@ impl WrappedKey {
 // ********* REPLICA WRITER **********
 //
 
-type ReplicatorTopic = FutureProducerTopic;
-
 pub struct ReplicaWriter {
 //    brokers: String,
 //    topic_name: String,
-    producer_topic: ReplicatorTopic,
+    producer_topic: FutureProducerTopic<EmptyContext>,
 }
 
 impl ReplicaWriter {
@@ -57,7 +56,7 @@ impl ReplicaWriter {
             .set("bootstrap.servers", brokers)
             .set("compression.codec", "gzip")
             .set("message.max.bytes", "10000000")
-            .create::<FutureProducer<>>()
+            .create::<FutureProducer<_>>()
             .expect("Producer creation error");
 
         producer.start();
@@ -224,9 +223,8 @@ pub struct ReplicatedMap<K, V>
     replica_writer: Arc<ReplicaWriter>,
 }
 
-impl<K, V> ReplicatedMap<K, V>
-        where K: Eq + Hash + Clone + Serialize + Deserialize,
-              V: Clone + Serialize + Deserialize {
+impl<K, V> ReplicatedMap<K, V> where K: Eq + Hash + Clone + Serialize + Deserialize,
+                                     V: Clone + Serialize + Deserialize {
     pub fn new(name: &str, replica_writer: Arc<ReplicaWriter>) -> ReplicatedMap<K, V> {
         ReplicatedMap {
             name: name.to_owned(),

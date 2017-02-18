@@ -73,7 +73,7 @@ pub fn topic_page(req: &mut Request) -> IronResult<Response> {
     let topic_metrics = pages::cluster::build_topic_metrics(&cluster_id, &metadata, &cache.metrics)
         .get(topic_name).cloned();
     let content = html! {
-        h3 style="margin-top: 0px" "Cluster info"
+        h3 style="margin-top: 0px" "General information"
         dl class="dl-horizontal" {
             dt "Cluster name " dd (cluster_id)
             dt "Topic name " dd (topic_name)
@@ -87,7 +87,7 @@ pub fn topic_page(req: &mut Request) -> IronResult<Response> {
                 dt "Traffic data" dd "Not available"
             }
         }
-        h3 "Topic topology"
+        h3 "Topology"
         (topic_table(cluster_id, partitions))
         h3 "Active consumers"
         p "Coming soon."

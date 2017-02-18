@@ -5,6 +5,7 @@ extern crate alloc_system;
 #[macro_use] extern crate error_chain;
 #[macro_use] extern crate log;
 #[macro_use] extern crate serde_derive;
+extern crate byteorder;
 extern crate clap;
 extern crate env_logger;
 extern crate rand;
@@ -32,6 +33,7 @@ mod metrics;
 mod scheduler;
 mod utils;
 mod web_server;
+mod offsets;
 
 use clap::{App, Arg, ArgMatches};
 
@@ -44,6 +46,8 @@ use error::*;
 use metrics::MetricsFetcher;
 use metadata::MetadataFetcher;
 use utils::format_error_chain;
+
+use offsets::run_offset_consumer;
 
 
 fn run_kafka_web(config_path: &str) -> Result<()> {
@@ -70,6 +74,9 @@ fn run_kafka_web(config_path: &str) -> Result<()> {
             .chain_err(|| format!("Failed to add cluster {}", cluster_name))?;
         info!("Added cluster {}", cluster_name);
     }
+
+    run_offset_consumer(&"localhost:9092");
+    run_offset_consumer(&"kafka-scribe-elb-uswest1devc.dev.yelpcorp.com:9092");
 
     // TODO: fixme?
     thread::sleep_ms(15000);

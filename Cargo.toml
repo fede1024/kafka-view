@@ -15,8 +15,8 @@ log = "0.3.0"
 maud = { version = "*", features = ["iron"] }
 maud_macros = "*"
 mount = "0.2.1"
-# rdkafka = "0.6.0"
-rdkafka = { path = "/home/fede/rust/rust-rdkafka", version = "0.6.0" }
+rdkafka = "0.7.0"
+# rdkafka = { path = "/home/fede/rust/rust-rdkafka", version = "0.7.0" }
 regex = "0.1.80"
 router = "0.4.0"
 serde = "0.8.0"
