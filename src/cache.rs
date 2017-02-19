@@ -93,8 +93,13 @@ impl ReplicaWriter {
 // ********* REPLICA READER **********
 //
 
+pub enum ReplicaCacheUpdate<'a> {
+    Set { key: &'a[u8], payload: &'a[u8] },
+    Delete { key: &'a[u8] }
+}
+
 pub trait UpdateReceiver: Send + 'static {
-    fn update(&self, name: &str, key_bytes: &[u8], msg: Message) -> Result<()>;
+    fn receive_update(&self, name: &str, update: ReplicaCacheUpdate) -> Result<()>;
 }
 
 type ReplicaConsumer = StreamConsumer<EmptyConsumerContext>;
@@ -130,7 +135,7 @@ impl ReplicaReader {
         })
     }
 
-    pub fn start<R: UpdateReceiver>(&mut self, rec: R) -> Result<()> {
+    pub fn start<R: UpdateReceiver>(&mut self, receiver: R) -> Result<()> {
         let stream = self.consumer.start();
         let handle = thread::Builder::new()
             .name("replica consumer".to_string())
@@ -139,7 +144,16 @@ impl ReplicaReader {
                     Err(e) => format_error_chain(e),
                     Ok(state) => {
                         for (w_key, message) in state {
-                            if let Err(e) = rec.update(w_key.cache_name(), w_key.serialized_key(), message) {
+                            let update = match message.payload() {
+                                Some(payload) => ReplicaCacheUpdate::Set {
+                                    key: w_key.serialized_key(),
+                                    payload: payload
+                                },
+                                None => ReplicaCacheUpdate::Delete {
+                                    key: w_key.serialized_key()
+                                },
+                            };
+                            if let Err(e) = receiver.receive_update(w_key.cache_name(), update) {
                                 format_error_chain(e);
                             }
                         }
@@ -219,7 +233,7 @@ pub struct ReplicatedMap<K, V>
         where K: Eq + Hash + Clone + Serialize + Deserialize,
               V: Clone + Serialize + Deserialize {
     name: String,
-    cache_lock: Arc<RwLock<HashMap<K, RwLock<V>>>>,
+    cache_lock: Arc<RwLock<HashMap<K, V>>>,
     replica_writer: Arc<ReplicaWriter>,
 }
 
@@ -252,22 +266,25 @@ impl<K, V> ReplicatedMap<K, V> where K: Eq + Hash + Clone + Serialize + Deserial
         }
     }
 
-    pub fn sync_value_update(&self, key: K, value: V) {
-        match self.cache_lock.read() {
-            Ok(cache) => {
-                let cell_lock = (*cache).get(&key);
-                if cell_lock.is_some() {
-                    match cell_lock.unwrap().write() {
-                        Ok(mut cell) => (*cell) = value,
-                        Err(_) => panic!("Poison error"),
-                    };
-                    return;
-                }
+    pub fn receive_update(&self, update: ReplicaCacheUpdate) -> Result<()> {
+        match update {
+            ReplicaCacheUpdate::Set { key, payload } => {
+                let key = serde_cbor::from_slice::<K>(&key)
+                    .chain_err(|| "Failed to parse key")?;
+                let value = serde_cbor::from_slice::<V>(payload)
+                    .chain_err(|| "Failed to parse payload")?;
+                self.sync_value_update(key, value);
             },
-            Err(_) => panic!("Poison error"),
-        };
+            ReplicaCacheUpdate::Delete { key } => {
+                bail!("Delete not implemented");
+            }
+        }
+        Ok(())
+    }
+
+    pub fn sync_value_update(&self, key: K, value: V) {
         match self.cache_lock.write() {
-            Ok(mut cache) => (*cache).insert(key, RwLock::new(value)),
+            Ok(mut cache) => (*cache).insert(key, value),
             Err(_) => panic!("Poison error"),
         };
     }
@@ -281,17 +298,9 @@ impl<K, V> ReplicatedMap<K, V> where K: Eq + Hash + Clone + Serialize + Deserial
 
     pub fn get(&self, key: &K) -> Option<V> {
         match self.cache_lock.read() {
-            Ok(cache) => match (*cache).get(key) {
-                Some(cell_lock) => {
-                    match cell_lock.read() {
-                        Ok(value) => Some(value.clone()),
-                        Err(_) => panic!("Poison error"),
-                    }
-                },
-                None => None,
-            },
+            Ok(cache) => { return (*cache).get(key).map(|v| v.clone()) },
             Err(_) => panic!("Poison error"),
-        }
+        };
     }
 }
 
@@ -325,37 +334,11 @@ impl Cache {
 }
 
 impl UpdateReceiver for Cache {
-    fn update(&self, cache_name: &str, key_bytes: &[u8], msg: Message) -> Result<()> {
+    fn receive_update(&self, cache_name: &str, update: ReplicaCacheUpdate) -> Result<()> {
         match cache_name.as_ref() {
-            "metadata" => {
-                let cluster_id = serde_cbor::from_slice::<ClusterId>(&key_bytes)
-                    .chain_err(|| "Failed to parse cluster_id in key")?;
-                match msg.payload() {
-                    Some(bytes) => {
-                        let metadata = serde_cbor::from_slice::<Metadata>(bytes)
-                            .chain_err(|| "Failed to parse metadata payload")?;
-                        debug!("Sync metadata cache, cluster_id: {}", cluster_id);
-                        self.metadata.sync_value_update(cluster_id, Arc::new(metadata));
-                    },
-                    None => bail!("Delete not implemented!"),
-                };
-            },
-            "metrics" => {
-                let broker = serde_cbor::from_slice::<(ClusterId, BrokerId)>(&key_bytes)
-                    .chain_err(|| "Failed to parse key")?;
-                match msg.payload() {
-                    Some(bytes) => {
-                        let broker_metrics = serde_cbor::from_slice::<BrokerMetrics>(bytes)
-                            .chain_err(|| "Failed to parse metrics payload")?;
-                        debug!("Sync metadata cache, key: {:?}", broker);
-                        self.metrics.sync_value_update(broker, broker_metrics);
-                    },
-                    None => bail!("Delete not implemented!"),
-                };
-            },
-            _ => {
-                bail!("Unknown cache name: {}", cache_name);
-            },
+            "metadata" => self.metadata.receive_update(update),
+            "metrics" => self.metrics.receive_update(update),
+            _ => bail!("Unknown cache name: {}", cache_name),
         };
         Ok(())
     }
