@@ -18,7 +18,7 @@ use std::thread;
 
 use error::*;
 use utils::format_error_chain;
-use metadata::{BrokerId, ClusterId, Metadata};
+use metadata::{BrokerId, ClusterId, TopicName, Metadata};
 use metrics::BrokerMetrics;
 
 
@@ -81,7 +81,9 @@ impl ReplicaWriter {
             .chain_err(|| "Failed to serialize key")?;
         let serialized_value = serde_cbor::to_vec(&value)
             .chain_err(|| "Failed to serialize value")?;
-        trace!("Serialized value size: {}", serialized_value.len());
+        // trace!("Serialized value size: {}", serialized_value.len());
+        trace!("Serialized update size: key={:.3}KB value={:.3}KB",
+            (serialized_key.len() as f64 / 1000f64), (serialized_value.len() as f64 / 1000f64));
         let _f = self.producer_topic.send_copy(None, Some(&serialized_value), Some(&serialized_key))
             .chain_err(|| "Failed to produce message")?;
         // _f.wait();  // Uncomment to make production synchronous
@@ -308,12 +310,15 @@ impl<K, V> ReplicatedMap<K, V> where K: Eq + Hash + Clone + Serialize + Deserial
 // ********** CACHE **********
 //
 
+
 pub type MetadataCache = ReplicatedMap<ClusterId, Arc<Metadata>>;
 pub type MetricsCache = ReplicatedMap<(ClusterId, BrokerId), BrokerMetrics>;
+pub type OffsetsCache = ReplicatedMap<(ClusterId, String, TopicName), Vec<i64>>;
 
 pub struct Cache {
     pub metadata: MetadataCache,
     pub metrics: MetricsCache,
+    pub offsets: OffsetsCache,
 }
 
 impl Cache {
@@ -321,7 +326,8 @@ impl Cache {
         let replica_writer_arc = Arc::new(replica_writer);
         Cache {
             metadata: ReplicatedMap::new("metadata", replica_writer_arc.clone()),
-            metrics: ReplicatedMap::new("metrics", replica_writer_arc),
+            metrics: ReplicatedMap::new("metrics", replica_writer_arc.clone()),
+            offsets: ReplicatedMap::new("offsets", replica_writer_arc),
         }
     }
 
@@ -329,6 +335,7 @@ impl Cache {
         Cache {
             metadata: self.metadata.alias(),
             metrics: self.metrics.alias(),
+            offsets: self.offsets.alias(),
         }
     }
 }
@@ -338,6 +345,7 @@ impl UpdateReceiver for Cache {
         match cache_name.as_ref() {
             "metadata" => self.metadata.receive_update(update),
             "metrics" => self.metrics.receive_update(update),
+            "offsets" => self.offsets.receive_update(update),
             _ => bail!("Unknown cache name: {}", cache_name),
         };
         Ok(())

@@ -43,6 +43,7 @@ pub struct Broker {
     pub port: i32
 }
 
+
 impl Broker {
     fn new(id: BrokerId, hostname: String, port: i32) -> Broker {
         Broker {

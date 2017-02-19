@@ -75,8 +75,8 @@ fn run_kafka_web(config_path: &str) -> Result<()> {
         info!("Added cluster {}", cluster_name);
     }
 
-    run_offset_consumer(&"localhost:9092");
-    run_offset_consumer(&"kafka-scribe-elb-uswest1devc.dev.yelpcorp.com:9092");
+    run_offset_consumer(&"local".to_owned(), &"localhost:9092", cache.offsets.alias());
+    run_offset_consumer(&"scribe.devc".to_owned(), &"kafka-scribe-elb-uswest1devc.dev.yelpcorp.com:9092", cache.offsets.alias());
 
     // TODO: fixme?
     thread::sleep_ms(15000);
