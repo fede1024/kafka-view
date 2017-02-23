@@ -1,6 +1,10 @@
 use chrono::Local;
-use log::{LogRecord, LogLevelFilter};
 use env_logger::LogBuilder;
+use iron::{Response, status};
+use iron::headers::ContentType;
+use iron_compress::GzipWriter;
+use log::{LogRecord, LogLevelFilter};
+use maud::Markup;
 
 use error::*;
 use std::thread;
@@ -33,6 +37,12 @@ pub fn format_error_chain(err: Error) {
     if let Some(backtrace) = err.backtrace() {
         error!("backtrace: {:?}", backtrace);
     }
+}
+
+pub fn gzip_ok_response(markup: Markup) -> Response {
+    let mut resp = Response::with((status::Ok, GzipWriter(markup.into_string().as_bytes())));
+    resp.headers.set(ContentType::html());
+    resp
 }
 
 macro_rules! time {
