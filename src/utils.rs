@@ -40,7 +40,7 @@ macro_rules! time {
         use chrono;
         let start_time = chrono::UTC::now();
         let ret = $msg;
-        let elapsed_micros = (chrono::UTC::now() - start_time).num_microseconds().unwrap() as f32;
+        let elapsed_micros = chrono::UTC::now().signed_duration_since(start_time).num_microseconds().unwrap() as f32;
         println!("Elapsed time while {}: {:.3}ms", $title, elapsed_micros / 1000f32);
         ret
     }};

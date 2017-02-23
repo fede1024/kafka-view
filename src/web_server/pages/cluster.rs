@@ -3,6 +3,7 @@ use iron::{IronResult, status};
 use maud::PreEscaped;
 use router::Router;
 use chrono::UTC;
+use iron_compress::GzipWriter;
 
 use std::collections::HashMap;
 
@@ -134,5 +135,5 @@ pub fn cluster_page(req: &mut Request) -> IronResult<Response> {
     };
     let html = layout::page(request_timer.request_id, &format!("Cluster: {}", cluster_id), content);
 
-    Ok(Response::with((status::Ok, html)))
+    Ok(Response::with((status::Ok, GzipWriter(html.into_string().as_bytes()))))
 }

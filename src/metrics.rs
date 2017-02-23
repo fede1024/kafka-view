@@ -82,7 +82,7 @@ fn parse_broker_rate_metrics(jolokia_json_response: &Value) -> Result<HashMap<To
 }
 
 fn log_elapsed_time(task_name: &str, start: DateTime<UTC>) {
-    debug!("{} completed in: {:.3}ms", task_name, (UTC::now() - start).num_microseconds().unwrap() as f64 / 1000f64);
+    debug!("{} completed in: {:.3}ms", task_name, UTC::now().signed_duration_since(start).num_microseconds().unwrap() as f64 / 1000f64);
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

@@ -67,9 +67,9 @@ impl RequestTimer {
 
     fn update_timing(&self) {
         let now = UTC::now();
-        let elapsed_micros = (now - self.start_time).num_microseconds().unwrap();
+        let elapsed_micros = now.signed_duration_since(self.start_time).num_microseconds().unwrap();
         let mut timings = self.timings.lock().expect("Poison error");
-        timings.retain(|&(_, _, request_time)| (now - request_time).num_seconds() < 20);
+        timings.retain(|&(_, _, request_time)| now.signed_duration_since(request_time).num_seconds() < 20);
         if timings.len() < 1000 {
             timings.push((self.request_id, elapsed_micros, now));
         }
