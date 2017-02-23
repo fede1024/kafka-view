@@ -90,6 +90,7 @@ fn insert_at(v: &mut Vec<i64>, pos: usize, value: i64) {
 fn update_global_cache(cluster_id: &ClusterId, local_cache: &HashMap<(ClusterId, String), Vec<i64>>,
                        cache: &OffsetsCache) {
     for (&(ref group, ref topic), offsets) in local_cache {   // Consider a consuming iterator
+        // This logic is not needed if i store the consumer offset, right?
         if offsets.iter().any(|&offset| offset == -1) {
             if let Some(mut existing_offsets) = cache.get(&(cluster_id.to_owned(), group.to_owned(), topic.to_owned())) {
                 // If the new offset is not complete and i have an old one, do the merge
@@ -113,7 +114,7 @@ fn consume_offset_topic(cluster_id: ClusterId, mut consumer: StreamConsumer<Empt
     let mut last_dump = Instant::now();
 
     for message in consumer.start().wait() {
-        if (Instant::now() - last_dump) > Duration::from_secs(10) {
+        if (Instant::now() - last_dump) > Duration::from_secs(60) {
             info!("Dumping local offset cache ({}: {} updates)", cluster_id, local_cache.len());
             update_global_cache(&cluster_id, &local_cache, &cache);
             local_cache = HashMap::with_capacity(local_cache.len());

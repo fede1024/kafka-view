@@ -80,6 +80,7 @@ impl Key for RequestTimer { type Value = RequestTimer; }
 
 impl BeforeMiddleware for RequestTimer {
     fn before(&self, request: &mut Request) -> IronResult<()> {
+        // TODO: improve
         let path_len = request.url.path().last().unwrap_or(&"").len();
         if path_len == 0 {
             let mut request_timer = self.clone();

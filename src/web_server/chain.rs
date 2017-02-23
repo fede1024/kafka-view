@@ -49,7 +49,7 @@ mod chain_tests {
     use iron::status::Status;
 
     #[test]
-    fn get_javascript_resonds_correctly() {
+    fn get_javascript_responds_correctly() {
         let expected_body = include_str!("public/javascripts/main.js");
         let chain = super::chain();
         let response = iron_test::request::get(

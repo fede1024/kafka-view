@@ -5,7 +5,7 @@ use iron::status;
 use iron::prelude::*;
 
 pub fn warning_page(req: &Request, title: &str, message: &str) -> IronResult<Response> {
-    let request_timer = req.extensions.get::<RequestTimer>().unwrap();
+    let request_id = req.extensions.get::<RequestTimer>().map(|t| t.request_id).unwrap_or(0);
     let content = layout::notification("warning",
         html! {
             div class="flex-container" {
@@ -15,7 +15,7 @@ pub fn warning_page(req: &Request, title: &str, message: &str) -> IronResult<Res
                 }
             }
         });
-    let html = layout::page(request_timer.request_id, title, content);
+    let html = layout::page(request_id, title, content);
     Ok(Response::with((status::NotFound, html)))   // TODO fix return status
 }
 

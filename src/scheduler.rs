@@ -11,8 +11,6 @@ use futures::{Future, BoxFuture};
 use error::*;
 use utils::format_error_chain;
 
-// use scheduler::futures::Future;
-// use scheduler::futures_cpupool::{CpuPool, CpuFuture};
 
 pub trait ScheduledTask: Send + Sync + 'static {
     fn run(&self) -> Result<()>;

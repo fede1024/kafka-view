@@ -31,7 +31,7 @@ mod error;
 mod metadata;
 mod metrics;
 mod scheduler;
-mod utils;
+#[macro_use] mod utils;
 mod web_server;
 mod offsets;
 
@@ -49,7 +49,6 @@ use utils::format_error_chain;
 
 use offsets::run_offset_consumer;
 
-
 fn run_kafka_web(config_path: &str) -> Result<()> {
     let config = config::read_config(config_path)
         .chain_err(|| format!("Unable to load configuration from '{}'", config_path))?;
@@ -58,25 +57,24 @@ fn run_kafka_web(config_path: &str) -> Result<()> {
         None => bail!("Can't find cache cluster {}", config.caching.cluster),
     };
     let topic_name = &config.caching.topic;
-
     let replica_writer = ReplicaWriter::new(&brokers, topic_name)
         .chain_err(|| format!("Replica writer creation failed (brokers: {}, topic: {})", brokers, topic_name))?;
-    let cache = Cache::new(replica_writer);
     let mut replica_reader = ReplicaReader::new(&brokers, topic_name)
         .chain_err(|| format!("Replica reader creation failed (brokers: {}, topic: {})", brokers, topic_name))?;
+
+    let cache = Cache::new(replica_writer);
     replica_reader.start(cache.alias())
         .chain_err(|| format!("Replica reader start failed (brokers: {}, topic: {})", brokers, topic_name))?;
 
+    // Metadata fetch
     let mut metadata_fetcher = MetadataFetcher::new(cache.metadata.alias(),
                                                     Duration::from_secs(config.metadata_refresh));
     for (cluster_name, cluster_config) in &config.clusters {
         metadata_fetcher.add_cluster(cluster_name, &cluster_config.broker_string())
             .chain_err(|| format!("Failed to add cluster {}", cluster_name))?;
+        run_offset_consumer(cluster_name, &cluster_config.broker_string(), cache.offsets.alias());
         info!("Added cluster {}", cluster_name);
     }
-
-    run_offset_consumer(&"local".to_owned(), &"localhost:9092", cache.offsets.alias());
-    run_offset_consumer(&"scribe.devc".to_owned(), &"kafka-scribe-elb-uswest1devc.dev.yelpcorp.com:9092", cache.offsets.alias());
 
     // TODO: fixme?
     thread::sleep_ms(15000);
@@ -92,9 +90,7 @@ fn run_kafka_web(config_path: &str) -> Result<()> {
     web_server::server::run_server(cache.alias(), &config)
         .chain_err(|| "Server initialization failed")?;
 
-    loop {
-        thread::sleep_ms(100000);
-    };
+    Ok(())
 }
 
 fn setup_args<'a>() -> ArgMatches<'a> {

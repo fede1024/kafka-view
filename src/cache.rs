@@ -235,7 +235,7 @@ pub struct ReplicatedMap<K, V>
         where K: Eq + Hash + Clone + Serialize + Deserialize,
               V: Clone + Serialize + Deserialize {
     name: String,
-    cache_lock: Arc<RwLock<HashMap<K, V>>>,
+    map: Arc<RwLock<HashMap<K, V>>>,
     replica_writer: Arc<ReplicaWriter>,
 }
 
@@ -244,7 +244,7 @@ impl<K, V> ReplicatedMap<K, V> where K: Eq + Hash + Clone + Serialize + Deserial
     pub fn new(name: &str, replica_writer: Arc<ReplicaWriter>) -> ReplicatedMap<K, V> {
         ReplicatedMap {
             name: name.to_owned(),
-            cache_lock: Arc::new(RwLock::new(HashMap::new())),
+            map: Arc::new(RwLock::new(HashMap::new())),
             replica_writer: replica_writer,
         }
     }
@@ -252,7 +252,7 @@ impl<K, V> ReplicatedMap<K, V> where K: Eq + Hash + Clone + Serialize + Deserial
     pub fn alias(&self) -> ReplicatedMap<K, V> {
         ReplicatedMap {
             name: self.name.clone(),
-            cache_lock: self.cache_lock.clone(),
+            map: self.map.clone(),
             replica_writer: self.replica_writer.clone(),
         }
     }
@@ -262,7 +262,7 @@ impl<K, V> ReplicatedMap<K, V> where K: Eq + Hash + Clone + Serialize + Deserial
     }
 
     pub fn keys(&self) -> Vec<K> {
-        match self.cache_lock.read() {
+        match self.map.read() {
             Ok(ref cache) => (*cache).keys().cloned().collect::<Vec<_>>(),
             Err(_) => panic!("Poison error"),
         }
@@ -285,7 +285,7 @@ impl<K, V> ReplicatedMap<K, V> where K: Eq + Hash + Clone + Serialize + Deserial
     }
 
     pub fn sync_value_update(&self, key: K, value: V) {
-        match self.cache_lock.write() {
+        match self.map.write() {
             Ok(mut cache) => (*cache).insert(key, value),
             Err(_) => panic!("Poison error"),
         };
@@ -299,7 +299,7 @@ impl<K, V> ReplicatedMap<K, V> where K: Eq + Hash + Clone + Serialize + Deserial
     }
 
     pub fn get(&self, key: &K) -> Option<V> {
-        match self.cache_lock.read() {
+        match self.map.read() {
             Ok(cache) => { return (*cache).get(key).map(|v| v.clone()) },
             Err(_) => panic!("Poison error"),
         };

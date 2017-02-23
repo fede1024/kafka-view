@@ -1,10 +1,6 @@
-extern crate log;
-extern crate env_logger;
-extern crate chrono;
-
-use self::chrono::Local;
-use self::log::{LogRecord, LogLevelFilter};
-use self::env_logger::LogBuilder;
+use chrono::Local;
+use log::{LogRecord, LogLevelFilter};
+use env_logger::LogBuilder;
 
 use error::*;
 use std::thread;
@@ -37,4 +33,15 @@ pub fn format_error_chain(err: Error) {
     if let Some(backtrace) = err.backtrace() {
         error!("backtrace: {:?}", backtrace);
     }
+}
+
+macro_rules! time {
+    ($title:expr, $msg:expr) => {{
+        use chrono;
+        let start_time = chrono::UTC::now();
+        let ret = $msg;
+        let elapsed_micros = (chrono::UTC::now() - start_time).num_microseconds().unwrap() as f32;
+        println!("Elapsed time while {}: {:.3}ms", $title, elapsed_micros / 1000f32);
+        ret
+    }};
 }

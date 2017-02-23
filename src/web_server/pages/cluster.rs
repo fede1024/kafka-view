@@ -14,17 +14,19 @@ use cache::MetricsCache;
 
 
 pub fn build_topic_metrics(cluster_id: &str, metadata: &Metadata, metrics: &MetricsCache) -> HashMap<String, (f64, f64)> {
-    let mut result = HashMap::with_capacity(metadata.topics.len());
-    for broker in &metadata.brokers {
-        if let Some(broker_metrics) = metrics.get(&(cluster_id.to_owned(), broker.id)) {
-            for (topic_name, rate) in broker_metrics.topics {
-                // Keep an eye on RFC 1769
-                let mut entry_ref = result.entry(topic_name.to_owned()).or_insert((0f64, 0f64));
-                *entry_ref = (entry_ref.0 + rate.0, entry_ref.1 + rate.1);
+    time!("building topic metrics", {
+        let mut result = HashMap::with_capacity(metadata.topics.len());
+        for broker in &metadata.brokers {
+            if let Some(broker_metrics) = metrics.get(&(cluster_id.to_owned(), broker.id)) {
+                for (topic_name, rate) in broker_metrics.topics {
+                    // Keep an eye on RFC 1769
+                    let mut entry_ref = result.entry(topic_name.to_owned()).or_insert((0f64, 0f64));
+                    *entry_ref = (entry_ref.0 + rate.0, entry_ref.1 + rate.1);
+                }
             }
         }
-    }
-    result
+        result
+    })
 }
 
 fn broker_table_row(cluster_id: &str, broker: &Broker, metrics: &MetricsCache) -> PreEscaped<String> {
@@ -53,7 +55,6 @@ fn broker_table(cluster_id: &str, metadata: &Metadata, metrics: &MetricsCache) -
         html! { @for broker in &metadata.brokers {
                     (broker_table_row(cluster_id, broker, metrics))
                 }
-
     })
 }
 
@@ -104,13 +105,13 @@ pub fn cluster_page(req: &mut Request) -> IronResult<Response> {
     let request_timer = req.extensions.get::<RequestTimer>().unwrap();
 
     let metadata = cache.metadata.get(&cluster_id.to_owned());
-    if metadata.is_none() {
+    if metadata.is_none() {  // TODO: Improve here
         return pages::warning_page(req,
             &format!("Cluster: {}", cluster_id),
             "The specified cluster doesn't exist.")
     }
 
-    let metadata = cache.metadata.get(&cluster_id.to_string()).unwrap();
+    let metadata = metadata.unwrap();
     let cluster_config = config.clusters.get(cluster_id);
     let topic_metrics = build_topic_metrics(&cluster_id, &metadata, &cache.metrics);
     let content = html! {
