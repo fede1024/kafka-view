@@ -304,12 +304,24 @@ impl<K, V> ReplicatedMap<K, V> where K: Eq + Hash + Clone + Serialize + Deserial
             Err(_) => panic!("Poison error"),
         };
     }
+
+    pub fn filter_clone<F>(&self, f: F) -> Vec<(K, V)>
+            where F: Fn(&K, &V) -> bool {
+        match self.map.read() {
+            Ok(cache) => {
+                cache.iter().filter(|&(k, v)| f(k, v))
+                    .map(|(k, v)| (k.clone(), v.clone()))
+                    .collect::<Vec<(K, V)>>()
+            },
+            Err(_) => panic!("Poison error"),
+        }
+    }
 }
+
 
 //
 // ********** CACHE **********
 //
-
 
 pub type MetadataCache = ReplicatedMap<ClusterId, Arc<Metadata>>;
 pub type MetricsCache = ReplicatedMap<(ClusterId, BrokerId), BrokerMetrics>;

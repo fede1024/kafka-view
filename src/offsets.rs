@@ -14,7 +14,7 @@ use std::io::{Cursor, BufRead};
 use byteorder::{BigEndian, ReadBytesExt};
 use error::*;
 use utils::format_error_chain;
-use cache::OffsetsCache;
+use cache::{Cache, OffsetsCache};
 use metadata::{ClusterId, TopicName};
 
 
@@ -90,7 +90,7 @@ fn insert_at(v: &mut Vec<i64>, pos: usize, value: i64) {
 fn update_global_cache(cluster_id: &ClusterId, local_cache: &HashMap<(ClusterId, String), Vec<i64>>,
                        cache: &OffsetsCache) {
     for (&(ref group, ref topic), offsets) in local_cache {   // Consider a consuming iterator
-        // This logic is not needed if i store the consumer offset, right?
+        // This logic is not needed if i store the consumer offset, right? wrong!
         if offsets.iter().any(|&offset| offset == -1) {
             if let Some(mut existing_offsets) = cache.get(&(cluster_id.to_owned(), group.to_owned(), topic.to_owned())) {
                 // If the new offset is not complete and i have an old one, do the merge
@@ -169,12 +169,15 @@ pub fn run_offset_consumer(cluster_id: &ClusterId, brokers: &str, offset_cache: 
     thread::spawn(move || {
         consume_offset_topic(cluster_id_clone, consumer, offset_cache);
     });
+}
 
-    // let mut local_cache_clone = local_cache.clone();
-    // thread::spawn(move || {
-    //     loop {
-    //         thread::sleep_ms(20000);
-    //         // println!("> {:?}", local_cache_clone);
-    //     }
-    // });
+
+pub trait OffsetStore {
+    fn offset_by_cluster_topic(&self, &ClusterId, &TopicName) -> Vec<((ClusterId, String, TopicName), Vec<i64>)>;
+}
+
+impl OffsetStore for Cache {
+    fn offset_by_cluster_topic(&self, cluster: &ClusterId, topic: &TopicName) -> Vec<((ClusterId, String, TopicName), Vec<i64>)> {
+        self.offsets.filter_clone(|&(ref c, _, ref t), _| c == cluster && t == topic)
+    }
 }

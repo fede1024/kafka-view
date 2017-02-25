@@ -48,7 +48,7 @@ use metrics::MetricsFetcher;
 use metadata::MetadataFetcher;
 use utils::format_error_chain;
 
-use offsets::run_offset_consumer;
+use offsets::{OffsetStore, run_offset_consumer};
 
 fn run_kafka_web(config_path: &str) -> Result<()> {
     let config = config::read_config(config_path)
@@ -87,6 +87,9 @@ fn run_kafka_web(config_path: &str) -> Result<()> {
             metrics_fetcher.add_broker(cluster_id, broker.id, &broker.hostname);
         }
     }
+
+    let test = cache.offset_by_cluster_topic(&"scribe.uswest1-devc".to_owned(), &"scribe.devc.ranger".to_owned());
+    println!(">> {:?}", test);
 
     web_server::server::run_server(cache.alias(), &config)
         .chain_err(|| "Server initialization failed")?;
