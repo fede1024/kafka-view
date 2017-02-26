@@ -47,7 +47,7 @@ jQuery.fn.dataTable.ext.type.order['my-err-pre'] = function (data) {
 
 // Load responsive tables
 $(document).ready(function() {
-    $('.datatable-broker-marker').each(function(index) {
+    $('#datatable-broker').each(function(index) {
         $(this).dataTable({
             "lengthMenu": [ [10, 50, 200, -1], [10, 50, 200, "All"] ],
             "language": {
@@ -58,7 +58,7 @@ $(document).ready(function() {
             ]
         });
     });
-    $('.datatable-topic-marker').each(function(index) {
+    $('#datatable-topic').each(function(index) {
         $(this).dataTable({
             "search": { "regex": true},
             "lengthMenu": [ [10, 50, 200, -1], [10, 50, 200, "All"] ],
@@ -75,8 +75,7 @@ $(document).ready(function() {
         $(this).parents('.loader-parent-marker').children('.table-loader-marker').css({"display": "none"});
         $(this).css({"display": "table"})
     });
-    $('.datatable-consumer-marker').each(function(index) {
-        console.log(this);
+    $('#datatable-consumer').each(function(index) {
         $(this).dataTable({
             "search": { "regex": true},
             "lengthMenu": [ [10, 50, 200, -1], [10, 50, 200, "All"] ],
@@ -84,6 +83,20 @@ $(document).ready(function() {
               "search": "Regex search:"
             },
             "columnDefs": [ ]
+        });
+        $(this).parents('.loader-parent-marker').children('.table-loader-marker').css({"display": "none"});
+        $(this).css({"display": "table"})
+    });
+    $('#datatable-groups').each(function(index) {
+        $(this).dataTable({
+            "search": { "regex": true},
+            "lengthMenu": [ [10, 50, 200, -1], [10, 50, 200, "All"] ],
+            "language": {
+              "search": "Regex search:"
+            },
+            "columnDefs": [
+                { "type": "my-numeric",  "targets": [2] }
+            ]
         });
         $(this).parents('.loader-parent-marker').children('.table-loader-marker').css({"display": "none"});
         $(this).css({"display": "table"})

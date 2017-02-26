@@ -40,7 +40,7 @@ fn topic_table_row(cluster_id: &str, partition: &Partition) -> PreEscaped<String
 }
 
 fn topic_table(cluster_id: &str, partitions: &Vec<Partition>) -> PreEscaped<String> {
-    layout::datatable (
+    layout::datatable (true, "topic",
         html! { tr { th "Id" th "Leader" th "Replicas" th "ISR" th "Status" } },
         html! { @for partition in partitions.iter() { (topic_table_row(cluster_id, partition)) }}
     )

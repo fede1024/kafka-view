@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use web_server::pages;
 use web_server::server::{CacheType, ConfigArc, RequestTimer};
 use web_server::view::layout;
-use metadata::{Metadata, Broker, Partition};
+use metadata::{Metadata, Group, Broker, Partition};
 use cache::{MetricsCache, Cache};
 use offsets::OffsetStore;
 
@@ -48,12 +48,13 @@ fn broker_table_row(cluster_id: &str, broker: &Broker, metrics: &MetricsCache) -
 }
 
 fn broker_table(cluster_id: &str, metadata: &Metadata, metrics: &MetricsCache) -> PreEscaped<String> {
-    layout::datatable_broker(html! { tr { th "Broker id" th "Hostname"
-        th data-toggle="tooltip" data-container="body"
-            title="Total average over the last 15 minutes" "Total byte rate"
-        th data-toggle="tooltip" data-container="body"
-            title="Total average over the last 15 minutes" "Total msg rate"
-        } },
+    layout::datatable(false, "broker",
+        html! { tr { th "Broker id" th "Hostname"
+            th data-toggle="tooltip" data-container="body"
+                title="Total average over the last 15 minutes" "Total byte rate"
+            th data-toggle="tooltip" data-container="body"
+                title="Total average over the last 15 minutes" "Total msg rate"
+            } },
         html! { @for broker in &metadata.brokers {
                     (broker_table_row(cluster_id, broker, metrics))
                 }
@@ -89,7 +90,7 @@ fn topic_table_row(cluster_id: &str, name: &str, partitions: &Vec<Partition>, to
 }
 
 fn topic_table(cluster_id: &str, metadata: &Metadata, topic_metrics: &HashMap<String, (f64, f64)>) -> PreEscaped<String> {
-    layout::datatable_topic(
+    layout::datatable(true, "topic",
         html! { tr { th "Topic name" th "#Partitions" th "Status"
             th data-toggle="tooltip" data-container="body" title="Average over the last 15 minutes" "Byte rate"
             th data-toggle="tooltip" data-container="body" title="Average over the last 15 minutes" "Msg rate"
@@ -101,26 +102,48 @@ fn topic_table(cluster_id: &str, metadata: &Metadata, topic_metrics: &HashMap<St
     })
 }
 
-fn consumer_group_table_row(cluster_id: &str, consumer_name: &str, topics: i32) -> PreEscaped<String> {
-    let consumer_group_link = format!("/clusters/{}/consumer_group/{}/", cluster_id, consumer_name);
+fn consumer_offset_table_row(cluster_id: &str, consumer_name: &str, topics: i32) -> PreEscaped<String> {
+    let consumer_offset_link = format!("/clusters/{}/consumer_offset/{}/", cluster_id, consumer_name);
     html! {
         tr {
-            td a href=(consumer_group_link) (consumer_name)
+            td a href=(consumer_offset_link) (consumer_name)
             td (topics) td "TODO"
         }
     }
 }
 
-fn consumer_group_table(cluster_id: &str, cache: &Cache) -> PreEscaped<String> {
-    let mut consumer_groups = HashMap::new();
+fn consumer_offset_table(cluster_id: &str, cache: &Cache) -> PreEscaped<String> {
+    let mut consumer_offsets = HashMap::new();
     for ((_, group, _), _) in cache.offsets_by_cluster(&cluster_id.to_owned()) {
-        *consumer_groups.entry(group).or_insert(0) += 1;
+        *consumer_offsets.entry(group).or_insert(0) += 1;
     }
 
-    layout::datatable_consumer(
+    layout::datatable(true, "consumer",
         html! { tr { th "Consumer name" th "#Topics" th "Status" } },
-        html! { @for (group_name, &topic_count) in &consumer_groups {
-                    (consumer_group_table_row(cluster_id, group_name, topic_count))
+        html! { @for (group_name, &topic_count) in &consumer_offsets {
+                    (consumer_offset_table_row(cluster_id, group_name, topic_count))
+                }
+    })
+}
+
+fn group_table_row(cluster_id: &str, group: &Group) -> PreEscaped<String> {
+    let group_link = format!("/clusters/{}/group/{}/", cluster_id, group.name);
+    html! {
+        tr {
+            td a href=(group_link) (group.name)
+            td (group.state) td (group.members.len())
+        }
+    }
+}
+
+fn group_table(cluster_id: &str, cache: &Cache) -> PreEscaped<String> {
+    let groups = cache.groups
+        .filter_clone(|&(ref c, _), _| c == cluster_id);
+
+    layout::datatable(true, "groups",
+        html! { tr { th "Group name" th "State" th "#Members" } },
+        html! { @for &(_, ref group) in &groups {
+                    (group_table_row(cluster_id, &group))
                 }
     })
 }
@@ -158,8 +181,10 @@ pub fn cluster_page(req: &mut Request) -> IronResult<Response> {
         div (broker_table(cluster_id, &metadata, &cache.metrics))
         h3 "Topics"
         div class="loader-parent-marker" (topic_table(cluster_id, &metadata, &topic_metrics))
-        h3 "Active consumers"
-        div class="loader-parent-marker" (consumer_group_table(cluster_id, &cache))
+        h3 "Active groups"
+        div class="loader-parent-marker" (group_table(cluster_id, &cache))
+        h3 "Stored offsets"
+        div class="loader-parent-marker" (consumer_offset_table(cluster_id, &cache))
     };
     let html = layout::page(request_timer.request_id, &format!("Cluster: {}", cluster_id), content);
 

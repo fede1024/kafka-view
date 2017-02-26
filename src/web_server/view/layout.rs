@@ -29,50 +29,21 @@ pub fn panel_right(title: PreEscaped<String>, right_side: PreEscaped<String>, co
     }
 }
 
-pub fn datatable_consumer(table_header: PreEscaped<String>, table_body: PreEscaped<String>) -> PreEscaped<String> {
+pub fn datatable(loading: bool, id: &str, table_header: PreEscaped<String>, table_body: PreEscaped<String>) -> PreEscaped<String> {
+    let table_id = format!("datatable-{}", id);
+    let table_style = if loading { "display: none" } else { "" };
     html! {
-        div class="table-loader-marker" style="text-align: center; padding: 0.3in;" {
-            div style="display: inline-block" {
-                i class="fa fa-spinner fa-spin fa-4x" {}
-                span class="sr-only" "Loading..."
+        @if loading {
+            div class="table-loader-marker" style="text-align: center; padding: 0.3in;" {
+                div style="display: inline-block" {
+                    i class="fa fa-spinner fa-spin fa-4x" {}
+                    span class="sr-only" "Loading..."
+                }
             }
         }
-        table width="100%" class="datatable-consumer-marker table table-striped table-bordered table-hover"
-            style="display: none" {
-            thead { (table_header) }
-            tbody { (table_body) }
-        }
-    }
-}
-
-pub fn datatable_topic(table_header: PreEscaped<String>, table_body: PreEscaped<String>) -> PreEscaped<String> {
-    html! {
-        div class="table-loader-marker" style="text-align: center; padding: 0.3in;" {
-            div style="display: inline-block" {
-                i class="fa fa-spinner fa-spin fa-4x" {}
-                span class="sr-only" "Loading..."
-            }
-        }
-        table width="100%" class="datatable-topic-marker table table-striped table-bordered table-hover"
-            style="display: none" {
-            thead { (table_header) }
-            tbody { (table_body) }
-        }
-    }
-}
-
-pub fn datatable_broker(table_header: PreEscaped<String>, table_body: PreEscaped<String>) -> PreEscaped<String> {
-    html! {
-        table width="100%" class="datatable-broker-marker table table-striped table-bordered table-hover" {
-            thead { (table_header) }
-            tbody { (table_body) }
-        }
-    }
-}
-
-pub fn datatable(table_header: PreEscaped<String>, table_body: PreEscaped<String>) -> PreEscaped<String> {
-    html! { // TODO fixme
-        table width="100%" class="datatable-broker-marker table table-striped table-bordered table-hover" {
+        table id=(table_id) width="100%" class="table table-striped table-bordered table-hover"
+            style=(table_style)
+        {
             thead { (table_header) }
             tbody { (table_body) }
         }

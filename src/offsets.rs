@@ -115,7 +115,7 @@ fn consume_offset_topic(cluster_id: ClusterId, mut consumer: StreamConsumer<Empt
 
     for message in consumer.start().wait() {
         if (Instant::now() - last_dump) > Duration::from_secs(60) {
-            info!("Dumping local offset cache ({}: {} updates)", cluster_id, local_cache.len());
+            trace!("Dumping local offset cache ({}: {} updates)", cluster_id, local_cache.len());
             update_global_cache(&cluster_id, &local_cache, &cache);
             local_cache = HashMap::with_capacity(local_cache.len());
             last_dump = Instant::now();
