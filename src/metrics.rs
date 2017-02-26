@@ -40,7 +40,7 @@ fn fetch_metrics_json(hostname: &str, port: i32, filter: &str) -> Result<Value> 
     Ok(value)
 }
 
-fn jolokia_response_get_value(json_response: &Value) -> Result<&BTreeMap<String, Value>> {
+fn jolokia_response_get_value(json_response: &Value) -> Result<&serde_json::Map<String, Value>> {
     let obj = match json_response.as_object() {
         Some(obj) => obj,
         None => bail!("The provided Value is not a JSON object"),
@@ -70,7 +70,7 @@ fn parse_broker_rate_metrics(jolokia_json_response: &Value) -> Result<HashMap<To
         match *value {
             Value::Object(ref obj) => {
                 match obj.get("FifteenMinuteRate") {
-                    Some(&Value::F64(rate)) => metrics.insert(topic.to_owned(), rate),
+                    Some(&Value::Number(ref rate)) => metrics.insert(topic.to_owned(), rate.as_f64().unwrap_or(0f64)),
                     None => bail!("Can't find key in metric"),
                     _ => bail!("Unexpected metric type"),
                 };

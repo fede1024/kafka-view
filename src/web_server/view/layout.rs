@@ -29,6 +29,22 @@ pub fn panel_right(title: PreEscaped<String>, right_side: PreEscaped<String>, co
     }
 }
 
+pub fn datatable_consumer(table_header: PreEscaped<String>, table_body: PreEscaped<String>) -> PreEscaped<String> {
+    html! {
+        div class="table-loader-marker" style="text-align: center; padding: 0.3in;" {
+            div style="display: inline-block" {
+                i class="fa fa-spinner fa-spin fa-4x" {}
+                span class="sr-only" "Loading..."
+            }
+        }
+        table width="100%" class="datatable-consumer-marker table table-striped table-bordered table-hover"
+            style="display: none" {
+            thead { (table_header) }
+            tbody { (table_body) }
+        }
+    }
+}
+
 pub fn datatable_topic(table_header: PreEscaped<String>, table_body: PreEscaped<String>) -> PreEscaped<String> {
     html! {
         div class="table-loader-marker" style="text-align: center; padding: 0.3in;" {

@@ -75,6 +75,19 @@ $(document).ready(function() {
         $(this).parents('.loader-parent-marker').children('.table-loader-marker').css({"display": "none"});
         $(this).css({"display": "table"})
     });
+    $('.datatable-consumer-marker').each(function(index) {
+        console.log(this);
+        $(this).dataTable({
+            "search": { "regex": true},
+            "lengthMenu": [ [10, 50, 200, -1], [10, 50, 200, "All"] ],
+            "language": {
+              "search": "Regex search:"
+            },
+            "columnDefs": [ ]
+        });
+        $(this).parents('.loader-parent-marker').children('.table-loader-marker').css({"display": "none"});
+        $(this).css({"display": "table"})
+    });
 });
 
 $(document).ready(function(){

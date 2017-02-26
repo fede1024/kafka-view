@@ -18,7 +18,7 @@ use std::thread;
 
 use error::*;
 use utils::format_error_chain;
-use metadata::{BrokerId, ClusterId, TopicName, Metadata};
+use metadata::{Broker, BrokerId, ClusterId, Group, Partition, TopicName, Metadata};
 use metrics::BrokerMetrics;
 
 
@@ -305,6 +305,7 @@ impl<K, V> ReplicatedMap<K, V> where K: Eq + Hash + Clone + Serialize + Deserial
         };
     }
 
+    // TODO: this could be more efficient
     pub fn filter_clone<F>(&self, f: F) -> Vec<(K, V)>
             where F: Fn(&K, &V) -> bool {
         match self.map.read() {
@@ -324,13 +325,20 @@ impl<K, V> ReplicatedMap<K, V> where K: Eq + Hash + Clone + Serialize + Deserial
 //
 
 pub type MetadataCache = ReplicatedMap<ClusterId, Arc<Metadata>>;
+
 pub type MetricsCache = ReplicatedMap<(ClusterId, BrokerId), BrokerMetrics>;
 pub type OffsetsCache = ReplicatedMap<(ClusterId, String, TopicName), Vec<i64>>;
+pub type BrokerCache = ReplicatedMap<ClusterId, Vec<Broker>>;
+pub type TopicCache = ReplicatedMap<(ClusterId, TopicName), Vec<Partition>>;
+pub type GroupCache = ReplicatedMap<(ClusterId, String), Group>;
 
 pub struct Cache {
     pub metadata: MetadataCache,
     pub metrics: MetricsCache,
     pub offsets: OffsetsCache,
+    pub brokers: BrokerCache,
+    pub topics: TopicCache,
+    pub groups: GroupCache,
 }
 
 impl Cache {
@@ -339,7 +347,10 @@ impl Cache {
         Cache {
             metadata: ReplicatedMap::new("metadata", replica_writer_arc.clone()),
             metrics: ReplicatedMap::new("metrics", replica_writer_arc.clone()),
-            offsets: ReplicatedMap::new("offsets", replica_writer_arc),
+            offsets: ReplicatedMap::new("offsets", replica_writer_arc.clone()),
+            brokers: ReplicatedMap::new("brokers", replica_writer_arc.clone()),
+            topics: ReplicatedMap::new("topics", replica_writer_arc.clone()),
+            groups: ReplicatedMap::new("groups", replica_writer_arc)
         }
     }
 
@@ -348,6 +359,9 @@ impl Cache {
             metadata: self.metadata.alias(),
             metrics: self.metrics.alias(),
             offsets: self.offsets.alias(),
+            brokers: self.brokers.alias(),
+            topics: self.topics.alias(),
+            groups: self.groups.alias(),
         }
     }
 }
@@ -358,6 +372,9 @@ impl UpdateReceiver for Cache {
             "metadata" => self.metadata.receive_update(update),
             "metrics" => self.metrics.receive_update(update),
             "offsets" => self.offsets.receive_update(update),
+            "brokers" => self.brokers.receive_update(update),
+            "topics" => self.topics.receive_update(update),
+            "groups" => self.groups.receive_update(update),
             _ => bail!("Unknown cache name: {}", cache_name),
         };
         Ok(())

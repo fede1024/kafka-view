@@ -1,8 +1,9 @@
+use chrono::UTC;
 use iron::prelude::{Request, Response};
 use iron::{IronResult, status};
+use itertools::Itertools;
 use maud::PreEscaped;
 use router::Router;
-use chrono::UTC;
 
 use std::collections::HashMap;
 
@@ -10,7 +11,8 @@ use web_server::pages;
 use web_server::server::{CacheType, ConfigArc, RequestTimer};
 use web_server::view::layout;
 use metadata::{Metadata, Broker, Partition};
-use cache::MetricsCache;
+use cache::{MetricsCache, Cache};
+use offsets::OffsetStore;
 
 
 pub fn build_topic_metrics(cluster_id: &str, metadata: &Metadata, metrics: &MetricsCache) -> HashMap<String, (f64, f64)> {
@@ -87,14 +89,39 @@ fn topic_table_row(cluster_id: &str, name: &str, partitions: &Vec<Partition>, to
 }
 
 fn topic_table(cluster_id: &str, metadata: &Metadata, topic_metrics: &HashMap<String, (f64, f64)>) -> PreEscaped<String> {
-    layout::datatable_topic(html! { tr { th "Topic name" th "#Partitions" th "Status"
-        th data-toggle="tooltip" data-container="body" title="Average over the last 15 minutes" "Byte rate"
-        th data-toggle="tooltip" data-container="body" title="Average over the last 15 minutes" "Msg rate"
-        th "More"} },
+    layout::datatable_topic(
+        html! { tr { th "Topic name" th "#Partitions" th "Status"
+            th data-toggle="tooltip" data-container="body" title="Average over the last 15 minutes" "Byte rate"
+            th data-toggle="tooltip" data-container="body" title="Average over the last 15 minutes" "Msg rate"
+            th "More"} },
         html! { @for (topic_name, partitions) in &metadata.topics {
                     (topic_table_row(cluster_id, topic_name, partitions, topic_metrics))
                 }
 
+    })
+}
+
+fn consumer_group_table_row(cluster_id: &str, consumer_name: &str, topics: i32) -> PreEscaped<String> {
+    let consumer_group_link = format!("/clusters/{}/consumer_group/{}/", cluster_id, consumer_name);
+    html! {
+        tr {
+            td a href=(consumer_group_link) (consumer_name)
+            td (topics) td "TODO"
+        }
+    }
+}
+
+fn consumer_group_table(cluster_id: &str, cache: &Cache) -> PreEscaped<String> {
+    let mut consumer_groups = HashMap::new();
+    for ((_, group, _), _) in cache.offsets_by_cluster(&cluster_id.to_owned()) {
+        *consumer_groups.entry(group).or_insert(0) += 1;
+    }
+
+    layout::datatable_consumer(
+        html! { tr { th "Consumer name" th "#Topics" th "Status" } },
+        html! { @for (group_name, &topic_count) in &consumer_groups {
+                    (consumer_group_table_row(cluster_id, group_name, topic_count))
+                }
     })
 }
 
@@ -128,9 +155,11 @@ pub fn cluster_page(req: &mut Request) -> IronResult<Response> {
             dt "Last metadata update:" dd (metadata.refresh_time)
         }
         h3 "Brokers"
-        div class="loader-parent-marker" (broker_table(cluster_id, &metadata, &cache.metrics))
+        div (broker_table(cluster_id, &metadata, &cache.metrics))
         h3 "Topics"
         div class="loader-parent-marker" (topic_table(cluster_id, &metadata, &topic_metrics))
+        h3 "Active consumers"
+        div class="loader-parent-marker" (consumer_group_table(cluster_id, &cache))
     };
     let html = layout::page(request_timer.request_id, &format!("Cluster: {}", cluster_id), content);
 

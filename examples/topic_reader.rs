@@ -54,9 +54,9 @@ fn consume_and_print(brokers: &str, topics: &Vec<&str>) {
         .set("bootstrap.servers", brokers)
         .set("enable.partition.eof", "false")
         .set("session.timeout.ms", "6000")
-        .set("enable.auto.commit", "false")
+        .set("enable.auto.commit", "true")
         .set_default_topic_config(TopicConfig::new()
-            .set("auto.offset.reset", "smallest")
+            .set("auto.offset.reset", "largest")
             .finalize())
         .create::<StreamConsumer<_>>()
         .expect("Consumer creation failed");
@@ -90,8 +90,8 @@ fn consume_and_print(brokers: &str, topics: &Vec<&str>) {
                 let (cache_name, cache_key) = parse_key(key);
                 println!("{}: {}", cache_name, cache_key);
                 let payload_dec = cbor_to_json_str(payload);
-                if payload_dec.len() > 400 {
-                    println!("{}...", &payload_dec[..400]);
+                if payload_dec.len() > 600 {
+                    println!("{}...", &payload_dec[..600]);
                 } else {
                     println!("{}", payload_dec);
                 }

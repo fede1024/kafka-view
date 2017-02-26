@@ -14,6 +14,7 @@ extern crate futures;
 extern crate futures_cpupool;
 extern crate iron;
 extern crate iron_compress;
+extern crate itertools;
 extern crate maud;
 extern crate mount;
 extern crate rand;
@@ -68,8 +69,12 @@ fn run_kafka_web(config_path: &str) -> Result<()> {
         .chain_err(|| format!("Replica reader start failed (brokers: {}, topic: {})", brokers, topic_name))?;
 
     // Metadata fetch
-    let mut metadata_fetcher = MetadataFetcher::new(cache.metadata.alias(),
-                                                    Duration::from_secs(config.metadata_refresh));
+    let mut metadata_fetcher = MetadataFetcher::new(
+        cache.metadata.alias(),
+        cache.brokers.alias(),
+        cache.topics.alias(),
+        cache.groups.alias(),
+        Duration::from_secs(config.metadata_refresh));
     for (cluster_name, cluster_config) in &config.clusters {
         metadata_fetcher.add_cluster(cluster_name, &cluster_config.broker_string())
             .chain_err(|| format!("Failed to add cluster {}", cluster_name))?;
@@ -88,8 +93,8 @@ fn run_kafka_web(config_path: &str) -> Result<()> {
         }
     }
 
-    let test = cache.offset_by_cluster_topic(&"scribe.uswest1-devc".to_owned(), &"scribe.devc.ranger".to_owned());
-    println!(">> {:?}", test);
+    // let test = cache.offset_by_cluster_topic(&"scribe.uswest1-devc".to_owned(), &"scribe.devc.ranger".to_owned());
+    // println!(">> {:?}", test);
 
     web_server::server::run_server(cache.alias(), &config)
         .chain_err(|| "Server initialization failed")?;
