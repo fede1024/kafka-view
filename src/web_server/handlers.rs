@@ -59,7 +59,6 @@ fn build_topic_metrics(cluster_id: &str, metadata: &Metadata, metrics: &MetricsC
 
 pub fn home_handler(req: &mut Request) -> IronResult<Response> {
     let cache = req.extensions.get::<CacheType>().unwrap();
-    let timer = req.extensions.get::<RequestTimer>().unwrap();
 
     let mut content = "".to_string();
     for cluster_id in cache.metadata.keys() {
@@ -69,7 +68,7 @@ pub fn home_handler(req: &mut Request) -> IronResult<Response> {
     }
 
     let clusters = cache.metadata.keys();
-    let html = layout::page(timer.request_id, "Clusters", PreEscaped(content));
+    let html = layout::page(req, "Clusters", PreEscaped(content));
 
     Ok(Response::with((status::Ok, html)))
 }

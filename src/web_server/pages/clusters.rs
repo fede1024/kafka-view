@@ -45,7 +45,6 @@ fn cluster_pane(name: &str, metadata: &Metadata) -> PreEscaped<String> {
 
 pub fn clusters_page(req: &mut Request) -> IronResult<Response> {
     let cache = req.extensions.get::<CacheType>().unwrap();
-    let request_timer = req.extensions.get::<RequestTimer>().unwrap();
     let mut clusters = cache.metadata.keys();
     clusters.sort();
 
@@ -55,7 +54,7 @@ pub fn clusters_page(req: &mut Request) -> IronResult<Response> {
 		}
     };
 
-    let html = layout::page(request_timer.request_id, "Clusters", content);
+    let html = layout::page(req, "Clusters", content);
 
     Ok(Response::with((status::Ok, html)))
 }

@@ -40,16 +40,19 @@ fn topic_table_row(cluster_id: &str, partition: &Partition) -> PreEscaped<String
 }
 
 fn topic_table(cluster_id: &str, partitions: &Vec<Partition>) -> PreEscaped<String> {
-    layout::datatable (true, "topic",
+    let table = layout::datatable (true, "topic",
         html! { tr { th "Id" th "Leader" th "Replicas" th "ISR" th "Status" } },
         html! { @for partition in partitions.iter() { (topic_table_row(cluster_id, partition)) }}
+    );
+    html!(
+        div class="table-loader-marker" style="text-align: center; padding: 0.3in;" { }
+        (table)
     )
 }
 
 pub fn topic_page(req: &mut Request) -> IronResult<Response> {
     let cache = req.extensions.get::<CacheType>().unwrap();
     let cluster_id = req.extensions.get::<Router>().unwrap().find("cluster_id").unwrap();
-    let request_timer = req.extensions.get::<RequestTimer>().unwrap();
     let topic_name = req.extensions.get::<Router>().unwrap().find("topic_name").unwrap();
 
     let metadata = match cache.metadata.get(&cluster_id.to_owned()) {
@@ -93,7 +96,7 @@ pub fn topic_page(req: &mut Request) -> IronResult<Response> {
         p "Coming soon."
     };
 
-    let html = layout::page(request_timer.request_id, &format!("Topic: {}", topic_name), content);
+    let html = layout::page(req, &format!("Topic: {}", topic_name), content);
 
     Ok(Response::with((status::Ok, html)))
 }

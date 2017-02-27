@@ -152,7 +152,6 @@ pub fn cluster_page(req: &mut Request) -> IronResult<Response> {
     let cache = req.extensions.get::<CacheType>().unwrap();
     let ref config = req.extensions.get::<ConfigArc>().unwrap().config;
     let cluster_id = req.extensions.get::<Router>().unwrap().find("cluster_id").unwrap();
-    let request_timer = req.extensions.get::<RequestTimer>().unwrap();
 
     let metadata = cache.metadata.get(&cluster_id.to_owned());
     if metadata.is_none() {  // TODO: Improve here
@@ -186,7 +185,7 @@ pub fn cluster_page(req: &mut Request) -> IronResult<Response> {
         h3 "Stored offsets"
         div class="loader-parent-marker" (consumer_offset_table(cluster_id, &cache))
     };
-    let html = layout::page(request_timer.request_id, &format!("Cluster: {}", cluster_id), content);
+    let html = layout::page(req, &format!("Cluster: {}", cluster_id), content);
 
     Ok(Response::with((status::Ok, html)))
 }

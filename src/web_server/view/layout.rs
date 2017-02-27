@@ -1,4 +1,6 @@
 use maud::PreEscaped;
+use web_server::server::RequestTimer;
+use iron::Request;
 
 pub fn format_cluster_path(cluster_id: &str) -> String {
     format!("/clusters/{}/", cluster_id)
@@ -226,7 +228,9 @@ fn body(page_title: &str, content: PreEscaped<String>) -> PreEscaped<String> {
     }
 }
 
-pub fn page(request_id: i32, page_title: &str, page_content: PreEscaped<String>) -> PreEscaped<String> {
+pub fn page(req: &Request, page_title: &str, page_content: PreEscaped<String>) -> PreEscaped<String> {
+    let request_timer = req.extensions.get::<RequestTimer>();
+    let request_id = request_timer.map(|t| t.request_id).unwrap_or(-1);
     html! {
         (PreEscaped("<!DOCTYPE html>"))
         html {

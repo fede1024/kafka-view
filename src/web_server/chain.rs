@@ -1,14 +1,16 @@
-use router;
+use iron::middleware::Handler;
+use iron::modifiers::Redirect;
+use iron::prelude::*;
+use iron::status;
 use iron;
+use router::Router;
+use router;
 
 use web_server::pages;
 use web_server::handlers;
 use web_server::server::RequestTimer;
-use router::Router;
 
-use iron::prelude::*;
-use iron::modifiers::Redirect;
-use iron::{Url, status};
+use std::collections::HashMap;
 
 
 fn request_timing(req: &mut Request) -> IronResult<Response> {
@@ -24,16 +26,46 @@ fn request_timing(req: &mut Request) -> IronResult<Response> {
     Ok(Response::with((status::Ok, time_str)))
 }
 
+// fn redirect_to_clusters_page(req: &mut Request) -> IronResult<Response> {
+//     let request_url = req.url.clone().into_generic_url();
+//     let new_url = request_url.join("/clusters/").unwrap();
+//     Ok(Response::with((status::Found, Redirect(iron::Url::from_generic_url(new_url).unwrap()))))
+// }
+
+// fn redirect_to2(dest: &str) -> Box<Fn(&mut Request) -> IronResult<Response>> {
+//     let dest_owned = dest.to_owned();
+//     Box::new(move |req| {
+//         let request_url = req.url.clone().into_generic_url();
+//         let new_url = request_url.join(&dest_owned).unwrap();
+//         Ok(Response::with((status::Found, Redirect(iron::Url::from_generic_url(new_url).unwrap()))))
+//     })
+//}
+
+fn redirect_to(dest: &str) -> impl Handler {
+    let dest_owned = dest.to_owned();
+    move |req: &mut Request| {
+        // let request_url = req.url.clone().into_generic_url();
+        // let new_url = request_url.join(&dest_owned).unwrap();
+        let dest_url = router::url_for(req, &dest_owned, HashMap::new());
+        Ok(Response::with((status::Found, Redirect(dest_url))))
+    }
+}
+
 pub fn chain() -> iron::Chain {
     let mut router = router::Router::new();
-    router.get("/", handlers::home_handler, "get_home");
-    //router.get("/", redirect_to_clusters_page, "get_home");
+    router.get("/", redirect_to("clusters"), "home");
     router.get("/clusters/", pages::clusters_page, "clusters");
-    router.get("/clusters/:cluster_id/", pages::cluster_page, "get_cluster");
-    router.get("/clusters/:cluster_id/topic/:topic_name/", pages::topic_page, "get_page");
-    // router.post("/new_task", handlers::new_task_handler, "new_task");
+    router.get("/clusters/:cluster_id/", pages::cluster_page, "cluster");
+    router.get("/clusters/:cluster_id/topic/:topic_name/", pages::topic_page, "topic");
     router.get("/public/*", handlers::AssetsHandler::new("/public/", "resources/web_server/public/"), "public_assets");
     router.get("/meta/request_time/:request_id/", request_timing, "request_timing");
+
+    // todo
+    router.get("/brokers/", pages::todo, "brokers");
+    router.get("/topics/", pages::todo, "topics");
+    router.get("/consumers/", pages::todo, "consumers");
+    router.get("/clusters/:cluster_id/group/:group_id/", pages::todo, "group");
+    router.get("/clusters/:cluster_id/consumer_offset/:group_id/", pages::todo, "consumer_offset");
     iron::Chain::new(router)
 }
 

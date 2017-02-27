@@ -66,10 +66,10 @@ $(document).ready(function() {
               "search": "Regex search:"
             },
             "columnDefs": [
-                { "type": "my-numeric",  "targets": [3, 4] },
-                { "orderable": false, "targets": [5] },
-                { "searchable": false, "targets": [1, 2, 3, 4, 5] },
-                { "type": "my-error", "targets": [2] }
+                { "type": "my-numeric",  "targets": [0] }
+                // { "orderable": false, "targets": [4] },
+                // { "searchable": false, "targets": [0, 1, 2, 3, 4] },
+                // { "type": "my-error", "targets": [1] }
             ]
         });
         $(this).parents('.loader-parent-marker').children('.table-loader-marker').css({"display": "none"});
