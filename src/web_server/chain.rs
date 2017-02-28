@@ -1,16 +1,19 @@
+use chrono::UTC;
 use iron::middleware::Handler;
 use iron::modifiers::Redirect;
 use iron::prelude::*;
-use iron::status;
+use iron::{IronResult, status};
 use iron;
-use router::Router;
-use router;
+use maud::PreEscaped;
+use mount;
+use router::{Router, url_for};
+use staticfile::Static;
 
 use web_server::pages;
-use web_server::handlers;
 use web_server::server::RequestTimer;
 
 use std::collections::HashMap;
+use std::path::Path;
 
 
 fn request_timing(req: &mut Request) -> IronResult<Response> {
@@ -46,18 +49,18 @@ fn redirect_to(dest: &str) -> impl Handler {
     move |req: &mut Request| {
         // let request_url = req.url.clone().into_generic_url();
         // let new_url = request_url.join(&dest_owned).unwrap();
-        let dest_url = router::url_for(req, &dest_owned, HashMap::new());
+        let dest_url = url_for(req, &dest_owned, HashMap::new());
         Ok(Response::with((status::Found, Redirect(dest_url))))
     }
 }
 
 pub fn chain() -> iron::Chain {
-    let mut router = router::Router::new();
+    let mut router = Router::new();
     router.get("/", redirect_to("clusters"), "home");
     router.get("/clusters/", pages::clusters_page, "clusters");
     router.get("/clusters/:cluster_id/", pages::cluster_page, "cluster");
     router.get("/clusters/:cluster_id/topic/:topic_name/", pages::topic_page, "topic");
-    router.get("/public/*", handlers::AssetsHandler::new("/public/", "resources/web_server/public/"), "public_assets");
+    router.get("/public/*", AssetsHandler::new("/public/", "resources/web_server/public/"), "public_assets");
     router.get("/meta/request_time/:request_id/", request_timing, "request_timing");
 
     // todo
@@ -67,6 +70,16 @@ pub fn chain() -> iron::Chain {
     router.get("/clusters/:cluster_id/group/:group_id/", pages::todo, "group");
     router.get("/clusters/:cluster_id/consumer_offset/:group_id/", pages::todo, "consumer_offset");
     iron::Chain::new(router)
+}
+
+struct AssetsHandler;
+
+impl AssetsHandler {
+    pub fn new(prefix: &str, mount_path: &str) -> mount::Mount {
+        let mut assets_mount = mount::Mount::new();
+        assets_mount.mount(prefix, Static::new(Path::new(mount_path)));
+        assets_mount
+    }
 }
 
 #[cfg(test)]

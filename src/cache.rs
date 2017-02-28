@@ -18,7 +18,7 @@ use std::thread;
 
 use error::*;
 use utils::format_error_chain;
-use metadata::{Broker, BrokerId, ClusterId, Group, Partition, TopicName, Metadata};
+use metadata::{Broker, BrokerId, ClusterId, Group, Partition, TopicName};
 use metrics::BrokerMetrics;
 
 
@@ -317,14 +317,20 @@ impl<K, V> ReplicatedMap<K, V> where K: Eq + Hash + Clone + Serialize + Deserial
             Err(_) => panic!("Poison error"),
         }
     }
+
+    pub fn count<F>(&self, f: F) -> usize
+            where F: Fn(&K, &V) -> bool {
+        match self.map.read() {
+            Ok(cache) => cache.iter().filter(|&(k, v)| f(k, v)).count(),
+            Err(_) => panic!("Poison error"),
+        }
+    }
 }
 
 
 //
 // ********** CACHE **********
 //
-
-pub type MetadataCache = ReplicatedMap<ClusterId, Arc<Metadata>>;
 
 pub type MetricsCache = ReplicatedMap<(ClusterId, BrokerId), BrokerMetrics>;
 pub type OffsetsCache = ReplicatedMap<(ClusterId, String, TopicName), Vec<i64>>;
@@ -333,7 +339,6 @@ pub type TopicCache = ReplicatedMap<(ClusterId, TopicName), Vec<Partition>>;
 pub type GroupCache = ReplicatedMap<(ClusterId, String), Group>;
 
 pub struct Cache {
-    pub metadata: MetadataCache,
     pub metrics: MetricsCache,
     pub offsets: OffsetsCache,
     pub brokers: BrokerCache,
@@ -345,7 +350,6 @@ impl Cache {
     pub fn new(replica_writer: ReplicaWriter) -> Cache {
         let replica_writer_arc = Arc::new(replica_writer);
         Cache {
-            metadata: ReplicatedMap::new("metadata", replica_writer_arc.clone()),
             metrics: ReplicatedMap::new("metrics", replica_writer_arc.clone()),
             offsets: ReplicatedMap::new("offsets", replica_writer_arc.clone()),
             brokers: ReplicatedMap::new("brokers", replica_writer_arc.clone()),
@@ -356,7 +360,6 @@ impl Cache {
 
     pub fn alias(&self) -> Cache {
         Cache {
-            metadata: self.metadata.alias(),
             metrics: self.metrics.alias(),
             offsets: self.offsets.alias(),
             brokers: self.brokers.alias(),
@@ -369,7 +372,6 @@ impl Cache {
 impl UpdateReceiver for Cache {
     fn receive_update(&self, cache_name: &str, update: ReplicaCacheUpdate) -> Result<()> {
         match cache_name.as_ref() {
-            "metadata" => self.metadata.receive_update(update),
             "metrics" => self.metrics.receive_update(update),
             "offsets" => self.offsets.receive_update(update),
             "brokers" => self.brokers.receive_update(update),

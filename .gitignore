@@ -2,3 +2,4 @@ target
 *.bk
 .idea
 kafka-web.iml
+config.yaml

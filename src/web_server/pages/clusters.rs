@@ -4,8 +4,7 @@ use maud::PreEscaped;
 
 use web_server::server::{CacheType, RequestTimer};
 use web_server::view::layout;
-use metadata::Metadata;
-use cache::{MetadataCache, MetricsCache};
+use cache::{BrokerCache, MetricsCache, TopicCache};
 
 
 fn cluster_pane_layout(name: &str, brokers: usize, topics: usize) -> PreEscaped<String> {
@@ -37,20 +36,20 @@ fn cluster_pane_layout(name: &str, brokers: usize, topics: usize) -> PreEscaped<
     }
 }
 
-fn cluster_pane(name: &str, metadata: &Metadata) -> PreEscaped<String> {
-    let broker_count = metadata.brokers.len();
-    let topics_count = metadata.topics.len();
-    cluster_pane_layout(name, broker_count, topics_count)
+fn cluster_pane(cluster_id: &str, broker_cache: &BrokerCache, topic_cache: &TopicCache) -> PreEscaped<String> {
+    let broker_count = broker_cache.get(&cluster_id.to_owned()).unwrap_or(Vec::new()).len();
+    let topics_count = topic_cache.count(|&(ref c, _), _| c == cluster_id);
+    cluster_pane_layout(cluster_id, broker_count, topics_count)
 }
 
 pub fn clusters_page(req: &mut Request) -> IronResult<Response> {
     let cache = req.extensions.get::<CacheType>().unwrap();
-    let mut clusters = cache.metadata.keys();
+    let mut clusters = cache.brokers.keys();
     clusters.sort();
 
     let content = html! {
         @for cluster_name in clusters {
-			(cluster_pane(&cluster_name, &cache.metadata.get(&cluster_name).unwrap()))
+			(cluster_pane(&cluster_name, &cache.brokers, &cache.topics))
 		}
     };
 

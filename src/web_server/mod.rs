@@ -1,5 +1,4 @@
 mod chain;
-mod handlers;
 mod pages;
 mod view;
 

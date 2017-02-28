@@ -70,7 +70,6 @@ fn run_kafka_web(config_path: &str) -> Result<()> {
 
     // Metadata fetch
     let mut metadata_fetcher = MetadataFetcher::new(
-        cache.metadata.alias(),
         cache.brokers.alias(),
         cache.topics.alias(),
         cache.groups.alias(),
@@ -86,9 +85,9 @@ fn run_kafka_web(config_path: &str) -> Result<()> {
     thread::sleep_ms(15000);
     let mut metrics_fetcher = MetricsFetcher::new(cache.metrics.alias(),
                                                   Duration::from_secs(config.metrics_refresh));
-    for cluster_id in &cache.metadata.keys() {
-        let metadata = cache.metadata.get(cluster_id).unwrap(); //TODO: fix race condition?
-        for broker in &metadata.brokers {
+    for cluster_id in &cache.brokers.keys() {
+        // TODO there is a race condition here, a broker could be removed
+        for broker in cache.brokers.get(cluster_id).unwrap().iter() {
             metrics_fetcher.add_broker(cluster_id, broker.id, &broker.hostname);
         }
     }

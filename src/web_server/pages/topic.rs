@@ -6,8 +6,8 @@ use maud::PreEscaped;
 use web_server::server::{CacheType, RequestTimer};
 use web_server::view::layout;
 use web_server::pages;
-use metadata::{Metadata, Partition};
-use cache::{MetadataCache, MetricsCache};
+use metadata::{Broker, Partition};
+use cache::MetricsCache;
 
 use std::collections::HashMap;
 
@@ -55,8 +55,8 @@ pub fn topic_page(req: &mut Request) -> IronResult<Response> {
     let cluster_id = req.extensions.get::<Router>().unwrap().find("cluster_id").unwrap();
     let topic_name = req.extensions.get::<Router>().unwrap().find("topic_name").unwrap();
 
-    let metadata = match cache.metadata.get(&cluster_id.to_owned()) {
-        Some(meta) => meta,
+    let partitions = match cache.topics.get(&(cluster_id.to_owned(), topic_name.to_owned())) {
+        Some(partitions) => partitions,
         None => {
             return pages::warning_page(req,
                 &format!("Topic: {}", cluster_id),
@@ -64,16 +64,9 @@ pub fn topic_page(req: &mut Request) -> IronResult<Response> {
         }
     };
 
-    let partitions = match metadata.topics.get(topic_name) {
-        Some(parts) => parts,
-        None => {
-            return pages::warning_page(req,
-                &format!("Topic: {}", cluster_id),
-                "The specified cluster doesn't exist.")
-        }
-    };
+    let brokers = cache.brokers.get(&cluster_id.to_owned()).expect("Broker should exist");
 
-    let topic_metrics = pages::cluster::build_topic_metrics(&cluster_id, &metadata, &cache.metrics)
+    let topic_metrics = pages::cluster::build_topic_metrics(&cluster_id, &brokers, 100, &cache.metrics)
         .get(topic_name).cloned();
     let content = html! {
         h3 style="margin-top: 0px" "General information"
@@ -82,7 +75,6 @@ pub fn topic_page(req: &mut Request) -> IronResult<Response> {
             dt "Topic name " dd (topic_name)
             dt "Number of partitions " dd (partitions.len())
             dt "Number of replicas " dd (partitions[0].replicas.len())
-            dt "Last metadata update" dd (metadata.refresh_time)
             @if topic_metrics.is_some() {
                 dt "Traffic last 15 minutes" dd (format!("{:.1} KB/s", topic_metrics.unwrap().0 / 1000f64))
                 dt "" dd (format!("{:.0} msg/s", topic_metrics.unwrap().1))
@@ -91,7 +83,7 @@ pub fn topic_page(req: &mut Request) -> IronResult<Response> {
             }
         }
         h3 "Topology"
-        (topic_table(cluster_id, partitions))
+        (topic_table(cluster_id, &partitions))
         h3 "Active consumers"
         p "Coming soon."
     };

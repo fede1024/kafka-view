@@ -1,0 +1,26 @@
+---
+  metadata_refresh: 60
+  metrics_refresh: 600
+  caching:
+    cluster: local_cluster
+    topic: replicator_topic
+
+  clusters:
+    cluster_type0.cluster_name0:
+      broker_list:
+        - host1:9092
+        - host2:9092
+        - host3:9092
+      zookeeper: zkhost1:2181
+    cluster_type0.cluster_name1:
+      broker_list:
+        - host4:9092
+        - host5:9092
+        - host6:9092
+      zookeeper: zkhost2:2181
+    flat_cluster_name:
+      broker_list:
+        - host7:9092
+        - host8:9092
+        - host9:9092
+      zookeeper: zkhost3:2181

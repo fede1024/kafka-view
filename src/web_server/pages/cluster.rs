@@ -10,15 +10,16 @@ use std::collections::HashMap;
 use web_server::pages;
 use web_server::server::{CacheType, ConfigArc, RequestTimer};
 use web_server::view::layout;
-use metadata::{Metadata, Group, Broker, Partition};
+use metadata::{Group, Broker, Partition};
 use cache::{MetricsCache, Cache};
 use offsets::OffsetStore;
 
 
-pub fn build_topic_metrics(cluster_id: &str, metadata: &Metadata, metrics: &MetricsCache) -> HashMap<String, (f64, f64)> {
+pub fn build_topic_metrics(cluster_id: &str, brokers: &Vec<Broker>, topic_count: usize,
+                           metrics: &MetricsCache) -> HashMap<String, (f64, f64)> {
     time!("building topic metrics", {
-        let mut result = HashMap::with_capacity(metadata.topics.len());
-        for broker in &metadata.brokers {
+        let mut result = HashMap::with_capacity(topic_count);
+        for broker in brokers.iter() {
             if let Some(broker_metrics) = metrics.get(&(cluster_id.to_owned(), broker.id)) {
                 for (topic_name, rate) in broker_metrics.topics {
                     // Keep an eye on RFC 1769
@@ -47,7 +48,7 @@ fn broker_table_row(cluster_id: &str, broker: &Broker, metrics: &MetricsCache) -
     }
 }
 
-fn broker_table(cluster_id: &str, metadata: &Metadata, metrics: &MetricsCache) -> PreEscaped<String> {
+fn broker_table(cluster_id: &str, brokers: &Vec<Broker>, metrics: &MetricsCache) -> PreEscaped<String> {
     layout::datatable(false, "broker",
         html! { tr { th "Broker id" th "Hostname"
             th data-toggle="tooltip" data-container="body"
@@ -55,7 +56,7 @@ fn broker_table(cluster_id: &str, metadata: &Metadata, metrics: &MetricsCache) -
             th data-toggle="tooltip" data-container="body"
                 title="Total average over the last 15 minutes" "Total msg rate"
             } },
-        html! { @for broker in &metadata.brokers {
+        html! { @for broker in brokers.iter() {
                     (broker_table_row(cluster_id, broker, metrics))
                 }
     })
@@ -89,14 +90,14 @@ fn topic_table_row(cluster_id: &str, name: &str, partitions: &Vec<Partition>, to
     }
 }
 
-fn topic_table(cluster_id: &str, metadata: &Metadata, topic_metrics: &HashMap<String, (f64, f64)>) -> PreEscaped<String> {
+fn topic_table(cluster_id: &str, topics: &Vec<((String, String), Vec<Partition>)>, topic_metrics: &HashMap<String, (f64, f64)>) -> PreEscaped<String> {
     layout::datatable(true, "topic",
         html! { tr { th "Topic name" th "#Partitions" th "Status"
             th data-toggle="tooltip" data-container="body" title="Average over the last 15 minutes" "Byte rate"
             th data-toggle="tooltip" data-container="body" title="Average over the last 15 minutes" "Msg rate"
             th "More"} },
-        html! { @for (topic_name, partitions) in &metadata.topics {
-                    (topic_table_row(cluster_id, topic_name, partitions, topic_metrics))
+        html! { @for &((_, ref topic_name), ref partitions) in topics.iter() {
+                    (topic_table_row(cluster_id, &topic_name, &partitions, topic_metrics))
                 }
 
     })
@@ -153,16 +154,17 @@ pub fn cluster_page(req: &mut Request) -> IronResult<Response> {
     let ref config = req.extensions.get::<ConfigArc>().unwrap().config;
     let cluster_id = req.extensions.get::<Router>().unwrap().find("cluster_id").unwrap();
 
-    let metadata = cache.metadata.get(&cluster_id.to_owned());
-    if metadata.is_none() {  // TODO: Improve here
+    let brokers = cache.brokers.get(&cluster_id.to_owned());
+    if brokers.is_none() {  // TODO: Improve here
         return pages::warning_page(req,
             &format!("Cluster: {}", cluster_id),
             "The specified cluster doesn't exist.")
     }
 
-    let metadata = metadata.unwrap();
+    let brokers = brokers.unwrap();
+    let topics = cache.topics.filter_clone(|&(ref c, _), _| c == cluster_id);
     let cluster_config = config.clusters.get(cluster_id);
-    let topic_metrics = build_topic_metrics(&cluster_id, &metadata, &cache.metrics);
+    let topic_metrics = build_topic_metrics(&cluster_id, &brokers, topics.len(), &cache.metrics);
     let content = html! {
         h3 style="margin-top: 0px" "Cluster info"
         dl class="dl-horizontal" {
@@ -174,12 +176,11 @@ pub fn cluster_page(req: &mut Request) -> IronResult<Response> {
                 dt "Bootstrap list: " dd "Cluster configuration is missing"
                 dt "Zookeeper: " dd "Cluster configuration is missing"
             }
-            dt "Last metadata update:" dd (metadata.refresh_time)
         }
         h3 "Brokers"
-        div (broker_table(cluster_id, &metadata, &cache.metrics))
+        div (broker_table(cluster_id, &brokers, &cache.metrics))
         h3 "Topics"
-        div class="loader-parent-marker" (topic_table(cluster_id, &metadata, &topic_metrics))
+        div class="loader-parent-marker" (topic_table(cluster_id, &topics, &topic_metrics))
         h3 "Active groups"
         div class="loader-parent-marker" (group_table(cluster_id, &cache))
         h3 "Stored offsets"
