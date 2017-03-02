@@ -75,19 +75,9 @@ fn topic_table_row(cluster_id: &str, name: &str, partitions: &Vec<Partition>, to
 }
 
 fn topic_table(cluster_id: &str, topics: &Vec<((String, String), Vec<Partition>)>, topic_metrics: &HashMap<String, (f64, f64)>) -> PreEscaped<String> {
-//    layout::datatable(true, "topic",
-//        html! { tr { th "Topic name" th "#Partitions" th "Status"
-//            th data-toggle="tooltip" data-container="body" title="Average over the last 15 minutes" "Byte rate"
-//            th data-toggle="tooltip" data-container="body" title="Average over the last 15 minutes" "Msg rate"
-//            th "More"} },
-//        html! { @for &((_, ref topic_name), ref partitions) in topics.iter() {
-//                    (topic_table_row(cluster_id, &topic_name, &partitions, topic_metrics))
-//                }
-//
-//    })
     let api_url = format!("/api/clusters/{}/topics", cluster_id);
-    layout::datatable_ajax(true, "topic-ajax", &api_url,
-                           html! { tr { th "Topic name" th "#Partitions" th "Status"
+    layout::datatable_ajax(true, "topic-ajax", &api_url, &cluster_id,
+               html! { tr { th "Topic name" th "#Partitions" th "Status"
                      th data-toggle="tooltip" data-container="body" title="Average over the last 15 minutes" "Byte rate"
                      th data-toggle="tooltip" data-container="body" title="Average over the last 15 minutes" "Msg rate"
                    }
@@ -95,28 +85,11 @@ fn topic_table(cluster_id: &str, topics: &Vec<((String, String), Vec<Partition>)
     )
 }
 
-fn consumer_offset_table_row(cluster_id: &str, consumer_name: &str, topics: i32) -> PreEscaped<String> {
-    let consumer_offset_link = format!("/clusters/{}/consumer_offset/{}/", cluster_id, consumer_name);
-    html! {
-        tr {
-            td a href=(consumer_offset_link) (consumer_name)
-            td (topics) td "TODO"
-        }
-    }
-}
-
 fn consumer_offset_table(cluster_id: &str, cache: &Cache) -> PreEscaped<String> {
-    let mut consumer_offsets = HashMap::new();
-    for ((_, group, _), _) in cache.offsets_by_cluster(&cluster_id.to_owned()) {
-        *consumer_offsets.entry(group).or_insert(0) += 1;
-    }
-
-    layout::datatable(true, "consumer",
+    let api_url = format!("/api/clusters/{}/offsets", &cluster_id);
+    layout::datatable_ajax(true, "offset-ajax", &api_url, cluster_id,
         html! { tr { th "Consumer name" th "#Topics" th "Status" } },
-        html! { @for (group_name, &topic_count) in &consumer_offsets {
-                    (consumer_offset_table_row(cluster_id, group_name, topic_count))
-                }
-    })
+    )
 }
 
 fn group_table_row(cluster_id: &str, group: &Group) -> PreEscaped<String> {

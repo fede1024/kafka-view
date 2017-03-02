@@ -62,6 +62,13 @@ function error_to_graphic(cell) {
     $(cell).html(symbol);
 }
 
+function group_to_url(cluster_id, cell) {
+    var group_name = cell.innerHTML;
+    var url = "/clusters/" + cluster_id + "/group/" + group_name;
+    var link = $('<a>', { text: group_name, title: 'Group page', href: url });
+    $(cell).html(link);
+}
+
 // Load responsive tables
 $(document).ready(function() {
     $('#datatable-topic-ajax').each(function(index) {
@@ -69,29 +76,27 @@ $(document).ready(function() {
             "search": { "regex": true},
             "ajax": $(this).attr("data-url"),
             "lengthMenu": [ [10, 50, 200, -1], [10, 50, 200, "All"] ],
-            "language": {
-              "search": "Regex search:"
-            },
+            "language": { "search": "Regex search:" },
             "columnDefs": [ ],
             "deferRender": true,
-//            "initComplete": function(settings, json) {
-//                console.time('transform')
-//                var cluster_id = $(this).attr("data-cluster-id");
-//                var table = this.DataTable();
-//                var column = table.column(0);
-//                var nodes = column.nodes();
-//                for (j = 0; j < nodes.length; j++) {
-//                    var topic_name = nodes[j].innerHTML;
-//                    var url = "/clusters/" + cluster_id + "/topic/" + topic_name;
-//                    var link = $('<a>', { text: topic_name, title: 'Topic page', href: url });
-//                    $(nodes[j]).html(link);
-//                }
-//                console.timeEnd('transform')
-//            }
             "createdRow": function(row, data, index) {
-                var cluster_id = $(this).attr("data-cluster-id");
+                var cluster_id = $(this).attr("param");
                 topic_to_url(cluster_id, $(row).children()[0]);
                 error_to_graphic($(row).children()[2]);
+            }
+        });
+    });
+    $('#datatable-offset-ajax').each(function(index) {
+        $(this).DataTable({
+            "search": { "regex": true},
+            "ajax": $(this).attr("data-url"),
+            "lengthMenu": [ [10, 50, 200, -1], [10, 50, 200, "All"] ],
+            "language": { "search": "Regex search:" },
+            "columnDefs": [ ],
+            "deferRender": true,
+            "createdRow": function(row, data, index) {
+                var cluster_id = $(this).attr("param");
+                group_to_url(cluster_id, $(row).children()[0]);
             }
         });
     });

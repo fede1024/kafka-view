@@ -6,34 +6,9 @@ use cache::{MetricsCache, Cache};
 use web_server::server::{CacheType, ConfigArc, RequestTimer};
 use metrics::build_topic_metrics;
 use utils::json_response;
+use offsets::OffsetStore;
 
-//fn topic_table_row(cluster_id: &str, name: &str, partitions: &Vec<Partition>, topic_metrics: &HashMap<String, (f64, f64)>) -> PreEscaped<String> {
-//    let rate = topic_metrics.get(name)
-//        .map(|r| (format!("{:.1} KB/s", (r.0 / 1000f64)), format!("{:.0} msg/s", r.1)))
-//        .unwrap_or(("no data".to_string(), "no data".to_string()));
-//    let chart_link = format!("https://app.signalfx.com/#/dashboard/CM0CgE0AgAA?variables%5B%5D=Topic%3Dtopic:{}", name);
-//    let topic_link = format!("/clusters/{}/topic/{}/", cluster_id, name);
-//    let errors = partitions.iter().map(|p| (p.id, p.error.clone())).filter(|&(_, ref error)| error.is_some()).collect::<Vec<_>>();
-//    let err_str = if errors.len() == 0 {
-//        html!{ i class="fa fa-check fa-fw" style="color: green" {} }
-//    } else {
-//        //html!{ i class="fa fa-exclamation-triangle fa-fw" style="color: yellow" {} }
-//        html!{ i class="fa fa-times fa-fw" style="color: red" {} }
-//    };
-//    html! {
-//        tr {
-//            td a href=(topic_link) (name)
-//            td (partitions.len()) td (err_str)
-//            td (rate.0) td (rate.1)
-//            td {
-//                a href=(chart_link) data-toggle="tooltip" data-container="body"
-//                    title="Topic chart" {
-//                    i class="fa fa-bar-chart" {}
-//                }
-//            }
-//        }
-//    }
-//}
+use std::collections::HashMap;
 
 pub fn cluster_topics(req: &mut Request) -> IronResult<Response> {
     let cache = req.extensions.get::<CacheType>().unwrap();
@@ -53,9 +28,8 @@ pub fn cluster_topics(req: &mut Request) -> IronResult<Response> {
         let rate = topic_metrics.get(topic_name)
             .map(|r| (format!("{:.1} KB/s", (r.0 / 1000f64)), format!("{:.0} msg/s", r.1)))
             .unwrap_or(("no data".to_string(), "".to_string()));
-        let topic_link = format!("/clusters/{}/topic/{}/", cluster_id, topic_name);
         let errors = partitions.iter().map(|p| (p.id, p.error.clone())).filter(|&(_, ref error)| error.is_some()).collect::<Vec<_>>();
-        let err_str = if errors.len() == 0 {
+        let err_str = if errors.len() == 0 { // TODO use different format
             "OK"
         } else {
             "ERR"
@@ -76,5 +50,24 @@ pub fn cluster_groups(req: &mut Request) -> IronResult<Response> {
 }
 
 pub fn cluster_offsets(req: &mut Request) -> IronResult<Response> {
-    Ok(Response::with((status::Ok, "")))
+    let cache = req.extensions.get::<CacheType>().unwrap();
+    let cluster_id = req.extensions.get::<Router>().unwrap().find("cluster_id").unwrap();
+
+    let brokers = cache.brokers.get(&cluster_id.to_owned());
+    if brokers.is_none() {  // TODO: Improve here
+        return Ok(Response::with((status::NotFound, "")));
+    }
+
+    let mut consumer_offsets = HashMap::new();
+    for ((_, group, _), _) in cache.offsets_by_cluster(&cluster_id.to_owned()) {
+        *consumer_offsets.entry(group).or_insert(0) += 1;
+    }
+
+    let mut result_data = Vec::with_capacity(consumer_offsets.len());
+    for (group_name, &topic_count) in consumer_offsets.iter() {
+        result_data.push(json!((group_name, topic_count, "TODO")));
+    }
+
+    let result = json!({"data": result_data});
+    Ok(json_response(result))
 }

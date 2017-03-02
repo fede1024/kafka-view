@@ -52,10 +52,11 @@ pub fn datatable(loading: bool, id: &str, table_header: PreEscaped<String>, tabl
     }
 }
 
-pub fn datatable_ajax(loading: bool, id: &str, url: &str, table_header: PreEscaped<String>) -> PreEscaped<String> {
+pub fn datatable_ajax(loading: bool, id: &str, url: &str, param: &str,
+                      table_header: PreEscaped<String>) -> PreEscaped<String> {
     let table_id = format!("datatable-{}", id);
     html! {
-        table id=(table_id) data-url=(url) data-cluster-id="scribe.uswest1-devc" width="100%" class="table table-striped table-bordered table-hover" {
+        table id=(table_id) data-url=(url) data-param=(param) width="100%" class="table table-striped table-bordered table-hover" {
             thead { (table_header) }
         }
     }
