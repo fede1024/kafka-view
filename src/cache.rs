@@ -172,7 +172,7 @@ fn last_message_per_key(stream: MessageStream) -> Result<HashMap<WrappedKey, Mes
     let mut EOF_set = HashSet::new();
     let mut state: HashMap<WrappedKey, Message> = HashMap::new();
 
-    trace!("Started creating state");
+    info!("Started creating state");
     for message in stream.wait() {
         match message {
             Ok(Ok(m)) => {
@@ -189,7 +189,7 @@ fn last_message_per_key(stream: MessageStream) -> Result<HashMap<WrappedKey, Mes
             break; // TODO: should stop consumer
         }
     }
-    trace!("State creation terminated");
+    info!("State creation terminated");
 
     Ok(state)
 }

@@ -53,6 +53,14 @@ pub fn json_response(json: serde_json::Value) -> Response {
     resp
 }
 
+pub fn json_gzip_response(json: serde_json::Value) -> Response {
+    let json_string = json.to_string();
+    let gzip_writer = GzipWriter(json_string.as_bytes());
+    let mut resp = Response::with((status::Ok, gzip_writer));
+    resp.headers.set(ContentType::json());
+    resp
+}
+
 macro_rules! time {
     ($title:expr, $msg:expr) => {{
         use chrono;

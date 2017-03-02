@@ -5,7 +5,7 @@ use iron::{IronResult, status};
 use cache::{MetricsCache, Cache};
 use web_server::server::{CacheType, ConfigArc, RequestTimer};
 use metrics::build_topic_metrics;
-use utils::json_response;
+use utils::json_gzip_response;
 use offsets::OffsetStore;
 
 use std::collections::HashMap;
@@ -38,7 +38,7 @@ pub fn cluster_topics(req: &mut Request) -> IronResult<Response> {
     }
 
     let result = json!({"data": result_data});
-    Ok(json_response(result))
+    Ok(json_gzip_response(result))
 }
 
 pub fn cluster_brokers(req: &mut Request) -> IronResult<Response> {
@@ -69,5 +69,5 @@ pub fn cluster_offsets(req: &mut Request) -> IronResult<Response> {
     }
 
     let result = json!({"data": result_data});
-    Ok(json_response(result))
+    Ok(json_gzip_response(result))
 }

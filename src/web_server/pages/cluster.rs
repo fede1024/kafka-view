@@ -13,7 +13,6 @@ use web_server::view::layout;
 use metadata::{Group, Broker, Partition};
 use cache::{MetricsCache, Cache};
 use offsets::OffsetStore;
-use metrics::build_topic_metrics;
 
 
 fn broker_table_row(cluster_id: &str, broker: &Broker, metrics: &MetricsCache) -> PreEscaped<String> {
@@ -46,35 +45,7 @@ fn broker_table(cluster_id: &str, brokers: &Vec<Broker>, metrics: &MetricsCache)
     })
 }
 
-fn topic_table_row(cluster_id: &str, name: &str, partitions: &Vec<Partition>, topic_metrics: &HashMap<String, (f64, f64)>) -> PreEscaped<String> {
-    let rate = topic_metrics.get(name)
-        .map(|r| (format!("{:.1} KB/s", (r.0 / 1000f64)), format!("{:.0} msg/s", r.1)))
-        .unwrap_or(("no data".to_string(), "no data".to_string()));
-    let chart_link = format!("https://app.signalfx.com/#/dashboard/CM0CgE0AgAA?variables%5B%5D=Topic%3Dtopic:{}", name);
-    let topic_link = format!("/clusters/{}/topic/{}/", cluster_id, name);
-    let errors = partitions.iter().map(|p| (p.id, p.error.clone())).filter(|&(_, ref error)| error.is_some()).collect::<Vec<_>>();
-    let err_str = if errors.len() == 0 {
-        html!{ i class="fa fa-check fa-fw" style="color: green" {} }
-    } else {
-        //html!{ i class="fa fa-exclamation-triangle fa-fw" style="color: yellow" {} }
-        html!{ i class="fa fa-times fa-fw" style="color: red" {} }
-    };
-    html! {
-        tr {
-            td a href=(topic_link) (name)
-            td (partitions.len()) td (err_str)
-            td (rate.0) td (rate.1)
-            td {
-                a href=(chart_link) data-toggle="tooltip" data-container="body"
-                    title="Topic chart" {
-                    i class="fa fa-bar-chart" {}
-                }
-            }
-        }
-    }
-}
-
-fn topic_table(cluster_id: &str, topics: &Vec<((String, String), Vec<Partition>)>, topic_metrics: &HashMap<String, (f64, f64)>) -> PreEscaped<String> {
+fn topic_table(cluster_id: &str) -> PreEscaped<String> {
     let api_url = format!("/api/clusters/{}/topics", cluster_id);
     layout::datatable_ajax(true, "topic-ajax", &api_url, &cluster_id,
                html! { tr { th "Topic name" th "#Partitions" th "Status"
@@ -85,7 +56,7 @@ fn topic_table(cluster_id: &str, topics: &Vec<((String, String), Vec<Partition>)
     )
 }
 
-fn consumer_offset_table(cluster_id: &str, cache: &Cache) -> PreEscaped<String> {
+fn consumer_offset_table(cluster_id: &str) -> PreEscaped<String> {
     let api_url = format!("/api/clusters/{}/offsets", &cluster_id);
     layout::datatable_ajax(true, "offset-ajax", &api_url, cluster_id,
         html! { tr { th "Consumer name" th "#Topics" th "Status" } },
@@ -129,7 +100,6 @@ pub fn cluster_page(req: &mut Request) -> IronResult<Response> {
     let brokers = brokers.unwrap();
     let topics = cache.topics.filter_clone(|&(ref c, _), _| c == cluster_id);
     let cluster_config = config.clusters.get(cluster_id);
-    let topic_metrics = build_topic_metrics(&cluster_id, &brokers, topics.len(), &cache.metrics);
     let content = html! {
         h3 style="margin-top: 0px" "Cluster info"
         dl class="dl-horizontal" {
@@ -145,11 +115,11 @@ pub fn cluster_page(req: &mut Request) -> IronResult<Response> {
         h3 "Brokers"
         div (broker_table(cluster_id, &brokers, &cache.metrics))
         h3 "Topics"
-        div class="loader-parent-marker" (topic_table(cluster_id, &topics, &topic_metrics))
+        (topic_table(cluster_id))
         h3 "Active groups"
         div class="loader-parent-marker" (group_table(cluster_id, &cache))
         h3 "Stored offsets"
-        div class="loader-parent-marker" (consumer_offset_table(cluster_id, &cache))
+        (consumer_offset_table(cluster_id))
     };
     let html = layout::page(req, &format!("Cluster: {}", cluster_id), content);
 
