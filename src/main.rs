@@ -5,6 +5,7 @@ extern crate alloc_system;
 #[macro_use] extern crate error_chain;
 #[macro_use] extern crate log;
 #[macro_use] extern crate serde_derive;
+#[macro_use] extern crate serde_json;
 extern crate byteorder;
 extern crate chrono;
 extern crate clap;
@@ -23,7 +24,6 @@ extern crate regex;
 extern crate router;
 extern crate serde;
 extern crate serde_cbor;
-extern crate serde_json;
 extern crate staticfile;
 extern crate urlencoded;
 
@@ -82,7 +82,7 @@ fn run_kafka_web(config_path: &str) -> Result<()> {
     }
 
     // TODO: fixme?
-    thread::sleep_ms(15000);
+    thread::sleep_ms(10000);
     let mut metrics_fetcher = MetricsFetcher::new(cache.metrics.alias(),
                                                   Duration::from_secs(config.metrics_refresh));
     for cluster_id in &cache.brokers.keys() {

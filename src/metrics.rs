@@ -11,7 +11,7 @@ use std::collections::{HashMap, BTreeMap};
 
 use cache::{ReplicatedMap, MetricsCache};
 use error::*;
-use metadata::{ClusterId, BrokerId, TopicName};
+use metadata::{ClusterId, BrokerId, Broker, TopicName};
 use scheduler::{Scheduler, ScheduledTask};
 
 
@@ -83,6 +83,22 @@ fn parse_broker_rate_metrics(jolokia_json_response: &Value) -> Result<HashMap<To
 
 fn log_elapsed_time(task_name: &str, start: DateTime<UTC>) {
     debug!("{} completed in: {:.3}ms", task_name, UTC::now().signed_duration_since(start).num_microseconds().unwrap() as f64 / 1000f64);
+}
+
+// TODO: make faster?
+pub fn build_topic_metrics(cluster_id: &str, brokers: &Vec<Broker>, topic_count: usize,
+                           metrics: &MetricsCache) -> HashMap<String, (f64, f64)> {
+    let mut result = HashMap::with_capacity(topic_count);
+    for broker in brokers.iter() {
+        if let Some(broker_metrics) = metrics.get(&(cluster_id.to_owned(), broker.id)) {
+            for (topic_name, rate) in broker_metrics.topics {
+                // Keep an eye on RFC 1769
+                let mut entry_ref = result.entry(topic_name.to_owned()).or_insert((0f64, 0f64));
+                *entry_ref = (entry_ref.0 + rate.0, entry_ref.1 + rate.1);
+            }
+        }
+    }
+    result
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

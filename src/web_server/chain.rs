@@ -9,6 +9,7 @@ use mount;
 use router::{Router, url_for};
 use staticfile::Static;
 
+use web_server::api;
 use web_server::pages;
 use web_server::server::RequestTimer;
 
@@ -63,11 +64,18 @@ pub fn chain() -> iron::Chain {
     router.get("/public/*", AssetsHandler::new("/public/", "resources/web_server/public/"), "public_assets");
     router.get("/meta/request_time/:request_id/", request_timing, "request_timing");
 
+    // api
+    router.get("/api/clusters/:cluster_id/brokers", api::cluster_brokers, "cluster_brokers_api");
+    router.get("/api/clusters/:cluster_id/topics", api::cluster_topics, "cluster_topics_api");
+    router.get("/api/clusters/:cluster_id/groups", api::cluster_groups, "cluster_groups_api");
+    router.get("/api/clusters/:cluster_id/offsets", api::cluster_offsets, "cluster_offsets_api");
+
     // todo
     router.get("/brokers/", pages::todo, "brokers");
     router.get("/topics/", pages::todo, "topics");
     router.get("/consumers/", pages::todo, "consumers");
     router.get("/clusters/:cluster_id/group/:group_id/", pages::todo, "group");
+    router.get("/clusters/:cluster_id/broker/:broker_id/", pages::todo, "broker");
     router.get("/clusters/:cluster_id/consumer_offset/:group_id/", pages::todo, "consumer_offset");
     iron::Chain::new(router)
 }

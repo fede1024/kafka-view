@@ -13,24 +13,8 @@ use web_server::view::layout;
 use metadata::{Group, Broker, Partition};
 use cache::{MetricsCache, Cache};
 use offsets::OffsetStore;
+use metrics::build_topic_metrics;
 
-
-pub fn build_topic_metrics(cluster_id: &str, brokers: &Vec<Broker>, topic_count: usize,
-                           metrics: &MetricsCache) -> HashMap<String, (f64, f64)> {
-    time!("building topic metrics", {
-        let mut result = HashMap::with_capacity(topic_count);
-        for broker in brokers.iter() {
-            if let Some(broker_metrics) = metrics.get(&(cluster_id.to_owned(), broker.id)) {
-                for (topic_name, rate) in broker_metrics.topics {
-                    // Keep an eye on RFC 1769
-                    let mut entry_ref = result.entry(topic_name.to_owned()).or_insert((0f64, 0f64));
-                    *entry_ref = (entry_ref.0 + rate.0, entry_ref.1 + rate.1);
-                }
-            }
-        }
-        result
-    })
-}
 
 fn broker_table_row(cluster_id: &str, broker: &Broker, metrics: &MetricsCache) -> PreEscaped<String> {
     let rate = metrics.get(&(cluster_id.to_owned(), broker.id))
@@ -91,16 +75,24 @@ fn topic_table_row(cluster_id: &str, name: &str, partitions: &Vec<Partition>, to
 }
 
 fn topic_table(cluster_id: &str, topics: &Vec<((String, String), Vec<Partition>)>, topic_metrics: &HashMap<String, (f64, f64)>) -> PreEscaped<String> {
-    layout::datatable(true, "topic",
-        html! { tr { th "Topic name" th "#Partitions" th "Status"
-            th data-toggle="tooltip" data-container="body" title="Average over the last 15 minutes" "Byte rate"
-            th data-toggle="tooltip" data-container="body" title="Average over the last 15 minutes" "Msg rate"
-            th "More"} },
-        html! { @for &((_, ref topic_name), ref partitions) in topics.iter() {
-                    (topic_table_row(cluster_id, &topic_name, &partitions, topic_metrics))
-                }
-
-    })
+//    layout::datatable(true, "topic",
+//        html! { tr { th "Topic name" th "#Partitions" th "Status"
+//            th data-toggle="tooltip" data-container="body" title="Average over the last 15 minutes" "Byte rate"
+//            th data-toggle="tooltip" data-container="body" title="Average over the last 15 minutes" "Msg rate"
+//            th "More"} },
+//        html! { @for &((_, ref topic_name), ref partitions) in topics.iter() {
+//                    (topic_table_row(cluster_id, &topic_name, &partitions, topic_metrics))
+//                }
+//
+//    })
+    let api_url = format!("/api/clusters/{}/topics", cluster_id);
+    layout::datatable_ajax(true, "topic-ajax", &api_url,
+                           html! { tr { th "Topic name" th "#Partitions" th "Status"
+                     th data-toggle="tooltip" data-container="body" title="Average over the last 15 minutes" "Byte rate"
+                     th data-toggle="tooltip" data-container="body" title="Average over the last 15 minutes" "Msg rate"
+                   }
+              },
+    )
 }
 
 fn consumer_offset_table_row(cluster_id: &str, consumer_name: &str, topics: i32) -> PreEscaped<String> {

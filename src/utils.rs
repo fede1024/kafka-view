@@ -1,12 +1,14 @@
 use chrono::Local;
 use env_logger::LogBuilder;
-use iron::{Response, status};
 use iron::headers::ContentType;
+use iron::{Response, status};
 use iron_compress::GzipWriter;
 use log::{LogRecord, LogLevelFilter};
 use maud::Markup;
+use serde_json;
 
 use error::*;
+
 use std::thread;
 
 pub fn setup_logger(log_thread: bool, rust_log: Option<&str>, date_format: &str) {
@@ -42,6 +44,12 @@ pub fn format_error_chain(err: Error) {
 pub fn gzip_ok_response(markup: Markup) -> Response {
     let mut resp = Response::with((status::Ok, GzipWriter(markup.into_string().as_bytes())));
     resp.headers.set(ContentType::html());
+    resp
+}
+
+pub fn json_response(json: serde_json::Value) -> Response {
+    let mut resp = Response::with((status::Ok, json.to_string()));
+    resp.headers.set(ContentType::json());
     resp
 }
 

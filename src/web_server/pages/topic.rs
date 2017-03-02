@@ -8,6 +8,7 @@ use web_server::view::layout;
 use web_server::pages;
 use metadata::{Broker, Partition};
 use cache::MetricsCache;
+use metrics::build_topic_metrics;
 
 use std::collections::HashMap;
 
@@ -68,7 +69,7 @@ pub fn topic_page(req: &mut Request) -> IronResult<Response> {
 
     let brokers = cache.brokers.get(&cluster_id.to_owned()).expect("Broker should exist");
 
-    let metrics = pages::cluster::build_topic_metrics(&cluster_id, &brokers, 100, &cache.metrics)
+    let metrics = build_topic_metrics(&cluster_id, &brokers, 100, &cache.metrics)
         .get(topic_name).cloned();
     let content = html! {
         h3 style="margin-top: 0px" "General information"

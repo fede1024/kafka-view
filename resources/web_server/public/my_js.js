@@ -45,8 +45,56 @@ jQuery.fn.dataTable.ext.type.order['my-err-pre'] = function (data) {
     };
 };
 
+function topic_to_url(cluster_id, cell) {
+    var topic_name = cell.innerHTML;
+    var url = "/clusters/" + cluster_id + "/topic/" + topic_name;
+    var link = $('<a>', { text: topic_name, title: 'Topic page', href: url });
+    $(cell).html(link);
+}
+
+function error_to_graphic(cell) {
+    var code = cell.innerHTML;
+    if (code == "OK") {
+        var symbol = $('<i>', { class: 'fa fa-check fa-fw', style: 'color: green' });
+    } else {
+        var symbol = $('<i>', { class: 'fa fa-times fa-fw', style: 'color: red' });
+    }
+    $(cell).html(symbol);
+}
+
 // Load responsive tables
 $(document).ready(function() {
+    $('#datatable-topic-ajax').each(function(index) {
+        $(this).DataTable({
+            "search": { "regex": true},
+            "ajax": $(this).attr("data-url"),
+            "lengthMenu": [ [10, 50, 200, -1], [10, 50, 200, "All"] ],
+            "language": {
+              "search": "Regex search:"
+            },
+            "columnDefs": [ ],
+            "deferRender": true,
+//            "initComplete": function(settings, json) {
+//                console.time('transform')
+//                var cluster_id = $(this).attr("data-cluster-id");
+//                var table = this.DataTable();
+//                var column = table.column(0);
+//                var nodes = column.nodes();
+//                for (j = 0; j < nodes.length; j++) {
+//                    var topic_name = nodes[j].innerHTML;
+//                    var url = "/clusters/" + cluster_id + "/topic/" + topic_name;
+//                    var link = $('<a>', { text: topic_name, title: 'Topic page', href: url });
+//                    $(nodes[j]).html(link);
+//                }
+//                console.timeEnd('transform')
+//            }
+            "createdRow": function(row, data, index) {
+                var cluster_id = $(this).attr("data-cluster-id");
+                topic_to_url(cluster_id, $(row).children()[0]);
+                error_to_graphic($(row).children()[2]);
+            }
+        });
+    });
     $('#datatable-broker').each(function(index) {
         $(this).dataTable({
             "lengthMenu": [ [10, 50, 200, -1], [10, 50, 200, "All"] ],
