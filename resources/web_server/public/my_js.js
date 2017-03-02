@@ -66,11 +66,20 @@ $(document).ready(function() {
               "search": "Regex search:"
             },
             "columnDefs": [
-                { "type": "my-numeric",  "targets": [0] }
+                //{ "type": "my-numeric",  "targets": [0] }
                 // { "orderable": false, "targets": [4] },
                 // { "searchable": false, "targets": [0, 1, 2, 3, 4] },
                 // { "type": "my-error", "targets": [1] }
             ]
+        });
+        $(this).parents('.loader-parent-marker').children('.table-loader-marker').css({"display": "none"});
+        $(this).css({"display": "table"})
+    });
+    $('#datatable-topology').each(function(index) {
+        $(this).dataTable({
+            "search": { "regex": true},
+            "lengthMenu": [ [10, 50, -1], [10, 50, "All"] ],
+            "language": { "search": "Regex search:" }
         });
         $(this).parents('.loader-parent-marker').children('.table-loader-marker').css({"display": "none"});
         $(this).css({"display": "table"})

@@ -48,6 +48,9 @@ pub fn clusters_page(req: &mut Request) -> IronResult<Response> {
     clusters.sort();
 
     let content = html! {
+        (layout::datatable(false, "ajax-test",
+            html! { tr { th "Group name" th "State" th "#Members" } },
+            html! {}))
         @for cluster_name in clusters {
 			(cluster_pane(&cluster_name, &cache.brokers, &cache.topics))
 		}

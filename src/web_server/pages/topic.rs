@@ -40,13 +40,15 @@ fn topic_table_row(cluster_id: &str, partition: &Partition) -> PreEscaped<String
 }
 
 fn topic_table(cluster_id: &str, partitions: &Vec<Partition>) -> PreEscaped<String> {
-    let table = layout::datatable (true, "topic",
+    let table = layout::datatable (true, "topology",
         html! { tr { th "Id" th "Leader" th "Replicas" th "ISR" th "Status" } },
         html! { @for partition in partitions.iter() { (topic_table_row(cluster_id, partition)) }}
     );
     html!(
-        div class="table-loader-marker" style="text-align: center; padding: 0.3in;" { }
-        (table)
+        span class="loader-parent-marker" {
+            div class="table-loader-marker" style="text-align: center; padding: 0.3in;" { }
+            (table)
+        }
     )
 }
 
@@ -66,7 +68,7 @@ pub fn topic_page(req: &mut Request) -> IronResult<Response> {
 
     let brokers = cache.brokers.get(&cluster_id.to_owned()).expect("Broker should exist");
 
-    let topic_metrics = pages::cluster::build_topic_metrics(&cluster_id, &brokers, 100, &cache.metrics)
+    let metrics = pages::cluster::build_topic_metrics(&cluster_id, &brokers, 100, &cache.metrics)
         .get(topic_name).cloned();
     let content = html! {
         h3 style="margin-top: 0px" "General information"
@@ -75,9 +77,9 @@ pub fn topic_page(req: &mut Request) -> IronResult<Response> {
             dt "Topic name " dd (topic_name)
             dt "Number of partitions " dd (partitions.len())
             dt "Number of replicas " dd (partitions[0].replicas.len())
-            @if topic_metrics.is_some() {
-                dt "Traffic last 15 minutes" dd (format!("{:.1} KB/s", topic_metrics.unwrap().0 / 1000f64))
-                dt "" dd (format!("{:.0} msg/s", topic_metrics.unwrap().1))
+            @if metrics.is_some() {
+                dt "Traffic last 15 minutes"
+                dd (format!("{:.1} KB/s {:.0} msg/s", metrics.unwrap().0 / 1000f64, metrics.unwrap().1))
             } @else {
                 dt "Traffic data" dd "Not available"
             }
