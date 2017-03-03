@@ -101,7 +101,7 @@ pub fn cluster_page(req: &mut Request) -> IronResult<Response> {
     let topics = cache.topics.filter_clone(|&(ref c, _), _| c == cluster_id);
     let cluster_config = config.clusters.get(cluster_id);
     let content = html! {
-        h3 style="margin-top: 0px" "Cluster info"
+        h2 style="margin-top: 0px" "General:"
         dl class="dl-horizontal" {
             dt "Cluster name: " dd (cluster_id)
             @if cluster_config.is_some() {

@@ -45,6 +45,34 @@ jQuery.fn.dataTable.ext.type.order['my-err-pre'] = function (data) {
     };
 };
 
+function formatBigNumber(bytes, decimals, suffix) {
+   if (suffix === undefined) {
+       suffix = "";
+   }
+   if (decimals === undefined) {
+       decimals = 3;
+   }
+   if(bytes == 0) return '0 ' + suffix;
+   var k = 1000;
+   var sizes = ['', 'K', 'M', 'G', 'T', 'P', 'E', 'Z', 'Y'];
+   var i = Math.floor(Math.log(bytes) / Math.log(k));
+   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i] + suffix;
+}
+
+function formatBytes(bytes, decimals, suffix) {
+   if (suffix === undefined) {
+       suffix = "";
+   }
+   if (decimals === undefined) {
+       decimals = 3;
+   }
+   if(bytes == 0) return '0 B' + suffix;
+   var k = 1024;
+   var sizes = ['B', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB', 'EiB', 'ZiB', 'YiB'];
+   var i = Math.floor(Math.log(bytes) / Math.log(k));
+   return parseFloat((bytes / Math.pow(k, i)).toFixed(decimals)) + ' ' + sizes[i] + suffix;
+}
+
 function topic_to_url(cluster_id, cell) {
     var topic_name = cell.innerHTML;
     var url = "/clusters/" + cluster_id + "/topic/" + topic_name;
@@ -52,21 +80,31 @@ function topic_to_url(cluster_id, cell) {
     $(cell).html(link);
 }
 
-function error_to_graphic(cell) {
-    var code = cell.innerHTML;
-    if (code == "OK") {
-        var symbol = $('<i>', { class: 'fa fa-check fa-fw', style: 'color: green' });
-    } else {
-        var symbol = $('<i>', { class: 'fa fa-times fa-fw', style: 'color: red' });
-    }
-    $(cell).html(symbol);
-}
-
 function group_to_url(cluster_id, cell) {
     var group_name = cell.innerHTML;
     var url = "/clusters/" + cluster_id + "/group/" + group_name;
     var link = $('<a>', { text: group_name, title: 'Group page', href: url });
     $(cell).html(link);
+}
+
+function error_to_graphic(cell) {
+    var error_code = cell.innerHTML;
+    if (error_code) {
+        var symbol = $('<i>', { class: 'fa fa-times fa-fw', style: 'color: red' });
+    } else {
+        var symbol = $('<i>', { class: 'fa fa-check fa-fw', style: 'color: green' });
+    }
+    $(cell).html(symbol);
+}
+
+function bytes_to_human(cell, suffix) {
+    var bytes = parseInt(cell.innerHTML);
+    $(cell).html(formatBytes(bytes, 1, suffix));
+}
+
+function big_num_to_human(cell, suffix) {
+    var bytes = parseInt(cell.innerHTML);
+    $(cell).html(formatBigNumber(bytes, 1, suffix));
 }
 
 // Load responsive tables
@@ -80,9 +118,11 @@ $(document).ready(function() {
             "columnDefs": [ ],
             "deferRender": true,
             "createdRow": function(row, data, index) {
-                var cluster_id = $(this).attr("param");
+                var cluster_id = $(this).attr("data-param");
                 topic_to_url(cluster_id, $(row).children()[0]);
                 error_to_graphic($(row).children()[2]);
+                bytes_to_human($(row).children()[3], "/s");
+                big_num_to_human($(row).children()[4], "m/s");
             }
         });
     });
@@ -95,7 +135,7 @@ $(document).ready(function() {
             "columnDefs": [ ],
             "deferRender": true,
             "createdRow": function(row, data, index) {
-                var cluster_id = $(this).attr("param");
+                var cluster_id = $(this).attr("data-param");
                 group_to_url(cluster_id, $(row).children()[0]);
             }
         });

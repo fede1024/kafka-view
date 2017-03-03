@@ -25,16 +25,11 @@ pub fn cluster_topics(req: &mut Request) -> IronResult<Response> {
 
     let mut result_data = Vec::with_capacity(topics.len());
     for &((_, ref topic_name), ref partitions) in topics.iter() {
-        let rate = topic_metrics.get(topic_name)
-            .map(|r| (format!("{:.1} KB/s", (r.0 / 1000f64)), format!("{:.0} msg/s", r.1)))
-            .unwrap_or(("no data".to_string(), "".to_string()));
-        let errors = partitions.iter().map(|p| (p.id, p.error.clone())).filter(|&(_, ref error)| error.is_some()).collect::<Vec<_>>();
-        let err_str = if errors.len() == 0 { // TODO use different format
-            "OK"
-        } else {
-            "ERR"
-        };
-        result_data.push(json!((topic_name, partitions.len(), err_str, rate.0, rate.1)));
+        let def = (-1f64, -1f64);
+        let rate = topic_metrics.get(topic_name).unwrap_or(&def);
+        let errors = partitions.iter().find(|p| p.error.is_some());
+        // let err_str = format!("{:?}", errors);
+        result_data.push(json!((topic_name, partitions.len(), &errors, rate.0.round(), rate.1.round())));
     }
 
     let result = json!({"data": result_data});
@@ -62,6 +57,8 @@ pub fn cluster_offsets(req: &mut Request) -> IronResult<Response> {
     for ((_, group, _), _) in cache.offsets_by_cluster(&cluster_id.to_owned()) {
         *consumer_offsets.entry(group).or_insert(0) += 1;
     }
+
+    // let groups = cache.groups.filter_clone(|&(ref c, _), _| c == cluster_id);
 
     let mut result_data = Vec::with_capacity(consumer_offsets.len());
     for (group_name, &topic_count) in consumer_offsets.iter() {

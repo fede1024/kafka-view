@@ -95,6 +95,7 @@ impl ReplicaWriter {
 // ********* REPLICA READER **********
 //
 
+#[derive(Debug)]
 pub enum ReplicaCacheUpdate<'a> {
     Set { key: &'a[u8], payload: &'a[u8] },
     Delete { key: &'a[u8] }
@@ -118,6 +119,7 @@ impl ReplicaReader {
             .set("bootstrap.servers", brokers)
             .set("session.timeout.ms", "6000")
             .set("enable.auto.commit", "false")
+            .set("api.version.request", "true")
             .set_default_topic_config(
                 TopicConfig::new()
                 .set("auto.offset.reset", "smallest")
@@ -185,7 +187,7 @@ fn last_message_per_key(stream: MessageStream) -> Result<HashMap<WrappedKey, Mes
             Ok(Err(e)) => error!("Error while reading from Kafka: {}", e),
             Err(_) => error!("Stream receive error"),
         };
-        if EOF_set.len() == 2 { // TODO: make configurable
+        if EOF_set.len() == 3 { // TODO: make configurable
             break; // TODO: should stop consumer
         }
     }
