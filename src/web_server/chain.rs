@@ -3,11 +3,12 @@ use iron::middleware::Handler;
 use iron::modifiers::Redirect;
 use iron::prelude::*;
 use iron::{IronResult, status};
+use iron::modifier::Modifier;
 use iron;
 use maud::PreEscaped;
 use mount;
 use router::{Router, url_for};
-use staticfile::Static;
+use staticfile::{Cache, Static};
 
 use web_server::api;
 use web_server::pages;
@@ -15,6 +16,7 @@ use web_server::server::RequestTimer;
 
 use std::collections::HashMap;
 use std::path::Path;
+use std::time::Duration;
 
 
 fn request_timing(req: &mut Request) -> IronResult<Response> {
@@ -65,8 +67,7 @@ pub fn chain() -> iron::Chain {
     router.get("/meta/request_time/:request_id/", request_timing, "request_timing");
 
     // api
-    router.get("/api/clusters/:cluster_id/brokers", api::cluster_brokers, "cluster_brokers_api");
-    router.get("/api/clusters/:cluster_id/topics", api::cluster_topics, "cluster_topics_api");
+    router.get("/api/clusters/:cluster_id/brokers", api::cluster_brokers, "cluster_brokers_api"); router.get("/api/clusters/:cluster_id/topics", api::cluster_topics, "cluster_topics_api");
     router.get("/api/clusters/:cluster_id/groups", api::cluster_groups, "cluster_groups_api");
     router.get("/api/clusters/:cluster_id/offsets", api::cluster_offsets, "cluster_offsets_api");
 
@@ -85,7 +86,11 @@ struct AssetsHandler;
 impl AssetsHandler {
     pub fn new(prefix: &str, mount_path: &str) -> mount::Mount {
         let mut assets_mount = mount::Mount::new();
-        assets_mount.mount(prefix, Static::new(Path::new(mount_path)));
+        let mut static_files = Static::new(Path::new(mount_path));
+        // static_files.modify(Cache::new(Duration::from_seconds(120)));
+        let cache = Cache::new(Duration::from_secs(120));
+        cache.modify(&mut static_files);
+        assets_mount.mount(prefix, static_files);
         assets_mount
     }
 }

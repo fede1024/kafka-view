@@ -30,6 +30,6 @@ serde_cbor = "^0.5.2"
 serde_derive = "^0.9.8"
 serde_json = "^0.9.8"
 serde_yaml = "^0.6.2"
-staticfile = "^0.4.0"
+staticfile = { version = "^0.4.0", features = ["cache"] }
 typemap = "0.3.3"
 urlencoded = "0.4.1"
