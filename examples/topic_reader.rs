@@ -48,15 +48,16 @@ fn parse_key(cbor: &[u8]) -> (String, String) {
     (wrapped_key.0.clone(), cbor_to_json_str(&wrapped_key.1))
 }
 
-fn consume_and_print(brokers: &str, topics: &Vec<&str>) {
+fn consume_and_print(brokers: &str, topics: &Vec<&str>, filter: Option<&str>) {
     let mut consumer = ClientConfig::new()
-        .set("group.id", "topic_reader_group")
+        .set("group.id", "topic_reader_group5")
         .set("bootstrap.servers", brokers)
-        .set("enable.partition.eof", "false")
+        .set("enable.partition.eof", "true")
         .set("session.timeout.ms", "6000")
-        .set("enable.auto.commit", "true")
+        .set("enable.auto.commit", "false")
+        .set("api.version.request", "true")
         .set_default_topic_config(TopicConfig::new()
-            .set("auto.offset.reset", "largest")
+            .set("auto.offset.reset", "smallest")
             .finalize())
         .create::<StreamConsumer<_>>()
         .expect("Consumer creation failed");
@@ -85,9 +86,13 @@ fn consume_and_print(brokers: &str, topics: &Vec<&str>) {
                         &[]
                     },
                 };
+                let (cache_name, cache_key) = parse_key(key);
+                if filter.is_some() && filter.unwrap() !=  cache_name {
+                    // consumer.commit_message(&m, CommitMode::Async);
+                    continue
+                }
                 println!("\n#### {}:{}, o:{}, s:{:.3}KB", topics[0], m.partition(), m.offset(),
                          (m.payload_len() as f64 / 1000f64));
-                let (cache_name, cache_key) = parse_key(key);
                 println!("{}: {}", cache_name, cache_key);
                 let payload_dec = cbor_to_json_str(payload);
                 if payload_dec.len() > 600 {
@@ -95,7 +100,7 @@ fn consume_and_print(brokers: &str, topics: &Vec<&str>) {
                 } else {
                     println!("{}", payload_dec);
                 }
-                consumer.commit_message(&m, CommitMode::Async);
+                // consumer.commit_message(&m, CommitMode::Async);
             },
             Ok(Err(e)) => {
                 warn!("Kafka error: {:?}", e);
@@ -121,6 +126,11 @@ fn main() {
              .takes_value(true)
              .multiple(true)
              .required(true))
+        .arg(Arg::with_name("filter")
+            .short("f")
+            .long("filter")
+            .help("Filter only cache name")
+            .takes_value(true))
         .get_matches();
 
     let (version_n, version_s) = get_rdkafka_version();
@@ -128,6 +138,7 @@ fn main() {
 
     let topics = matches.values_of("topics").unwrap().collect::<Vec<&str>>();
     let brokers = matches.value_of("brokers").unwrap();
+    let filter = matches.value_of("filter");
 
-    consume_and_print(brokers, &topics);
+    consume_and_print(brokers, &topics, filter);
 }

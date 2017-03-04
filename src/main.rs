@@ -27,13 +27,13 @@ extern crate serde_cbor;
 extern crate staticfile;
 extern crate urlencoded;
 
+#[macro_use] mod utils;
 mod cache;
 mod config;
 mod error;
 mod metadata;
 mod metrics;
 mod scheduler;
-#[macro_use] mod utils;
 mod web_server;
 mod offsets;
 
@@ -47,7 +47,6 @@ use cache::{Cache, ReplicaReader, ReplicaWriter};
 use error::*;
 use metrics::MetricsFetcher;
 use metadata::MetadataFetcher;
-use utils::format_error_chain;
 
 use offsets::{OffsetStore, run_offset_consumer};
 
@@ -127,7 +126,7 @@ fn main() {
 
     info!("Kafka-web is starting up!");
     if let Err(e) = run_kafka_web(config_path) {
-        format_error_chain(e);
+        format_error_chain!(e);
         std::process::exit(1);
     }
 }

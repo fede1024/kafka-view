@@ -40,11 +40,23 @@ pub fn cluster_brokers(req: &mut Request) -> IronResult<Response> {
     Ok(Response::with((status::Ok, "")))
 }
 
-pub fn cluster_groups(req: &mut Request) -> IronResult<Response> {
-    Ok(Response::with((status::Ok, "")))
+struct GroupInfo(usize, String, usize);
+
+impl GroupInfo {
+    fn new(members: usize, state: String) -> GroupInfo {
+        GroupInfo(members, state, 0)
+    }
+
+    fn new_empty() -> GroupInfo {
+        GroupInfo(0, "No group".to_owned(), 0)
+    }
+
+    fn add_offset(&mut self) {
+        self.2 += 1;
+    }
 }
 
-pub fn cluster_offsets(req: &mut Request) -> IronResult<Response> {
+pub fn cluster_groups(req: &mut Request) -> IronResult<Response> {
     let cache = req.extensions.get::<CacheType>().unwrap();
     let cluster_id = req.extensions.get::<Router>().unwrap().find("cluster_id").unwrap();
 
@@ -53,16 +65,19 @@ pub fn cluster_offsets(req: &mut Request) -> IronResult<Response> {
         return Ok(Response::with((status::NotFound, "")));
     }
 
-    let mut consumer_offsets = HashMap::new();
-    for ((_, group, _), _) in cache.offsets_by_cluster(&cluster_id.to_owned()) {
-        *consumer_offsets.entry(group).or_insert(0) += 1;
+    let mut groups = HashMap::new();
+    for (_, group) in cache.groups.filter_clone(|&(ref c, _), _| c == cluster_id) {
+        let group_result = GroupInfo::new(group.members.len(), group.state);
+        groups.insert(group.name, group_result);
     }
 
-    // let groups = cache.groups.filter_clone(|&(ref c, _), _| c == cluster_id);
+    for ((_, group, _), _) in cache.offsets_by_cluster(&cluster_id.to_owned()) {
+        (*groups.entry(group).or_insert(GroupInfo::new_empty())).add_offset();
+    }
 
-    let mut result_data = Vec::with_capacity(consumer_offsets.len());
-    for (group_name, &topic_count) in consumer_offsets.iter() {
-        result_data.push(json!((group_name, topic_count, "TODO")));
+    let mut result_data = Vec::with_capacity(groups.len());
+    for (group_name, group_info) in groups.into_iter() {
+        result_data.push(json!((group_name, group_info.0, group_info.1, group_info.2)));
     }
 
     let result = json!({"data": result_data});

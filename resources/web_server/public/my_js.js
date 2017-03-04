@@ -126,7 +126,7 @@ $(document).ready(function() {
             }
         });
     });
-    $('#datatable-offset-ajax').each(function(index) {
+    $('#datatable-groups-ajax').each(function(index) {
         $(this).DataTable({
             "search": { "regex": true},
             "ajax": $(this).attr("data-url"),

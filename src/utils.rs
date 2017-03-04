@@ -31,14 +31,16 @@ pub fn setup_logger(log_thread: bool, rust_log: Option<&str>, date_format: &str)
     builder.init().unwrap();
 }
 
-pub fn format_error_chain(err: Error) {
-    error!("error: {}", err);
-    for e in err.iter().skip(1) {
-        error!("caused by: {}", e);
-    }
-    if let Some(backtrace) = err.backtrace() {
-        error!("backtrace: {:?}", backtrace);
-    }
+macro_rules! format_error_chain {
+    ($err: expr) => {{
+        error ! ("error: {}", $err);
+        for e in $err.iter().skip(1) {
+            error ! ("caused by: {}", e);
+        }
+        if let Some(backtrace) = $err.backtrace() {
+            error ! ("backtrace: {:?}", backtrace);
+        }
+    }}
 }
 
 pub fn gzip_ok_response(markup: Markup) -> Response {

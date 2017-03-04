@@ -56,34 +56,34 @@ fn topic_table(cluster_id: &str) -> PreEscaped<String> {
     )
 }
 
-fn consumer_offset_table(cluster_id: &str) -> PreEscaped<String> {
-    let api_url = format!("/api/clusters/{}/offsets", &cluster_id);
-    layout::datatable_ajax(true, "offset-ajax", &api_url, cluster_id,
-        html! { tr { th "Consumer name" th "#Topics" th "Status" } },
+fn groups_table(cluster_id: &str) -> PreEscaped<String> {
+    let api_url = format!("/api/clusters/{}/groups", &cluster_id);
+    layout::datatable_ajax(true, "groups-ajax", &api_url, cluster_id,
+        html! { tr { th "Group name" th "#Members" th "Status" th "#Topics offsets" } },
     )
 }
 
-fn group_table_row(cluster_id: &str, group: &Group) -> PreEscaped<String> {
-    let group_link = format!("/clusters/{}/group/{}/", cluster_id, group.name);
-    html! {
-        tr {
-            td a href=(group_link) (group.name)
-            td (group.state) td (group.members.len())
-        }
-    }
-}
-
-fn group_table(cluster_id: &str, cache: &Cache) -> PreEscaped<String> {
-    let groups = cache.groups
-        .filter_clone(|&(ref c, _), _| c == cluster_id);
-
-    layout::datatable(true, "groups",
-        html! { tr { th "Group name" th "State" th "#Members" } },
-        html! { @for &(_, ref group) in &groups {
-                    (group_table_row(cluster_id, &group))
-                }
-    })
-}
+//fn group_table_row(cluster_id: &str, group: &Group) -> PreEscaped<String> {
+//    let group_link = format!("/clusters/{}/group/{}/", cluster_id, group.name);
+//    html! {
+//        tr {
+//            td a href=(group_link) (group.name)
+//            td (group.state) td (group.members.len())
+//        }
+//    }
+//}
+//
+//fn group_table(cluster_id: &str, cache: &Cache) -> PreEscaped<String> {
+//    let groups = cache.groups
+//        .filter_clone(|&(ref c, _), _| c == cluster_id);
+//
+//    layout::datatable(true, "groups",
+//        html! { tr { th "Group name" th "State" th "#Members" } },
+//        html! { @for &(_, ref group) in &groups {
+//                    (group_table_row(cluster_id, &group))
+//                }
+//    })
+//}
 
 pub fn cluster_page(req: &mut Request) -> IronResult<Response> {
     let cache = req.extensions.get::<CacheType>().unwrap();
@@ -116,10 +116,8 @@ pub fn cluster_page(req: &mut Request) -> IronResult<Response> {
         div (broker_table(cluster_id, &brokers, &cache.metrics))
         h3 "Topics"
         (topic_table(cluster_id))
-        h3 "Active groups"
-        div class="loader-parent-marker" (group_table(cluster_id, &cache))
-        h3 "Stored offsets"
-        (consumer_offset_table(cluster_id))
+        h3 "Groups"
+        (groups_table(cluster_id))
     };
     let html = layout::page(req, &format!("Cluster: {}", cluster_id), content);
 

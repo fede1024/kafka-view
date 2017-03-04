@@ -17,9 +17,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 
 use error::*;
-use utils::format_error_chain;
 use metadata::{Broker, BrokerId, ClusterId, Group, Partition, TopicName};
 use metrics::BrokerMetrics;
+#[macro_use] use utils;
 
 
 #[derive(Serialize, Deserialize, Debug, Hash, Eq, PartialEq)]
@@ -145,7 +145,7 @@ impl ReplicaReader {
             .name("replica consumer".to_string())
             .spawn(move || {
                 match last_message_per_key(stream) {
-                    Err(e) => format_error_chain(e),
+                    Err(e) => format_error_chain!(e),
                     Ok(state) => {
                         for (w_key, message) in state {
                             let update = match message.payload() {
@@ -158,7 +158,7 @@ impl ReplicaReader {
                                 },
                             };
                             if let Err(e) = receiver.receive_update(w_key.cache_name(), update) {
-                                format_error_chain(e);
+                                format_error_chain!(e);
                             }
                         }
                     }
@@ -180,7 +180,7 @@ fn last_message_per_key(stream: MessageStream) -> Result<HashMap<WrappedKey, Mes
             Ok(Ok(m)) => {
                 match parse_message_key(&m).chain_err(|| "Failed to parse message key") {
                     Ok(wrapped_key) => { state.insert(wrapped_key, m); () },
-                    Err(e) => format_error_chain(e),
+                    Err(e) => format_error_chain!(e),
                 };
             },
             Ok(Err(KafkaError::PartitionEOF(p))) => { EOF_set.insert(p); () },

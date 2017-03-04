@@ -13,7 +13,6 @@ use std::time::{Instant, Duration};
 use std::io::{Cursor, BufRead};
 use byteorder::{BigEndian, ReadBytesExt};
 use error::*;
-use utils::format_error_chain;
 use cache::{Cache, OffsetsCache};
 use metadata::{ClusterId, TopicName};
 
@@ -150,7 +149,7 @@ fn consume_offset_topic(cluster_id: ClusterId, mut consumer: StreamConsumer<Empt
                         },
                         _ => {},
                     },
-                    Err(e) => format_error_chain(e),
+                    Err(e) => format_error_chain!(e),
                 };
             },
             Ok(Err(e)) => {
@@ -163,9 +162,9 @@ fn consume_offset_topic(cluster_id: ClusterId, mut consumer: StreamConsumer<Empt
 
 pub fn run_offset_consumer(cluster_id: &ClusterId, brokers: &str, offset_cache: OffsetsCache) {
     let brokers_owned = brokers.to_owned();
-    let mut consumer = create_consumer(brokers_owned);
+    let consumer = create_consumer(brokers_owned);
 
-    let mut cluster_id_clone = cluster_id.clone();
+    let cluster_id_clone = cluster_id.clone();
     thread::spawn(move || {
         consume_offset_topic(cluster_id_clone, consumer, offset_cache);
     });

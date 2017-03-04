@@ -69,7 +69,6 @@ pub fn chain() -> iron::Chain {
     // api
     router.get("/api/clusters/:cluster_id/brokers", api::cluster_brokers, "cluster_brokers_api"); router.get("/api/clusters/:cluster_id/topics", api::cluster_topics, "cluster_topics_api");
     router.get("/api/clusters/:cluster_id/groups", api::cluster_groups, "cluster_groups_api");
-    router.get("/api/clusters/:cluster_id/offsets", api::cluster_offsets, "cluster_offsets_api");
 
     // todo
     router.get("/brokers/", pages::todo, "brokers");

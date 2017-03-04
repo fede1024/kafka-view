@@ -9,7 +9,6 @@ use futures_cpupool::{Builder, CpuPool};
 use futures::{Future, BoxFuture};
 
 use error::*;
-use utils::format_error_chain;
 
 
 pub trait ScheduledTask: Send + Sync + 'static {
@@ -77,7 +76,7 @@ fn scheduler_clock_loop<I, T>(period: Duration, tasks: Arc<RwLock<Vec<Arc<(I, T)
                     if f.0.load(Ordering::Relaxed) {
                         match f.1.wait() {
                             Ok(_) => trace!("Future completed correctly, {} pending", futures.len()),
-                            Err(e) => format_error_chain(e),
+                            Err(e) => format_error_chain!(e),
                         };
                     } else {
                         trace!("Future not ready");
