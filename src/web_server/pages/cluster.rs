@@ -15,39 +15,22 @@ use cache::{MetricsCache, Cache};
 use offsets::OffsetStore;
 
 
-fn broker_table_row(cluster_id: &str, broker: &Broker, metrics: &MetricsCache) -> PreEscaped<String> {
-    let rate = metrics.get(&(cluster_id.to_owned(), broker.id))
-        .and_then(|broker_metrics| { broker_metrics.topics.get("__TOTAL__").cloned() })
-        .map(|r| (format!("{:.1} KB/s", (r.0 / 1000f64)), format!("{:.0} msg/s", r.1)))
-        .unwrap_or(("no data".to_string(), "no data".to_string()));
-    let broker_link = format!("/clusters/{}/broker/{}/", cluster_id, broker.id);
-    html! {
-        tr {
-            td a href=(broker_link) (broker.id)
-            td (broker.hostname)
-            td (rate.0)
-            td (rate.1)
-        }
-    }
-}
-
 fn broker_table(cluster_id: &str, brokers: &Vec<Broker>, metrics: &MetricsCache) -> PreEscaped<String> {
-    layout::datatable(false, "broker",
+    let api_url = format!("/api/clusters/{}/brokers", cluster_id);
+    layout::datatable_ajax(true, "brokers-ajax", &api_url, &cluster_id,
         html! { tr { th "Broker id" th "Hostname"
             th data-toggle="tooltip" data-container="body"
                 title="Total average over the last 15 minutes" "Total byte rate"
             th data-toggle="tooltip" data-container="body"
                 title="Total average over the last 15 minutes" "Total msg rate"
-            } },
-        html! { @for broker in brokers.iter() {
-                    (broker_table_row(cluster_id, broker, metrics))
-                }
-    })
+            }
+        }
+    )
 }
 
 fn topic_table(cluster_id: &str) -> PreEscaped<String> {
     let api_url = format!("/api/clusters/{}/topics", cluster_id);
-    layout::datatable_ajax(true, "topic-ajax", &api_url, &cluster_id,
+    layout::datatable_ajax(true, "topics-ajax", &api_url, &cluster_id,
                html! { tr { th "Topic name" th "#Partitions" th "Status"
                      th data-toggle="tooltip" data-container="body" title="Average over the last 15 minutes" "Byte rate"
                      th data-toggle="tooltip" data-container="body" title="Average over the last 15 minutes" "Msg rate"
@@ -62,28 +45,6 @@ fn groups_table(cluster_id: &str) -> PreEscaped<String> {
         html! { tr { th "Group name" th "#Members" th "Status" th "#Topics offsets" } },
     )
 }
-
-//fn group_table_row(cluster_id: &str, group: &Group) -> PreEscaped<String> {
-//    let group_link = format!("/clusters/{}/group/{}/", cluster_id, group.name);
-//    html! {
-//        tr {
-//            td a href=(group_link) (group.name)
-//            td (group.state) td (group.members.len())
-//        }
-//    }
-//}
-//
-//fn group_table(cluster_id: &str, cache: &Cache) -> PreEscaped<String> {
-//    let groups = cache.groups
-//        .filter_clone(|&(ref c, _), _| c == cluster_id);
-//
-//    layout::datatable(true, "groups",
-//        html! { tr { th "Group name" th "State" th "#Members" } },
-//        html! { @for &(_, ref group) in &groups {
-//                    (group_table_row(cluster_id, &group))
-//                }
-//    })
-//}
 
 pub fn cluster_page(req: &mut Request) -> IronResult<Response> {
     let cache = req.extensions.get::<CacheType>().unwrap();

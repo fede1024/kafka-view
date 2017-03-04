@@ -10,6 +10,10 @@ use offsets::OffsetStore;
 
 use std::collections::HashMap;
 
+//
+// ********** TOPICS LIST **********
+//
+
 pub fn cluster_topics(req: &mut Request) -> IronResult<Response> {
     let cache = req.extensions.get::<CacheType>().unwrap();
     let cluster_id = req.extensions.get::<Router>().unwrap().find("cluster_id").unwrap();
@@ -36,9 +40,35 @@ pub fn cluster_topics(req: &mut Request) -> IronResult<Response> {
     Ok(json_gzip_response(result))
 }
 
+//
+// ********** BROKERS LIST **********
+//
+
 pub fn cluster_brokers(req: &mut Request) -> IronResult<Response> {
-    Ok(Response::with((status::Ok, "")))
+    let cache = req.extensions.get::<CacheType>().unwrap();
+    let cluster_id = req.extensions.get::<Router>().unwrap().find("cluster_id").unwrap();
+
+    let brokers = cache.brokers.get(&cluster_id.to_owned());
+    if brokers.is_none() {  // TODO: Improve here
+        return Ok(Response::with((status::NotFound, "")));
+    }
+
+    let brokers = brokers.unwrap();
+    let mut result_data = Vec::with_capacity(brokers.len());
+    for broker in brokers {
+        let rate = cache.metrics.get(&(cluster_id.to_owned(), broker.id))
+            .and_then(|b_metrics| { b_metrics.topics.get("__TOTAL__").cloned() })
+            .unwrap_or((-1f64, -1f64)); // TODO null instead?
+        result_data.push(json!((broker.id, broker.hostname, rate.0.round(), rate.1.round())));
+    }
+
+    let result = json!({"data": result_data});
+    Ok(json_gzip_response(result))
 }
+
+//
+// ********** GROUP LIST **********
+//
 
 struct GroupInfo(usize, String, usize);
 
@@ -76,7 +106,7 @@ pub fn cluster_groups(req: &mut Request) -> IronResult<Response> {
     }
 
     let mut result_data = Vec::with_capacity(groups.len());
-    for (group_name, group_info) in groups.into_iter() {
+    for (group_name, group_info) in groups {
         result_data.push(json!((group_name, group_info.0, group_info.1, group_info.2)));
     }
 

@@ -10,7 +10,6 @@ use futures::{Future, BoxFuture};
 
 use error::*;
 
-
 pub trait ScheduledTask: Send + Sync + 'static {
     fn run(&self) -> Result<()>;
 }

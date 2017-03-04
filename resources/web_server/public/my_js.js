@@ -45,32 +45,40 @@ jQuery.fn.dataTable.ext.type.order['my-err-pre'] = function (data) {
     };
 };
 
-function formatBigNumber(bytes, decimals, suffix) {
+function formatToHuman(value, decimals, suffix, k, sizes) {
    if (suffix === undefined) {
        suffix = "";
    }
    if (decimals === undefined) {
        decimals = 3;
    }
-   if(bytes == 0) return '0 ' + suffix;
-   var k = 1000;
-   var sizes = ['', 'K', 'M', 'G', 'T', 'P', 'E', 'Z', 'Y'];
-   var i = Math.floor(Math.log(bytes) / Math.log(k));
-   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i] + suffix;
+   if(value == 0) {
+       var i = 0;
+       var result = 0;
+   } else {
+       var i = Math.floor(Math.log(value) / Math.log(k));
+       var result = parseFloat((value / Math.pow(k, i)).toFixed(decimals));
+   }
+   return $('<span>', { text: result + sizes[i] + suffix, title: value }).tooltip();
 }
 
-function formatBytes(bytes, decimals, suffix) {
-   if (suffix === undefined) {
-       suffix = "";
-   }
-   if (decimals === undefined) {
-       decimals = 3;
-   }
-   if(bytes == 0) return '0 B' + suffix;
-   var k = 1024;
-   var sizes = ['B', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB', 'EiB', 'ZiB', 'YiB'];
-   var i = Math.floor(Math.log(bytes) / Math.log(k));
-   return parseFloat((bytes / Math.pow(k, i)).toFixed(decimals)) + ' ' + sizes[i] + suffix;
+function bytes_to_human(cell, suffix) {
+    var bytes = parseInt(cell.innerHTML);
+    var sizes = [' B', ' KiB', ' MiB', ' GiB', ' TiB', ' PiB'];
+    $(cell).html(formatToHuman(bytes, 1, suffix, 1024, sizes));
+}
+
+function big_num_to_human(cell, suffix) {
+    var bytes = parseInt(cell.innerHTML);
+    var sizes = [' ', '×10^3 ', '×10^6 ', '×10^9 ', '×10^12 '];
+    $(cell).html(formatToHuman(bytes, 1, suffix, 1000, sizes));
+}
+
+function broker_to_url(cluster_id, cell) {
+    var broker_name = cell.innerHTML;
+    var url = "/clusters/" + cluster_id + "/broker/" + broker_name;
+    var link = $('<a>', { text: broker_name, title: 'Broker page', href: url });
+    $(cell).html(link);
 }
 
 function topic_to_url(cluster_id, cell) {
@@ -90,26 +98,32 @@ function group_to_url(cluster_id, cell) {
 function error_to_graphic(cell) {
     var error_code = cell.innerHTML;
     if (error_code) {
-        var symbol = $('<i>', { class: 'fa fa-times fa-fw', style: 'color: red' });
+        var symbol = $('<i>', { class: 'fa fa-times fa-fw', style: 'color: red', title: error_code });
     } else {
-        var symbol = $('<i>', { class: 'fa fa-check fa-fw', style: 'color: green' });
+        var symbol = $('<i>', { class: 'fa fa-check fa-fw', style: 'color: green', title: 'No error' });
     }
+    symbol.tooltip();
     $(cell).html(symbol);
 }
 
-function bytes_to_human(cell, suffix) {
-    var bytes = parseInt(cell.innerHTML);
-    $(cell).html(formatBytes(bytes, 1, suffix));
-}
-
-function big_num_to_human(cell, suffix) {
-    var bytes = parseInt(cell.innerHTML);
-    $(cell).html(formatBigNumber(bytes, 1, suffix));
-}
-
-// Load responsive tables
 $(document).ready(function() {
-    $('#datatable-topic-ajax').each(function(index) {
+    $('#datatable-brokers-ajax').each(function(index) {
+        $(this).DataTable({
+            "search": { "regex": true},
+            "ajax": $(this).attr("data-url"),
+            "lengthMenu": [ [10, 50, 200, -1], [10, 50, 200, "All"] ],
+            "language": { "search": "Regex search:" },
+            "columnDefs": [ ],
+            "deferRender": true,
+            "createdRow": function(row, data, index) {
+                var cluster_id = $(this).attr("data-param");
+                broker_to_url(cluster_id, $(row).children()[0]);
+                bytes_to_human($(row).children()[2], "/s");
+                big_num_to_human($(row).children()[3], "M/s");
+            }
+        });
+    });
+    $('#datatable-topics-ajax').each(function(index) {
         $(this).DataTable({
             "search": { "regex": true},
             "ajax": $(this).attr("data-url"),
@@ -122,7 +136,7 @@ $(document).ready(function() {
                 topic_to_url(cluster_id, $(row).children()[0]);
                 error_to_graphic($(row).children()[2]);
                 bytes_to_human($(row).children()[3], "/s");
-                big_num_to_human($(row).children()[4], "m/s");
+                big_num_to_human($(row).children()[4], "M/s");
             }
         });
     });
@@ -139,69 +153,6 @@ $(document).ready(function() {
                 group_to_url(cluster_id, $(row).children()[0]);
             }
         });
-    });
-    $('#datatable-broker').each(function(index) {
-        $(this).dataTable({
-            "lengthMenu": [ [10, 50, 200, -1], [10, 50, 200, "All"] ],
-            "language": {
-              "search": "Regex search:"
-            },
-            "columnDefs": [
-                { "targets": [2, 3], "type": "my-numeric" }
-            ]
-        });
-    });
-    $('#datatable-topic').each(function(index) {
-        $(this).dataTable({
-            "search": { "regex": true},
-            "lengthMenu": [ [10, 50, 200, -1], [10, 50, 200, "All"] ],
-            "language": {
-              "search": "Regex search:"
-            },
-            "columnDefs": [
-                //{ "type": "my-numeric",  "targets": [0] }
-                // { "orderable": false, "targets": [4] },
-                // { "searchable": false, "targets": [0, 1, 2, 3, 4] },
-                // { "type": "my-error", "targets": [1] }
-            ]
-        });
-        $(this).parents('.loader-parent-marker').children('.table-loader-marker').css({"display": "none"});
-        $(this).css({"display": "table"})
-    });
-    $('#datatable-topology').each(function(index) {
-        $(this).dataTable({
-            "search": { "regex": true},
-            "lengthMenu": [ [10, 50, -1], [10, 50, "All"] ],
-            "language": { "search": "Regex search:" }
-        });
-        $(this).parents('.loader-parent-marker').children('.table-loader-marker').css({"display": "none"});
-        $(this).css({"display": "table"})
-    });
-    $('#datatable-consumer').each(function(index) {
-        $(this).dataTable({
-            "search": { "regex": true},
-            "lengthMenu": [ [10, 50, 200, -1], [10, 50, 200, "All"] ],
-            "language": {
-              "search": "Regex search:"
-            },
-            "columnDefs": [ ]
-        });
-        $(this).parents('.loader-parent-marker').children('.table-loader-marker').css({"display": "none"});
-        $(this).css({"display": "table"})
-    });
-    $('#datatable-groups').each(function(index) {
-        $(this).dataTable({
-            "search": { "regex": true},
-            "lengthMenu": [ [10, 50, 200, -1], [10, 50, 200, "All"] ],
-            "language": {
-              "search": "Regex search:"
-            },
-            "columnDefs": [
-                { "type": "my-numeric",  "targets": [2] }
-            ]
-        });
-        $(this).parents('.loader-parent-marker').children('.table-loader-marker').css({"display": "none"});
-        $(this).css({"display": "table"})
     });
 });
 
