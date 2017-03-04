@@ -1,10 +1,6 @@
-use maud::PreEscaped;
+use maud::{self, PreEscaped};
 use web_server::server::RequestTimer;
 use iron::Request;
-
-pub fn format_cluster_path(cluster_id: &str) -> String {
-    format!("/clusters/{}/", cluster_id)
-}
 
 pub fn notification(n_type: &str, content: PreEscaped<String>) -> PreEscaped<String> {
     let alert_class = format!("alert alert-{}", n_type);
@@ -15,75 +11,12 @@ pub fn notification(n_type: &str, content: PreEscaped<String>) -> PreEscaped<Str
     }
 }
 
-pub fn panel(title: PreEscaped<String>, content: PreEscaped<String>) -> PreEscaped<String> {
-    panel_right(title, html!{}, content)
-}
-
-pub fn panel_right(title: PreEscaped<String>, right_side: PreEscaped<String>, content: PreEscaped<String>) -> PreEscaped<String> {
-    html! {
-        div class="panel panel-default" {
-            div class="panel-heading" {
-                span style="font-weight: bold" (title)
-                div class="pull-right" (right_side)
-            }
-            div class="panel-body" (content)
-        }
-    }
-}
-
-pub fn datatable(loading: bool, id: &str, table_header: PreEscaped<String>, table_body: PreEscaped<String>) -> PreEscaped<String> {
-    let table_id = format!("datatable-{}", id);
-    let table_style = if loading { "display: none" } else { "" };
-    html! {
-        @if loading {
-            div class="table-loader-marker" style="text-align: center; padding: 0.3in;" {
-                div style="display: inline-block" {
-                    i class="fa fa-spinner fa-spin fa-4x" {}
-                    span class="sr-only" "Loading..."
-                }
-            }
-        }
-        table id=(table_id) width="100%" class="table table-striped table-bordered table-hover"
-            style=(table_style)
-        {
-            thead { (table_header) }
-            tbody { (table_body) }
-        }
-    }
-}
-
-pub fn datatable_ajax(loading: bool, id: &str, url: &str, param: &str,
+pub fn datatable_ajax(id: &str, url: &str, param: &str,
                       table_header: PreEscaped<String>) -> PreEscaped<String> {
     let table_id = format!("datatable-{}", id);
     html! {
         table id=(table_id) data-url=(url) data-param=(param) width="100%" class="table table-striped table-bordered table-hover" {
             thead { (table_header) }
-        }
-    }
-}
-
-pub fn table<'a, H, R>(headers: H, rows: R) -> PreEscaped<String>
-    where H: Iterator<Item=&'a PreEscaped<String>>,
-          R: Iterator<Item=&'a Vec<PreEscaped<String>>>
-    {
-    html! {
-        table width="100%" class="table table-striped table-bordered table-hover load-datatable" {
-            thead {
-                tr {
-                    @for header in headers {
-                        th (header)
-                    }
-                }
-            }
-            tbody {
-                @for row in rows {
-                    tr class="odd" {
-                        @for column in row {
-                            td (column)
-                        }
-                    }
-                }
-            }
         }
     }
 }
@@ -242,7 +175,7 @@ pub fn page(req: &Request, page_title: &str, page_content: PreEscaped<String>) -
     let request_timer = req.extensions.get::<RequestTimer>();
     let request_id = request_timer.map(|t| t.request_id).unwrap_or(-1);
     html! {
-        (PreEscaped("<!DOCTYPE html>"))
+        (maud::DOCTYPE)
         html {
             (html_head(page_title))
             body (body(page_title, page_content))

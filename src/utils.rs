@@ -7,8 +7,6 @@ use log::{LogRecord, LogLevelFilter};
 use maud::Markup;
 use serde_json;
 
-use error::*;
-
 use std::thread;
 
 pub fn setup_logger(log_thread: bool, rust_log: Option<&str>, date_format: &str) {

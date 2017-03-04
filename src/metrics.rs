@@ -6,10 +6,9 @@ use serde_json;
 use regex::Regex;
 
 use std::time::Duration;
-use std::sync::Arc;
-use std::collections::{HashMap, BTreeMap};
+use std::collections::HashMap;
 
-use cache::{ReplicatedMap, MetricsCache};
+use cache::MetricsCache;
 use error::*;
 use metadata::{ClusterId, BrokerId, Broker, TopicName};
 use scheduler::{Scheduler, ScheduledTask};
@@ -173,8 +172,8 @@ impl MetricsFetcher {
     }
 
     pub fn add_broker(&mut self, cluster_id: &ClusterId, broker_id: BrokerId, hostname: &str) -> Result<()> {
-        let mut task = MetricsFetcherTask::new(cluster_id.to_owned(), broker_id, hostname.to_owned(),
-                                               self.cache.alias());
+        let task = MetricsFetcherTask::new(cluster_id.to_owned(), broker_id, hostname.to_owned(),
+                                           self.cache.alias());
         self.scheduler.add_task((cluster_id.to_owned(), broker_id), task);
         Ok(())
     }

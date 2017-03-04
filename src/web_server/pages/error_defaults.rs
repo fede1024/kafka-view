@@ -1,6 +1,4 @@
-use web_server::server::RequestTimer;
 use web_server::view::layout;
-use maud::PreEscaped;
 use iron::status;
 use iron::prelude::*;
 

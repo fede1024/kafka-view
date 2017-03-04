@@ -1,15 +1,12 @@
 use iron::typemap::Key;
 use iron::middleware::{AfterMiddleware, BeforeMiddleware};
-use iron::{IronResult, status};
-use maud::PreEscaped;
-use iron::headers;
+use iron::IronResult;
 use iron::prelude::*;
 use router::NoRoute;
 use rand;
 use std::sync::Mutex;
 
 use error::*;
-use web_server::view::layout;
 use web_server::chain;
 use web_server::pages;
 use std::sync::Arc;
@@ -93,7 +90,7 @@ impl BeforeMiddleware for RequestTimer {
 }
 
 impl AfterMiddleware for RequestTimer {
-    fn after(&self, request: &mut Request, mut response: Response) -> IronResult<Response> {
+    fn after(&self, request: &mut Request, response: Response) -> IronResult<Response> {
         request.extensions.get::<RequestTimer>()
             .map(|request_timer| request_timer.update_timing());
         Ok(response)

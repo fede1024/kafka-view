@@ -1,4 +1,3 @@
-use chrono::{DateTime, UTC};
 use rdkafka::consumer::{BaseConsumer, EmptyConsumerContext};
 use rdkafka::config::ClientConfig;
 use rdkafka::error as rderror;
@@ -7,8 +6,6 @@ use error::*;
 use scheduler::{Scheduler, ScheduledTask};
 use cache::ReplicatedMap;
 use std::time::Duration;
-use std::collections::BTreeMap;
-use std::sync::Arc;
 
 // TODO: Use structs?
 pub type BrokerId = i32;

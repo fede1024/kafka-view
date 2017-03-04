@@ -48,7 +48,7 @@ use error::*;
 use metrics::MetricsFetcher;
 use metadata::MetadataFetcher;
 
-use offsets::{OffsetStore, run_offset_consumer};
+use offsets::run_offset_consumer;
 
 fn run_kafka_web(config_path: &str) -> Result<()> {
     let config = config::read_config(config_path)

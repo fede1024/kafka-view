@@ -1,11 +1,9 @@
-use chrono::UTC;
 use iron::middleware::Handler;
 use iron::modifiers::Redirect;
 use iron::prelude::*;
 use iron::{IronResult, status};
 use iron::modifier::Modifier;
 use iron;
-use maud::PreEscaped;
 use mount;
 use router::{Router, url_for};
 use staticfile::{Cache, Static};
@@ -69,6 +67,8 @@ pub fn chain() -> iron::Chain {
     // api
     router.get("/api/clusters/:cluster_id/brokers", api::cluster_brokers, "cluster_brokers_api"); router.get("/api/clusters/:cluster_id/topics", api::cluster_topics, "cluster_topics_api");
     router.get("/api/clusters/:cluster_id/groups", api::cluster_groups, "cluster_groups_api");
+    router.get("/api/clusters/:cluster_id/topic/:topic_name/topology", api::topic_topology, "topic_topology");
+    router.get("/api/clusters/:cluster_id/topic/:topic_name/groups", api::topic_groups, "topic_groups");
 
     // todo
     router.get("/brokers/", pages::todo, "brokers");

@@ -13,13 +13,11 @@ use serde_cbor;
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 use std::sync::{Arc, RwLock};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 
 use error::*;
 use metadata::{Broker, BrokerId, ClusterId, Group, Partition, TopicName};
 use metrics::BrokerMetrics;
-#[macro_use] use utils;
 
 
 #[derive(Serialize, Deserialize, Debug, Hash, Eq, PartialEq)]
@@ -171,7 +169,7 @@ impl ReplicaReader {
 }
 
 fn last_message_per_key(stream: MessageStream) -> Result<HashMap<WrappedKey, Message>> {
-    let mut EOF_set = HashSet::new();
+    let mut eof_set = HashSet::new();
     let mut state: HashMap<WrappedKey, Message> = HashMap::new();
 
     info!("Started creating state");
@@ -183,11 +181,11 @@ fn last_message_per_key(stream: MessageStream) -> Result<HashMap<WrappedKey, Mes
                     Err(e) => format_error_chain!(e),
                 };
             },
-            Ok(Err(KafkaError::PartitionEOF(p))) => { EOF_set.insert(p); () },
+            Ok(Err(KafkaError::PartitionEOF(p))) => { eof_set.insert(p); () },
             Ok(Err(e)) => error!("Error while reading from Kafka: {}", e),
             Err(_) => error!("Stream receive error"),
         };
-        if EOF_set.len() == 3 { // TODO: make configurable
+        if eof_set.len() == 3 { // TODO: make configurable
             break; // TODO: should stop consumer
         }
     }

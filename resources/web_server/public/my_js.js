@@ -154,6 +154,21 @@ $(document).ready(function() {
             }
         });
     });
+    $('#datatable-topology-ajax').each(function(index) {
+        $(this).DataTable({
+            "search": { "regex": true},
+            "ajax": $(this).attr("data-url"),
+            "lengthMenu": [ [10, 50, 200, -1], [10, 50, 200, "All"] ],
+            "language": { "search": "Regex search:" },
+            "columnDefs": [ ],
+            "deferRender": true,
+            "createdRow": function(row, data, index) {
+                var cluster_id = $(this).attr("data-param");
+                broker_to_url(cluster_id, $(row).children()[1]);
+                error_to_graphic($(row).children()[4]);
+            }
+        });
+    });
 });
 
 $(document).ready(function(){

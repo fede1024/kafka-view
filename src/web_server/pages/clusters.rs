@@ -2,9 +2,9 @@ use iron::prelude::{Request, Response};
 use iron::{IronResult, status};
 use maud::PreEscaped;
 
-use web_server::server::{CacheType, RequestTimer};
+use web_server::server::CacheType;
 use web_server::view::layout;
-use cache::{BrokerCache, MetricsCache, TopicCache};
+use cache::{BrokerCache, TopicCache};
 
 
 fn cluster_pane_layout(name: &str, brokers: usize, topics: usize) -> PreEscaped<String> {

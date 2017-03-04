@@ -2,8 +2,8 @@ use iron::prelude::{Request, Response};
 use router::Router;
 use iron::{IronResult, status};
 
-use cache::{MetricsCache, Cache};
-use web_server::server::{CacheType, ConfigArc, RequestTimer};
+use cache::Cache;
+use web_server::server::CacheType;
 use metrics::build_topic_metrics;
 use utils::json_gzip_response;
 use offsets::OffsetStore;
@@ -70,20 +70,47 @@ pub fn cluster_brokers(req: &mut Request) -> IronResult<Response> {
 // ********** GROUP LIST **********
 //
 
-struct GroupInfo(usize, String, usize);
+struct GroupInfo {
+    state: String,
+    members: usize,
+    stored_offsets: usize,
+}
 
 impl GroupInfo {
-    fn new(members: usize, state: String) -> GroupInfo {
-        GroupInfo(members, state, 0)
+    fn new(state: String, members: usize) -> GroupInfo {
+        GroupInfo { state: state, members: members, stored_offsets: 0 }
     }
 
     fn new_empty() -> GroupInfo {
-        GroupInfo(0, "No group".to_owned(), 0)
+        GroupInfo { state: "Offsets only".to_owned(), members: 0, stored_offsets: 0 }
     }
 
     fn add_offset(&mut self) {
-        self.2 += 1;
+        self.stored_offsets += 1;
     }
+}
+
+fn build_group_list(cache: &Cache, cluster_id: &str, topic: Option<&str>) -> HashMap<String, GroupInfo> {
+    let mut groups = HashMap::new();
+    let registered_groups_map = match topic {
+        Some(topic) => cache.groups.filter_clone(|&(ref c, ref t), _| c == cluster_id && t == topic),
+        None => cache.groups.filter_clone(|&(ref c, _), _| c == cluster_id),
+    };
+
+    for (_, group) in registered_groups_map {
+        let group_result = GroupInfo::new(group.state, group.members.len());
+        groups.insert(group.name, group_result);
+    }
+
+    let offsets = match topic {
+        Some(topic) => cache.offsets_by_cluster_topic(&cluster_id.to_owned(), &topic.to_owned()),
+        None => cache.offsets_by_cluster(&cluster_id.to_owned()),
+    };
+
+    for ((_, group, _), _) in offsets {
+        (*groups.entry(group).or_insert(GroupInfo::new_empty())).add_offset();
+    }
+    return groups;
 }
 
 pub fn cluster_groups(req: &mut Request) -> IronResult<Response> {
@@ -95,19 +122,56 @@ pub fn cluster_groups(req: &mut Request) -> IronResult<Response> {
         return Ok(Response::with((status::NotFound, "")));
     }
 
-    let mut groups = HashMap::new();
-    for (_, group) in cache.groups.filter_clone(|&(ref c, _), _| c == cluster_id) {
-        let group_result = GroupInfo::new(group.members.len(), group.state);
-        groups.insert(group.name, group_result);
-    }
-
-    for ((_, group, _), _) in cache.offsets_by_cluster(&cluster_id.to_owned()) {
-        (*groups.entry(group).or_insert(GroupInfo::new_empty())).add_offset();
-    }
+    let groups = build_group_list(cache, cluster_id, None);
 
     let mut result_data = Vec::with_capacity(groups.len());
-    for (group_name, group_info) in groups {
-        result_data.push(json!((group_name, group_info.0, group_info.1, group_info.2)));
+    for (group_name, info) in groups {
+        result_data.push(json!((group_name, info.state, info.members, info.stored_offsets)));
+    }
+
+    let result = json!({"data": result_data});
+    Ok(json_gzip_response(result))
+}
+
+pub fn topic_groups(req: &mut Request) -> IronResult<Response> {
+    let cache = req.extensions.get::<CacheType>().unwrap();
+    let cluster_id = req.extensions.get::<Router>().unwrap().find("cluster_id").unwrap();
+    let topic_name = req.extensions.get::<Router>().unwrap().find("topic_name").unwrap();
+
+    let brokers = cache.brokers.get(&cluster_id.to_owned());
+    if brokers.is_none() {  // TODO: Improve here
+        return Ok(Response::with((status::NotFound, "")));
+    }
+
+    let groups = build_group_list(cache, cluster_id, Some(topic_name));
+
+    let mut result_data = Vec::with_capacity(groups.len());
+    for (group_name, info) in groups {
+        result_data.push(json!((group_name, info.state, info.members, info.stored_offsets)));
+    }
+
+    let result = json!({"data": result_data});
+    Ok(json_gzip_response(result))
+}
+//
+// ********** TOPIC TOPOLOGY **********
+//
+
+pub fn topic_topology(req: &mut Request) -> IronResult<Response> {
+    let cache = req.extensions.get::<CacheType>().unwrap();
+    let cluster_id = req.extensions.get::<Router>().unwrap().find("cluster_id").unwrap();
+    let topic_name = req.extensions.get::<Router>().unwrap().find("topic_name").unwrap();
+
+    let partitions = cache.topics.get(&(cluster_id.to_owned(), topic_name.to_owned()));
+    if partitions.is_none() {
+        return Ok(Response::with((status::NotFound, "")));
+    }
+
+    let partitions = partitions.unwrap();
+
+    let mut result_data = Vec::with_capacity(partitions.len());
+    for p in partitions {
+        result_data.push(json!((p.id, p.leader, p.replicas, p.isr, p.error)));
     }
 
     let result = json!({"data": result_data});

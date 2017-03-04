@@ -3,56 +3,30 @@ use router::Router;
 use iron::{IronResult, status};
 use maud::PreEscaped;
 
-use web_server::server::{CacheType, RequestTimer};
+use web_server::server::CacheType;
 use web_server::view::layout;
 use web_server::pages;
-use metadata::{Broker, Partition};
 use cache::MetricsCache;
 use metrics::build_topic_metrics;
 
 use std::collections::HashMap;
 
 
-fn format_broker_list(cluster_id: &str, brokers: &Vec<i32>) -> PreEscaped<String> {
-    html! {
-        @for (n, broker) in brokers.iter().enumerate() {
-            a href=(format!("/clusters/{}/broker/{}/", cluster_id, broker)) (broker)
-            @if n < brokers.len() - 1 { ", " }
-        }
-    }
-}
-
-fn topic_table_row(cluster_id: &str, partition: &Partition) -> PreEscaped<String> {
-    let status = if partition.error.is_none() {
-        html!{ i class="fa fa-check fa-fw" style="color: green" {} }
-    } else {
-        //html!{ i class="fa fa-exclamation-triangle fa-fw" style="color: yellow" {} }
-        html!{ i class="fa fa-times fa-fw" style="color: red" {} (partition.error.clone().unwrap()) }
-    };
-    html! {
-        tr {
-            td (partition.id)
-            td a href=(format!("/clusters/{}/broker/{}/", cluster_id, partition.leader)) (partition.leader)
-            td (format_broker_list(cluster_id, &partition.replicas))
-            td (format_broker_list(cluster_id, &partition.isr))
-            td (status)
-        }
-    }
-}
-
-fn topic_table(cluster_id: &str, partitions: &Vec<Partition>) -> PreEscaped<String> {
-    let table = layout::datatable (true, "topology",
-        html! { tr { th "Id" th "Leader" th "Replicas" th "ISR" th "Status" } },
-        html! { @for partition in partitions.iter() { (topic_table_row(cluster_id, partition)) }}
-    );
-    html!(
-        span class="loader-parent-marker" {
-            div class="table-loader-marker" style="text-align: center; padding: 0.3in;" { }
-            (table)
-        }
+fn topic_table(cluster_id: &str, topic_name: &str) -> PreEscaped<String> {
+    let api_url = format!("/api/clusters/{}/topic/{}/topology", cluster_id, topic_name);
+    layout::datatable_ajax("topology-ajax", &api_url, cluster_id,
+        html! { tr { th "Id" th "Leader" th "Replicas" th "ISR" th "Status" } }
     )
 }
 
+fn consumer_groups_table(cluster_id: &str, topic_name: &str) -> PreEscaped<String> {
+    let api_url = format!("/api/clusters/{}/topic/{}/groups", cluster_id, topic_name);
+    layout::datatable_ajax("groups-ajax", &api_url, cluster_id,
+           html! { tr { th "Group name" th "#Members" th "Status" th "Stored topic offsets" } },
+    )
+}
+
+// TODO: simplify?
 pub fn topic_page(req: &mut Request) -> IronResult<Response> {
     let cache = req.extensions.get::<CacheType>().unwrap();
     let cluster_id = req.extensions.get::<Router>().unwrap().find("cluster_id").unwrap();
@@ -69,6 +43,7 @@ pub fn topic_page(req: &mut Request) -> IronResult<Response> {
 
     let brokers = cache.brokers.get(&cluster_id.to_owned()).expect("Broker should exist");
 
+    // TODO: create function specific for single topic metrics
     let metrics = build_topic_metrics(&cluster_id, &brokers, 100, &cache.metrics)
         .get(topic_name).cloned();
     let content = html! {
@@ -86,9 +61,9 @@ pub fn topic_page(req: &mut Request) -> IronResult<Response> {
             }
         }
         h3 "Topology"
-        (topic_table(cluster_id, &partitions))
-        h3 "Active consumers"
-        p "Coming soon."
+        (topic_table(cluster_id, topic_name))
+        h3 "Consumer groups"
+        (consumer_groups_table(cluster_id, topic_name))
     };
 
     let html = layout::page(req, &format!("Topic: {}", topic_name), content);

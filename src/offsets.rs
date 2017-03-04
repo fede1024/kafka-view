@@ -1,12 +1,10 @@
 use futures::stream::Stream;
-use rdkafka::consumer::{Consumer, CommitMode, EmptyConsumerContext};
-use rdkafka::consumer::stream_consumer::{StreamConsumer, MessageStream};
+use rdkafka::consumer::{Consumer, EmptyConsumerContext};
+use rdkafka::consumer::stream_consumer::StreamConsumer;
 use rdkafka::config::{ClientConfig, TopicConfig};
-use rdkafka::util::get_rdkafka_version;
 use std::cmp;
 use std::str;
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time::{Instant, Duration};
 
