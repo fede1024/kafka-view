@@ -58,9 +58,9 @@ fn redirect_to(dest: &str) -> impl Handler {
 pub fn chain() -> iron::Chain {
     let mut router = Router::new();
     router.get("/", redirect_to("clusters"), "home");
-    router.get("/clusters/", pages::clusters_page, "clusters");
-    router.get("/clusters/:cluster_id/", pages::cluster_page, "cluster");
-    router.get("/clusters/:cluster_id/topic/:topic_name/", pages::topic_page, "topic");
+    router.get("/clusters", pages::clusters_page, "clusters");
+    router.get("/clusters/:cluster_id", pages::cluster_page, "cluster");
+    router.get("/clusters/:cluster_id/topic/:topic_name", pages::topic_page, "topic");
     router.get("/public/*", AssetsHandler::new("/public/", "resources/web_server/public/"), "public_assets");
     router.get("/meta/request_time/:request_id/", request_timing, "request_timing");
 
@@ -74,9 +74,9 @@ pub fn chain() -> iron::Chain {
     router.get("/brokers/", pages::todo, "brokers");
     router.get("/topics/", pages::todo, "topics");
     router.get("/consumers/", pages::todo, "consumers");
-    router.get("/clusters/:cluster_id/group/:group_id/", pages::todo, "group");
-    router.get("/clusters/:cluster_id/broker/:broker_id/", pages::todo, "broker");
-    router.get("/clusters/:cluster_id/consumer_offset/:group_id/", pages::todo, "consumer_offset");
+    router.get("/clusters/:cluster_id/group/:group_id", pages::todo, "group");
+    router.get("/clusters/:cluster_id/broker/:broker_id", pages::todo, "broker");
+    router.get("/clusters/:cluster_id/consumer_offset/:group_id", pages::todo, "consumer_offset");
     iron::Chain::new(router)
 }
 

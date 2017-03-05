@@ -1,4 +1,4 @@
-#![feature(alloc_system, proc_macro, plugin, conservative_impl_trait)]
+#![feature(alloc_system, plugin, conservative_impl_trait)]
 #![plugin(maud_macros)]
 extern crate alloc_system;
 

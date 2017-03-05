@@ -1,9 +1,9 @@
-$(document).ready(function() {
-    var url = "/meta/request_time/" + $("#request_id").html() + "/"
-    $.ajax({url: url, success: function(result){
-        $("#request_time").html(result);
-    }});
-});
+// $(document).ready(function() {
+//     var url = "/meta/request_time/" + $("#request_id").html() + "/"
+//     $.ajax({url: url, success: function(result){
+//         $("#request_time").html(result);
+//     }});
+// });
 
 jQuery.fn.dataTable.ext.type.order['file-size-pre'] = function (data) {
     var matches = data.match( /^(\d+(?:\.\d+)?)\s*([a-z]+)/i );
@@ -114,6 +114,7 @@ $(document).ready(function() {
             "lengthMenu": [ [10, 50, 200, -1], [10, 50, 200, "All"] ],
             "language": { "search": "Regex search:" },
             "columnDefs": [ ],
+            "processing": true,
             "deferRender": true,
             "createdRow": function(row, data, index) {
                 var cluster_id = $(this).attr("data-param");
@@ -129,6 +130,7 @@ $(document).ready(function() {
             "ajax": $(this).attr("data-url"),
             "lengthMenu": [ [10, 50, 200, -1], [10, 50, 200, "All"] ],
             "language": { "search": "Regex search:" },
+            "processing": true,
             "columnDefs": [ ],
             "deferRender": true,
             "createdRow": function(row, data, index) {
@@ -147,6 +149,7 @@ $(document).ready(function() {
             "lengthMenu": [ [10, 50, 200, -1], [10, 50, 200, "All"] ],
             "language": { "search": "Regex search:" },
             "columnDefs": [ ],
+            "processing": true,
             "deferRender": true,
             "createdRow": function(row, data, index) {
                 var cluster_id = $(this).attr("data-param");
@@ -161,6 +164,7 @@ $(document).ready(function() {
             "lengthMenu": [ [10, 50, 200, -1], [10, 50, 200, "All"] ],
             "language": { "search": "Regex search:" },
             "columnDefs": [ ],
+            "processing": true,
             "deferRender": true,
             "createdRow": function(row, data, index) {
                 var cluster_id = $(this).attr("data-param");
