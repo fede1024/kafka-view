@@ -1,9 +1,12 @@
 ---
+  # Refresh rate for metadata and group membership information
   metadata_refresh: 60
+  # Refresh rate for metrics
   metrics_refresh: 600
+  # Where the cache will be stored
   caching:
-    cluster: local_cluster
-    topic: replicator_topic
+    cluster: local_cluster     # which cluster
+    topic: replicator_topic    # which topic
 
   clusters:
     cluster_type0.cluster_name0:

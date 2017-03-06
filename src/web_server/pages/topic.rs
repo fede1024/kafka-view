@@ -13,14 +13,14 @@ use std::collections::HashMap;
 
 
 fn topic_table(cluster_id: &str, topic_name: &str) -> PreEscaped<String> {
-    let api_url = format!("/api/clusters/{}/topic/{}/topology", cluster_id, topic_name);
+    let api_url = format!("/api/cluster/{}/topic/{}/topology", cluster_id, topic_name);
     layout::datatable_ajax("topology-ajax", &api_url, cluster_id,
         html! { tr { th "Id" th "Leader" th "Replicas" th "ISR" th "Status" } }
     )
 }
 
 fn consumer_groups_table(cluster_id: &str, topic_name: &str) -> PreEscaped<String> {
-    let api_url = format!("/api/clusters/{}/topic/{}/groups", cluster_id, topic_name);
+    let api_url = format!("/api/cluster/{}/topic/{}/groups", cluster_id, topic_name);
     layout::datatable_ajax("groups-ajax", &api_url, cluster_id,
            html! { tr { th "Group name" th "#Members" th "Status" th "Stored topic offsets" } },
     )

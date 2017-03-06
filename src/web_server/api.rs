@@ -67,7 +67,7 @@ pub fn cluster_brokers(req: &mut Request) -> IronResult<Response> {
 }
 
 //
-// ********** GROUP LIST **********
+// ********** GROUP **********
 //
 
 struct GroupInfo {
@@ -153,6 +153,46 @@ pub fn topic_groups(req: &mut Request) -> IronResult<Response> {
     let result = json!({"data": result_data});
     Ok(json_gzip_response(result))
 }
+
+pub fn group_members(req: &mut Request) -> IronResult<Response> {
+    let cache = req.extensions.get::<CacheType>().unwrap();
+    let cluster_id = req.extensions.get::<Router>().unwrap().find("cluster_id").unwrap();
+    let group_name = req.extensions.get::<Router>().unwrap().find("group_name").unwrap();
+
+    let group = cache.groups.get(&(cluster_id.to_owned(), group_name.to_owned()));
+    if group.is_none() {  // TODO: Improve here
+        return Ok(json_gzip_response(json!({"data": []})));
+    }
+
+    let group = group.unwrap();
+
+    let mut result_data = Vec::with_capacity(group.members.len());
+    for member in group.members {
+        result_data.push(json!((member.id, member.client_id, member.client_host)));
+    }
+
+    let result = json!({"data": result_data});
+    Ok(json_gzip_response(result))
+}
+
+pub fn group_offsets(req: &mut Request) -> IronResult<Response> {
+    let cache = req.extensions.get::<CacheType>().unwrap();
+    let cluster_id = req.extensions.get::<Router>().unwrap().find("cluster_id").unwrap();
+    let group_name = req.extensions.get::<Router>().unwrap().find("group_name").unwrap();
+
+    let offsets = cache.offsets_by_cluster_group(&cluster_id.to_owned(), &group_name.to_owned());
+
+    let mut result_data = Vec::with_capacity(offsets.len());
+    for ((_, group, topic), partitions) in offsets {
+        for (partition_id, offset) in partitions.iter().enumerate() {
+            result_data.push(json!((topic.clone(), partition_id, offset)));
+        }
+    }
+
+    let result = json!({"data": result_data});
+    Ok(json_gzip_response(result))
+}
+
 //
 // ********** TOPIC TOPOLOGY **********
 //

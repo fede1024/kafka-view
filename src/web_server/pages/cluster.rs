@@ -10,7 +10,7 @@ use metadata::Broker;
 
 
 fn broker_table(cluster_id: &str) -> PreEscaped<String> {
-    let api_url = format!("/api/clusters/{}/brokers", cluster_id);
+    let api_url = format!("/api/cluster/{}/brokers", cluster_id);
     layout::datatable_ajax("brokers-ajax", &api_url, &cluster_id,
         html! { tr { th "Broker id" th "Hostname"
             th data-toggle="tooltip" data-container="body"
@@ -23,7 +23,7 @@ fn broker_table(cluster_id: &str) -> PreEscaped<String> {
 }
 
 fn topic_table(cluster_id: &str) -> PreEscaped<String> {
-    let api_url = format!("/api/clusters/{}/topics", cluster_id);
+    let api_url = format!("/api/cluster/{}/topics", cluster_id);
     layout::datatable_ajax("topics-ajax", &api_url, &cluster_id,
                html! { tr { th "Topic name" th "#Partitions" th "Status"
                      th data-toggle="tooltip" data-container="body" title="Average over the last 15 minutes" "Byte rate"
@@ -34,7 +34,7 @@ fn topic_table(cluster_id: &str) -> PreEscaped<String> {
 }
 
 fn groups_table(cluster_id: &str) -> PreEscaped<String> {
-    let api_url = format!("/api/clusters/{}/groups", &cluster_id);
+    let api_url = format!("/api/cluster/{}/groups", &cluster_id);
     layout::datatable_ajax("groups-ajax", &api_url, cluster_id,
         html! { tr { th "Group name" th "Status" th "Registered members" th "Stored topic offsets" } },
     )
@@ -53,7 +53,7 @@ pub fn cluster_page(req: &mut Request) -> IronResult<Response> {
 
     let cluster_config = config.clusters.get(cluster_id);
     let content = html! {
-        h2 style="margin-top: 0px" "General:"
+        h3 style="margin-top: 0px" "Cluster information"
         dl class="dl-horizontal" {
             dt "Cluster name: " dd (cluster_id)
             @if cluster_config.is_some() {
@@ -71,7 +71,7 @@ pub fn cluster_page(req: &mut Request) -> IronResult<Response> {
         h3 "Consumer groups"
         (groups_table(cluster_id))
     };
-    let html = layout::page(req, &format!("Cluster: {}", cluster_id), content);
+    let html = layout::page(req, &format!("{}", cluster_id), content);
 
     Ok(Response::with((status::Ok, html)))
 }

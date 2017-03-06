@@ -48,8 +48,6 @@ fn request_timing(req: &mut Request) -> IronResult<Response> {
 fn redirect_to(dest: &str) -> impl Handler {
     let dest_owned = dest.to_owned();
     move |req: &mut Request| {
-        // let request_url = req.url.clone().into_generic_url();
-        // let new_url = request_url.join(&dest_owned).unwrap();
         let dest_url = url_for(req, &dest_owned, HashMap::new());
         Ok(Response::with((status::Found, Redirect(dest_url))))
     }
@@ -59,22 +57,26 @@ pub fn chain() -> iron::Chain {
     let mut router = Router::new();
     router.get("/", redirect_to("clusters"), "home");
     router.get("/clusters", pages::clusters_page, "clusters");
-    router.get("/clusters/:cluster_id", pages::cluster_page, "cluster");
-    router.get("/clusters/:cluster_id/topic/:topic_name", pages::topic_page, "topic");
+    router.get("/cluster/:cluster_id", pages::cluster_page, "cluster");
+    router.get("/cluster/:cluster_id/topic/:topic_name", pages::topic_page, "topic");
+    router.get("/cluster/:cluster_id/group/:group_name", pages::group_page, "group");
+
     router.get("/public/*", AssetsHandler::new("/public/", "resources/web_server/public/"), "public_assets");
     router.get("/meta/request_time/:request_id/", request_timing, "request_timing");
 
     // api
-    router.get("/api/clusters/:cluster_id/brokers", api::cluster_brokers, "cluster_brokers_api"); router.get("/api/clusters/:cluster_id/topics", api::cluster_topics, "cluster_topics_api");
-    router.get("/api/clusters/:cluster_id/groups", api::cluster_groups, "cluster_groups_api");
-    router.get("/api/clusters/:cluster_id/topic/:topic_name/topology", api::topic_topology, "topic_topology");
-    router.get("/api/clusters/:cluster_id/topic/:topic_name/groups", api::topic_groups, "topic_groups");
+    router.get("/api/cluster/:cluster_id/brokers", api::cluster_brokers, "cluster_brokers_api");
+    router.get("/api/cluster/:cluster_id/topics", api::cluster_topics, "cluster_topics_api");
+    router.get("/api/cluster/:cluster_id/groups", api::cluster_groups, "cluster_groups_api");
+    router.get("/api/cluster/:cluster_id/topic/:topic_name/topology", api::topic_topology, "topic_topology");
+    router.get("/api/cluster/:cluster_id/topic/:topic_name/groups", api::topic_groups, "topic_groups");
+    router.get("/api/cluster/:cluster_id/group/:group_name/members", api::group_members, "group_members");
+    router.get("/api/cluster/:cluster_id/group/:group_name/offsets", api::group_offsets, "group_offsets");
 
     // todo
-    router.get("/brokers/", pages::todo, "brokers");
-    router.get("/topics/", pages::todo, "topics");
-    router.get("/consumers/", pages::todo, "consumers");
-    router.get("/clusters/:cluster_id/group/:group_id", pages::todo, "group");
+    router.get("/brokers", pages::todo, "brokers");
+    router.get("/topics", pages::todo, "topics");
+    router.get("/consumers", pages::todo, "consumers");
     router.get("/clusters/:cluster_id/broker/:broker_id", pages::todo, "broker");
     router.get("/clusters/:cluster_id/consumer_offset/:group_id", pages::todo, "consumer_offset");
     iron::Chain::new(router)

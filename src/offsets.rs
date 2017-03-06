@@ -172,6 +172,7 @@ pub fn run_offset_consumer(cluster_id: &ClusterId, brokers: &str, offset_cache: 
 pub trait OffsetStore {
     fn offsets_by_cluster(&self, &ClusterId) -> Vec<((ClusterId, String, TopicName), Vec<i64>)>;
     fn offsets_by_cluster_topic(&self, &ClusterId, &TopicName) -> Vec<((ClusterId, String, TopicName), Vec<i64>)>;
+    fn offsets_by_cluster_group(&self, &ClusterId, &String) -> Vec<((ClusterId, String, TopicName), Vec<i64>)>;
 }
 
 impl OffsetStore for Cache {
@@ -181,5 +182,9 @@ impl OffsetStore for Cache {
 
     fn offsets_by_cluster_topic(&self, cluster: &ClusterId, topic: &TopicName) -> Vec<((ClusterId, String, TopicName), Vec<i64>)> {
         self.offsets.filter_clone(|&(ref c, _, ref t), _| c == cluster && t == topic)
+    }
+
+    fn offsets_by_cluster_group(&self, cluster: &ClusterId, group: &String) -> Vec<((ClusterId, String, TopicName), Vec<i64>)> {
+        self.offsets.filter_clone(|&(ref c, ref g, _), _| c == cluster && g == group)
     }
 }

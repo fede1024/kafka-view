@@ -8,7 +8,7 @@ use cache::{BrokerCache, TopicCache};
 
 
 fn cluster_pane_layout(name: &str, brokers: usize, topics: usize) -> PreEscaped<String> {
-    let link = format!("/clusters/{}/", name);
+    let link = format!("/cluster/{}/", name);
     html! {
         div class="col-lg-4 col-md-6" {
             div class="panel panel-primary" {
