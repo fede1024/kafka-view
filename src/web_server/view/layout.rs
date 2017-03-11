@@ -64,14 +64,13 @@ fn navbar_top() -> PreEscaped<String> {
         ul class="nav navbar-top-links navbar-right" {
             li class="dropdown" {
                 a class="dropdown-toggle" data-toggle="dropdown" href="#" {
-                    i class="fa fa-gear fa-fw" {}
+                    i class="fa fa-question-circle-o fa-fw" {}
                     i class="fa fa-caret-down" {}
                 }
                 ul class="dropdown-menu dropdown-user" {
-                    li { a href="#" {i class="fa fa-user fa-fw" {} "User Profile" } }
-                    li { a href="#" {i class="fa fa-gear fa-fw" {} "Settings" } }
-                    li class="divider" {}
-                    li { a href="#" {i class="fa fa-sign-out fa-fw" {} "Logout" } }
+                    li { a href="#" {i class="fa fa-github fa-fw" {} "GitHub" } }
+                    // li class="divider" {}
+                    // li { a href="#" {i class="fa fa-sign-out fa-fw" {} "Logout" } }
                 }
             }
         }
