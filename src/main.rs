@@ -40,7 +40,6 @@ mod offsets;
 use clap::{App, Arg, ArgMatches};
 
 use std::time;
-use std::thread;
 use time::Duration;
 
 use cache::{Cache, ReplicaReader, ReplicaWriter};
@@ -64,15 +63,14 @@ fn run_kafka_web(config_path: &str) -> Result<()> {
         .chain_err(|| format!("Replica reader creation failed (brokers: {}, topic: {})", brokers, topic_name))?;
 
     let cache = Cache::new(replica_writer);
-    replica_reader.start(cache.alias())
-        .chain_err(|| format!("Replica reader start failed (brokers: {}, topic: {})", brokers, topic_name))?;
+
+    // Load all the state from Kafka
+    replica_reader.load_state(cache.alias())
+        .chain_err(|| format!("State load failed (brokers: {}, topic: {})", brokers, topic_name))?;
 
     // Metadata fetch
-    let mut metadata_fetcher = MetadataFetcher::new(
-        cache.brokers.alias(),
-        cache.topics.alias(),
-        cache.groups.alias(),
-        Duration::from_secs(config.metadata_refresh));
+    let mut metadata_fetcher = MetadataFetcher::new(cache.brokers.alias(), cache.topics.alias(),
+            cache.groups.alias(), Duration::from_secs(config.metadata_refresh));
     for (cluster_name, cluster_config) in &config.clusters {
         metadata_fetcher.add_cluster(cluster_name, &cluster_config.broker_string())
             .chain_err(|| format!("Failed to add cluster {}", cluster_name))?;
@@ -80,19 +78,14 @@ fn run_kafka_web(config_path: &str) -> Result<()> {
         info!("Added cluster {}", cluster_name);
     }
 
-    // TODO: fixme?
-    thread::sleep_ms(10000);
     let mut metrics_fetcher = MetricsFetcher::new(cache.metrics.alias(),
-                                                  Duration::from_secs(config.metrics_refresh));
+        Duration::from_secs(config.metrics_refresh));
     for cluster_id in &cache.brokers.keys() {
         // TODO there is a race condition here, a broker could be removed
         for broker in cache.brokers.get(cluster_id).unwrap().iter() {
             metrics_fetcher.add_broker(cluster_id, broker.id, &broker.hostname);
         }
     }
-
-    // let test = cache.offset_by_cluster_topic(&"scribe.uswest1-devc".to_owned(), &"scribe.devc.ranger".to_owned());
-    // println!(">> {:?}", test);
 
     web_server::server::run_server(cache.alias(), &config)
         .chain_err(|| "Server initialization failed")?;

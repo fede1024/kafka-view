@@ -13,10 +13,6 @@ pub struct ClusterConfig {
 }
 
 impl ClusterConfig {
-    pub fn broker_list(&self) -> &Vec<String> {
-        &self.broker_list
-    }
-
     pub fn broker_string(&self) -> String {
         self.broker_list.join(",")
     }

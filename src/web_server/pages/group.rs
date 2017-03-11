@@ -28,7 +28,7 @@ pub fn group_page(req: &mut Request) -> IronResult<Response> {
     let cluster_id = req.extensions.get::<Router>().unwrap().find("cluster_id").unwrap();
     let group_name = req.extensions.get::<Router>().unwrap().find("group_name").unwrap();
 
-    if cache.brokers.get(&cluster_id.to_owned()).is_none() {
+    if cache.brokers.get(cluster_id).is_none() {
         return pages::warning_page(req, &format!("Cluster: {}", cluster_id),
                                    "The specified cluster doesn't exist.")
     }

@@ -81,7 +81,7 @@ fn consume_and_print(brokers: &str) {
         .set("group.id", "consumer_reader_group")
         .set("bootstrap.servers", brokers)
         .set("enable.partition.eof", "false")
-        .set("session.timeout.ms", "6000")
+        .set("session.timeout.ms", "60000")
         .set("enable.auto.commit", "false")
         .set_default_topic_config(TopicConfig::new()
             .set("auto.offset.reset", "smallest")

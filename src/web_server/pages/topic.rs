@@ -6,10 +6,7 @@ use maud::PreEscaped;
 use web_server::server::CacheType;
 use web_server::view::layout;
 use web_server::pages;
-use cache::MetricsCache;
 use metrics::build_topic_metrics;
-
-use std::collections::HashMap;
 
 
 fn topic_table(cluster_id: &str, topic_name: &str) -> PreEscaped<String> {
@@ -41,7 +38,7 @@ pub fn topic_page(req: &mut Request) -> IronResult<Response> {
         }
     };
 
-    let brokers = cache.brokers.get(&cluster_id.to_owned()).expect("Broker should exist");
+    let brokers = cache.brokers.get(cluster_id).expect("Broker should exist");
 
     // TODO: create function specific for single topic metrics
     let metrics = build_topic_metrics(&cluster_id, &brokers, 100, &cache.metrics)

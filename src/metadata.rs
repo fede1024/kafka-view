@@ -12,6 +12,7 @@ pub type BrokerId = i32;
 pub type ClusterId = String;
 pub type TopicName = String;
 
+
 //
 // ********** METADATA **********
 //
@@ -136,8 +137,8 @@ impl MetadataFetcherTask {
 impl ScheduledTask for MetadataFetcherTask {
     fn run(&self) -> Result<()> {
         let ref consumer = self.consumer.as_ref().ok_or_else(|| "Consumer not initialized")?;
-        let metadata = self.consumer.as_ref().unwrap().fetch_metadata(30000)
-            .chain_err(|| "Failed to fetch metadata from consumer")?;
+        let metadata = self.consumer.as_ref().unwrap().fetch_metadata(60000)
+            .chain_err(|| format!("Failed to fetch metadata from {}", self.cluster_id))?;
         let mut brokers = Vec::new();
         for broker in metadata.brokers() {
             brokers.push(Broker::new(broker.id(), broker.host().to_owned(), broker.port()));

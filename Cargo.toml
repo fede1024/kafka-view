@@ -20,7 +20,7 @@ maud = { version = "0.16.1", features = ["iron"] }
 maud_macros = "0.16.1"
 mount = "^0.3.0"
 rand = "0.3"
-rdkafka = { path = "/home/fede/rust/rust-rdkafka", version = "0.7.0" }
+rdkafka = { git = "https://github.com/fede1024/rust-rdkafka.git"}
 # rdkafka = "0.7.0"
 regex = "0.1.80"
 router = "^0.5.1"

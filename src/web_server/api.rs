@@ -18,7 +18,7 @@ pub fn cluster_topics(req: &mut Request) -> IronResult<Response> {
     let cache = req.extensions.get::<CacheType>().unwrap();
     let cluster_id = req.extensions.get::<Router>().unwrap().find("cluster_id").unwrap();
 
-    let brokers = cache.brokers.get(&cluster_id.to_owned());
+    let brokers = cache.brokers.get(cluster_id);
     if brokers.is_none() {  // TODO: Improve here
         return Ok(Response::with((status::NotFound, "")));
     }
@@ -48,7 +48,7 @@ pub fn cluster_brokers(req: &mut Request) -> IronResult<Response> {
     let cache = req.extensions.get::<CacheType>().unwrap();
     let cluster_id = req.extensions.get::<Router>().unwrap().find("cluster_id").unwrap();
 
-    let brokers = cache.brokers.get(&cluster_id.to_owned());
+    let brokers = cache.brokers.get(cluster_id);
     if brokers.is_none() {  // TODO: Improve here
         return Ok(Response::with((status::NotFound, "")));
     }
@@ -117,7 +117,7 @@ pub fn cluster_groups(req: &mut Request) -> IronResult<Response> {
     let cache = req.extensions.get::<CacheType>().unwrap();
     let cluster_id = req.extensions.get::<Router>().unwrap().find("cluster_id").unwrap();
 
-    let brokers = cache.brokers.get(&cluster_id.to_owned());
+    let brokers = cache.brokers.get(cluster_id);
     if brokers.is_none() {  // TODO: Improve here
         return Ok(Response::with((status::NotFound, "")));
     }
@@ -138,7 +138,7 @@ pub fn topic_groups(req: &mut Request) -> IronResult<Response> {
     let cluster_id = req.extensions.get::<Router>().unwrap().find("cluster_id").unwrap();
     let topic_name = req.extensions.get::<Router>().unwrap().find("topic_name").unwrap();
 
-    let brokers = cache.brokers.get(&cluster_id.to_owned());
+    let brokers = cache.brokers.get(cluster_id);
     if brokers.is_none() {  // TODO: Improve here
         return Ok(Response::with((status::NotFound, "")));
     }

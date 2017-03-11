@@ -1,7 +1,7 @@
 use futures::stream::Stream;
 use rdkafka::client::EmptyContext;
 use rdkafka::config::{ClientConfig, TopicConfig};
-use rdkafka::consumer::stream_consumer::{MessageStream, StreamConsumer};
+use rdkafka::consumer::stream_consumer::StreamConsumer;
 use rdkafka::consumer::{Consumer, EmptyConsumerContext};
 use rdkafka::producer::{FutureProducer, FutureProducerTopic};
 use rdkafka::error::KafkaError;
@@ -10,6 +10,7 @@ use serde::de::Deserialize;
 use serde::ser::Serialize;
 use serde_cbor;
 
+use std::borrow::Borrow;
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 use std::sync::{Arc, RwLock};
@@ -107,7 +108,8 @@ type ReplicaConsumer = StreamConsumer<EmptyConsumerContext>;
 
 pub struct ReplicaReader {
     consumer: ReplicaConsumer,
-    thread_handle: Option<thread::JoinHandle<()>>,
+    brokers: String,
+    topic_name: String,
 }
 
 impl ReplicaReader {
@@ -126,72 +128,77 @@ impl ReplicaReader {
             .chain_err(|| "Consumer creation failed")?;
 
         //let topic_partition = TopicPartitionList::with_topics(&vec![topic_name]);
-        // TODO: does this handle partition creation?
         // consumer.assign(&topic_partition)
         consumer.subscribe(&vec![topic_name])
             .chain_err(|| "Can't subscribe to specified topics")?;
 
         Ok(ReplicaReader {
             consumer: consumer,
-            thread_handle: None,
+            brokers: brokers.to_owned(),
+            topic_name: topic_name.to_owned(),
         })
     }
 
-    pub fn start<R: UpdateReceiver>(&mut self, receiver: R) -> Result<()> {
-        let stream = self.consumer.start();
-        let handle = thread::Builder::new()
-            .name("replica consumer".to_string())
-            .spawn(move || {
-                match last_message_per_key(stream) {
-                    Err(e) => format_error_chain!(e),
-                    Ok(state) => {
-                        for (w_key, message) in state {
-                            let update = match message.payload() {
-                                Some(payload) => ReplicaCacheUpdate::Set {
-                                    key: w_key.serialized_key(),
-                                    payload: payload
-                                },
-                                None => ReplicaCacheUpdate::Delete {
-                                    key: w_key.serialized_key()
-                                },
-                            };
-                            if let Err(e) = receiver.receive_update(w_key.cache_name(), update) {
-                                format_error_chain!(e);
-                            }
-                        }
+    pub fn load_state<R: UpdateReceiver>(&mut self, receiver: R) -> Result<()> {
+        info!("Started creating state");
+        match self.last_message_per_key() {
+            Err(e) => format_error_chain!(e),
+            Ok(state) => {
+                for (w_key, message) in state {
+                    let update = match message.payload() {
+                        Some(payload) => ReplicaCacheUpdate::Set {
+                            key: w_key.serialized_key(),
+                            payload: payload
+                        },
+                        None => ReplicaCacheUpdate::Delete {
+                            key: w_key.serialized_key()
+                        },
+                    };
+                    if let Err(e) = receiver.receive_update(w_key.cache_name(), update) {
+                        format_error_chain!(e);
                     }
-                };
-            })
-            .chain_err(|| "Failed to start polling thread")?;
-        self.thread_handle = Some(handle);
+                }
+            }
+        }
+        info!("State creation terminated");
         Ok(())
     }
-}
 
-fn last_message_per_key(stream: MessageStream) -> Result<HashMap<WrappedKey, Message>> {
-    let mut eof_set = HashSet::new();
-    let mut state: HashMap<WrappedKey, Message> = HashMap::new();
+    fn last_message_per_key(&mut self) -> Result<HashMap<WrappedKey, Message>> {
+        let mut eof_set = HashSet::new();
+        let mut state: HashMap<WrappedKey, Message> = HashMap::new();
 
-    info!("Started creating state");
-    for message in stream.wait() {
-        match message {
-            Ok(Ok(m)) => {
-                match parse_message_key(&m).chain_err(|| "Failed to parse message key") {
-                    Ok(wrapped_key) => { state.insert(wrapped_key, m); () },
-                    Err(e) => format_error_chain!(e),
-                };
-            },
-            Ok(Err(KafkaError::PartitionEOF(p))) => { eof_set.insert(p); () },
-            Ok(Err(e)) => error!("Error while reading from Kafka: {}", e),
-            Err(_) => error!("Stream receive error"),
-        };
-        if eof_set.len() == 3 { // TODO: make configurable
-            break; // TODO: should stop consumer
+        let topic_name = &self.topic_name;
+        let metadata = self.consumer.fetch_metadata(5000)
+            .chain_err(|| "Failed to fetch metadata")?;
+        let topic_metadata = metadata.topics().iter()
+            .find(|m| m.name() == self.topic_name);
+
+        if topic_metadata.is_none() {
+            warn!("No replicator topic found ({} {})", self.brokers, self.topic_name);
+            return Ok(HashMap::new());
         }
-    }
-    info!("State creation terminated");
+        let topic_metadata = topic_metadata.unwrap();
 
-    Ok(state)
+        for message in self.consumer.start().wait() {
+            match message {
+                Ok(Ok(m)) => {
+                    match parse_message_key(&m).chain_err(|| "Failed to parse message key") {
+                        Ok(wrapped_key) => { state.insert(wrapped_key, m); () },
+                        Err(e) => format_error_chain!(e),
+                    };
+                },
+                Ok(Err(KafkaError::PartitionEOF(p))) => { eof_set.insert(p); () },
+                Ok(Err(e)) => error!("Error while reading from Kafka: {}", e),
+                Err(_) => error!("Stream receive error"),
+            };
+            if eof_set.len() == topic_metadata.partitions().len() {
+                self.consumer.stop();
+                break;
+            }
+        }
+        Ok(state)
+    }
 }
 
 fn parse_message_key(message: &Message) -> Result<WrappedKey> {
@@ -298,7 +305,10 @@ impl<K, V> ReplicatedMap<K, V> where K: Eq + Hash + Clone + Serialize + Deserial
         Ok(())
     }
 
-    pub fn get(&self, key: &K) -> Option<V> {
+    pub fn get<Q: ?Sized>(&self, key: &Q) -> Option<V>
+        where K: Borrow<Q>,
+              Q: Hash + Eq
+    {
         match self.map.read() {
             Ok(cache) => { return (*cache).get(key).map(|v| v.clone()) },
             Err(_) => panic!("Poison error"),
@@ -337,6 +347,7 @@ pub type OffsetsCache = ReplicatedMap<(ClusterId, String, TopicName), Vec<i64>>;
 pub type BrokerCache = ReplicatedMap<ClusterId, Vec<Broker>>;
 pub type TopicCache = ReplicatedMap<(ClusterId, TopicName), Vec<Partition>>;
 pub type GroupCache = ReplicatedMap<(ClusterId, String), Group>;
+
 
 pub struct Cache {
     pub metrics: MetricsCache,
