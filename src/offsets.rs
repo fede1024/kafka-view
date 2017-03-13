@@ -84,7 +84,7 @@ fn insert_at(v: &mut Vec<i64>, pos: usize, value: i64) {
 }
 
 // we should really have some tests here
-fn update_global_cache(cluster_id: &ClusterId, local_cache: &HashMap<(ClusterId, String), Vec<i64>>,
+fn update_global_cache(cluster_id: &ClusterId, local_cache: &HashMap<(String, String), Vec<i64>>,
                        cache: &OffsetsCache) {
     for (&(ref group, ref topic), offsets) in local_cache {   // Consider a consuming iterator
         // This logic is not needed if i store the consumer offset, right? wrong!

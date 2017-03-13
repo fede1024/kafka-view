@@ -25,9 +25,9 @@ pub fn todo(req: &mut Request) -> IronResult<Response> {
         img src="https://media.giphy.com/media/13HBDT4QSTpveU/giphy.gif"
             style="float:left;max-width:100pt;max-height:100pt"
         span style="padding: 0.3in; font-size: 16pt" {
-            "Sorry, this feature is not implemented yet!"
+            "It's in my todo list"
         }
     };
-    let html = layout::page(req, "It's in my todo list", content);
+    let html = layout::page(req, "This feature is not implemented yet!", content);
     Ok(Response::with((status::NotFound, html)))
 }

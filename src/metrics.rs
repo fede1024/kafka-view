@@ -85,11 +85,11 @@ fn log_elapsed_time(task_name: &str, start: DateTime<UTC>) {
 }
 
 // TODO: make faster?
-pub fn build_topic_metrics(cluster_id: &str, brokers: &Vec<Broker>, topic_count: usize,
-                           metrics: &MetricsCache) -> HashMap<String, (f64, f64)> {
+pub fn build_topic_metrics(cluster_id: &ClusterId, brokers: &Vec<Broker>, topic_count: usize,
+                           metrics: &MetricsCache) -> HashMap<TopicName, (f64, f64)> {
     let mut result = HashMap::with_capacity(topic_count);
     for broker in brokers.iter() {
-        if let Some(broker_metrics) = metrics.get(&(cluster_id.to_owned(), broker.id)) {
+        if let Some(broker_metrics) = metrics.get(&(cluster_id.clone(), broker.id)) {
             for (topic_name, rate) in broker_metrics.topics {
                 // Keep an eye on RFC 1769
                 let mut entry_ref = result.entry(topic_name.to_owned()).or_insert((0f64, 0f64));

@@ -7,6 +7,7 @@ use web_server::server::CacheType;
 use metrics::build_topic_metrics;
 use utils::json_gzip_response;
 use offsets::OffsetStore;
+use metadata::ClusterId;
 
 use std::collections::HashMap;
 
@@ -16,15 +17,15 @@ use std::collections::HashMap;
 
 pub fn cluster_topics(req: &mut Request) -> IronResult<Response> {
     let cache = req.extensions.get::<CacheType>().unwrap();
-    let cluster_id = req.extensions.get::<Router>().unwrap().find("cluster_id").unwrap();
+    let cluster_id = req.extensions.get::<Router>().unwrap().find("cluster_id").unwrap().into();
 
-    let brokers = cache.brokers.get(cluster_id);
+    let brokers = cache.brokers.get(&cluster_id);
     if brokers.is_none() {  // TODO: Improve here
         return Ok(Response::with((status::NotFound, "")));
     }
 
     let brokers = brokers.unwrap();
-    let topics = cache.topics.filter_clone(|&(ref c, _)| c == cluster_id);
+    let topics = cache.topics.filter_clone(|&(ref c, _)| c == &cluster_id);
     let topic_metrics = build_topic_metrics(&cluster_id, &brokers, topics.len(), &cache.metrics);
 
     let mut result_data = Vec::with_capacity(topics.len());
@@ -46,9 +47,9 @@ pub fn cluster_topics(req: &mut Request) -> IronResult<Response> {
 
 pub fn cluster_brokers(req: &mut Request) -> IronResult<Response> {
     let cache = req.extensions.get::<CacheType>().unwrap();
-    let cluster_id = req.extensions.get::<Router>().unwrap().find("cluster_id").unwrap();
+    let cluster_id = req.extensions.get::<Router>().unwrap().find("cluster_id").unwrap().into();
 
-    let brokers = cache.brokers.get(cluster_id);
+    let brokers = cache.brokers.get(&cluster_id);
     if brokers.is_none() {  // TODO: Improve here
         return Ok(Response::with((status::NotFound, "")));
     }
@@ -90,7 +91,7 @@ impl GroupInfo {
     }
 }
 
-fn build_group_list(cache: &Cache, cluster_id: &str, topic: Option<&str>) -> HashMap<String, GroupInfo> {
+fn build_group_list(cache: &Cache, cluster_id: &ClusterId, topic: Option<&str>) -> HashMap<String, GroupInfo> {
     let mut groups = HashMap::new();
     let registered_groups_map = match topic {
         Some(topic) => cache.groups.filter_clone_v(|&(ref c, ref t)| c == cluster_id && t == topic),
@@ -115,14 +116,14 @@ fn build_group_list(cache: &Cache, cluster_id: &str, topic: Option<&str>) -> Has
 
 pub fn cluster_groups(req: &mut Request) -> IronResult<Response> {
     let cache = req.extensions.get::<CacheType>().unwrap();
-    let cluster_id = req.extensions.get::<Router>().unwrap().find("cluster_id").unwrap();
+    let cluster_id = req.extensions.get::<Router>().unwrap().find("cluster_id").unwrap().into();
 
-    let brokers = cache.brokers.get(cluster_id);
+    let brokers = cache.brokers.get(&cluster_id);
     if brokers.is_none() {  // TODO: Improve here
         return Ok(Response::with((status::NotFound, "")));
     }
 
-    let groups = build_group_list(cache, cluster_id, None);
+    let groups = build_group_list(cache, &cluster_id, None);
 
     let mut result_data = Vec::with_capacity(groups.len());
     for (group_name, info) in groups {
@@ -135,15 +136,15 @@ pub fn cluster_groups(req: &mut Request) -> IronResult<Response> {
 
 pub fn topic_groups(req: &mut Request) -> IronResult<Response> {
     let cache = req.extensions.get::<CacheType>().unwrap();
-    let cluster_id = req.extensions.get::<Router>().unwrap().find("cluster_id").unwrap();
+    let cluster_id = req.extensions.get::<Router>().unwrap().find("cluster_id").unwrap().into();
     let topic_name = req.extensions.get::<Router>().unwrap().find("topic_name").unwrap();
 
-    let brokers = cache.brokers.get(cluster_id);
+    let brokers = cache.brokers.get(&cluster_id);
     if brokers.is_none() {  // TODO: Improve here
         return Ok(Response::with((status::NotFound, "")));
     }
 
-    let groups = build_group_list(cache, cluster_id, Some(topic_name));
+    let groups = build_group_list(cache, &cluster_id, Some(topic_name));
 
     let mut result_data = Vec::with_capacity(groups.len());
     for (group_name, info) in groups {
@@ -156,10 +157,10 @@ pub fn topic_groups(req: &mut Request) -> IronResult<Response> {
 
 pub fn group_members(req: &mut Request) -> IronResult<Response> {
     let cache = req.extensions.get::<CacheType>().unwrap();
-    let cluster_id = req.extensions.get::<Router>().unwrap().find("cluster_id").unwrap();
+    let cluster_id: ClusterId = req.extensions.get::<Router>().unwrap().find("cluster_id").unwrap().into();
     let group_name = req.extensions.get::<Router>().unwrap().find("group_name").unwrap();
 
-    let group = cache.groups.get(&(cluster_id.to_owned(), group_name.to_owned()));
+    let group = cache.groups.get(&(cluster_id.clone(), group_name.to_owned()));
     if group.is_none() {  // TODO: Improve here
         return Ok(json_gzip_response(json!({"data": []})));
     }
@@ -177,10 +178,10 @@ pub fn group_members(req: &mut Request) -> IronResult<Response> {
 
 pub fn group_offsets(req: &mut Request) -> IronResult<Response> {
     let cache = req.extensions.get::<CacheType>().unwrap();
-    let cluster_id = req.extensions.get::<Router>().unwrap().find("cluster_id").unwrap();
+    let cluster_id = req.extensions.get::<Router>().unwrap().find("cluster_id").unwrap().into();
     let group_name = req.extensions.get::<Router>().unwrap().find("group_name").unwrap();
 
-    let offsets = cache.offsets_by_cluster_group(&cluster_id.to_owned(), &group_name.to_owned());
+    let offsets = cache.offsets_by_cluster_group(&cluster_id, &group_name.to_owned());
 
     let mut result_data = Vec::with_capacity(offsets.len());
     for ((_, group, topic), partitions) in offsets {
@@ -199,7 +200,7 @@ pub fn group_offsets(req: &mut Request) -> IronResult<Response> {
 
 pub fn topic_topology(req: &mut Request) -> IronResult<Response> {
     let cache = req.extensions.get::<CacheType>().unwrap();
-    let cluster_id = req.extensions.get::<Router>().unwrap().find("cluster_id").unwrap();
+    let cluster_id: ClusterId = req.extensions.get::<Router>().unwrap().find("cluster_id").unwrap().into();
     let topic_name = req.extensions.get::<Router>().unwrap().find("topic_name").unwrap();
 
     let partitions = cache.topics.get(&(cluster_id.to_owned(), topic_name.to_owned()));

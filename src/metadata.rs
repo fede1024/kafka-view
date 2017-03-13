@@ -5,13 +5,44 @@ use rdkafka::error as rderror;
 use error::*;
 use scheduler::{Scheduler, ScheduledTask};
 use cache::ReplicatedMap;
+
 use std::time::Duration;
+use std::borrow::Borrow;
+use std::fmt;
 
 // TODO: Use structs?
 pub type BrokerId = i32;
-pub type ClusterId = String;
+//pub type ClusterId = String;
+// pub type ClusterIdRef<'a> = &'a str;
 pub type TopicName = String;
 
+
+#[derive(Eq, PartialEq, Hash, Clone, Debug, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct ClusterId(String);
+
+impl ClusterId {
+    pub fn name(&self) -> &str {
+        &self.0
+    }
+}
+
+impl<'a> From<&'a str> for ClusterId {
+    fn from(id: &'a str) -> ClusterId {
+        ClusterId(id.to_owned())
+    }
+}
+
+impl From<String> for ClusterId {
+    fn from(id: String) -> ClusterId {
+        ClusterId(id)
+    }
+}
+
+impl fmt::Display for ClusterId {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
 
 //
 // ********** METADATA **********

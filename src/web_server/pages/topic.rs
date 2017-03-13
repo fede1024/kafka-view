@@ -7,18 +7,19 @@ use web_server::server::CacheType;
 use web_server::view::layout;
 use web_server::pages;
 use metrics::build_topic_metrics;
+use metadata::ClusterId;
 
 
-fn topic_table(cluster_id: &str, topic_name: &str) -> PreEscaped<String> {
+fn topic_table(cluster_id: &ClusterId, topic_name: &str) -> PreEscaped<String> {
     let api_url = format!("/api/cluster/{}/topic/{}/topology", cluster_id, topic_name);
-    layout::datatable_ajax("topology-ajax", &api_url, cluster_id,
+    layout::datatable_ajax("topology-ajax", &api_url, cluster_id.name(),
         html! { tr { th "Id" th "Leader" th "Replicas" th "ISR" th "Status" } }
     )
 }
 
-fn consumer_groups_table(cluster_id: &str, topic_name: &str) -> PreEscaped<String> {
+fn consumer_groups_table(cluster_id: &ClusterId, topic_name: &str) -> PreEscaped<String> {
     let api_url = format!("/api/cluster/{}/topic/{}/groups", cluster_id, topic_name);
-    layout::datatable_ajax("groups-ajax", &api_url, cluster_id,
+    layout::datatable_ajax("groups-ajax", &api_url, cluster_id.name(),
            html! { tr { th "Group name" th "Status" th "Registered members" th "Stored topic offsets" } },
     )
 }
@@ -26,10 +27,10 @@ fn consumer_groups_table(cluster_id: &str, topic_name: &str) -> PreEscaped<Strin
 // TODO: simplify?
 pub fn topic_page(req: &mut Request) -> IronResult<Response> {
     let cache = req.extensions.get::<CacheType>().unwrap();
-    let cluster_id = req.extensions.get::<Router>().unwrap().find("cluster_id").unwrap();
+    let cluster_id: ClusterId = req.extensions.get::<Router>().unwrap().find("cluster_id").unwrap().into();
     let topic_name = req.extensions.get::<Router>().unwrap().find("topic_name").unwrap();
 
-    let partitions = match cache.topics.get(&(cluster_id.to_owned(), topic_name.to_owned())) {
+    let partitions = match cache.topics.get(&(cluster_id.clone(), topic_name.to_owned())) {
         Some(partitions) => partitions,
         None => {
             return pages::warning_page(req,
@@ -38,7 +39,7 @@ pub fn topic_page(req: &mut Request) -> IronResult<Response> {
         }
     };
 
-    let brokers = cache.brokers.get(cluster_id).expect("Broker should exist");
+    let brokers = cache.brokers.get(&cluster_id).expect("Broker should exist");
 
     // TODO: create function specific for single topic metrics
     let metrics = build_topic_metrics(&cluster_id, &brokers, 100, &cache.metrics)
@@ -58,9 +59,9 @@ pub fn topic_page(req: &mut Request) -> IronResult<Response> {
             }
         }
         h3 "Topology"
-        (topic_table(cluster_id, topic_name))
+        (topic_table(&cluster_id, topic_name))
         h3 "Consumer groups"
-        (consumer_groups_table(cluster_id, topic_name))
+        (consumer_groups_table(&cluster_id, topic_name))
     };
 
     let html = layout::page(req, &format!("Topic: {}", topic_name), content);

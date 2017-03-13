@@ -1,5 +1,6 @@
 extern crate serde_yaml;
 
+use metadata::ClusterId;
 use error::*;
 
 use std::collections::HashMap;
@@ -20,7 +21,7 @@ impl ClusterConfig {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct CachingConfig {
-    pub cluster: String,
+    pub cluster: ClusterId,
     pub topic: String,
 }
 
@@ -28,13 +29,13 @@ pub struct CachingConfig {
 pub struct Config {
     pub metadata_refresh: u64,
     pub metrics_refresh: u64,
-    pub clusters: HashMap<String, ClusterConfig>,
+    pub clusters: HashMap<ClusterId, ClusterConfig>,
     pub caching: CachingConfig,
 }
 
 impl Config {
-    pub fn cluster(&self, cluster_name: &str) -> Option<&ClusterConfig> {
-        self.clusters.get(cluster_name)
+    pub fn cluster(&self, cluster_id: &ClusterId) -> Option<&ClusterConfig> {
+        self.clusters.get(cluster_id)
     }
 }
 

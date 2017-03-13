@@ -5,10 +5,11 @@ use maud::PreEscaped;
 use web_server::server::CacheType;
 use web_server::view::layout;
 use cache::{BrokerCache, TopicCache};
+use metadata::ClusterId;
 
 
-fn cluster_pane_layout(name: &str, brokers: usize, topics: usize) -> PreEscaped<String> {
-    let link = format!("/cluster/{}/", name);
+fn cluster_pane_layout(cluster_id: &ClusterId, brokers: usize, topics: usize) -> PreEscaped<String> {
+    let link = format!("/cluster/{}/", cluster_id.name());
     html! {
         div class="col-lg-4 col-md-6" {
             div class="panel panel-primary" {
@@ -17,7 +18,7 @@ fn cluster_pane_layout(name: &str, brokers: usize, topics: usize) -> PreEscaped<
                         div class="col-xs-3" i class="fa fa-server fa-5x" {}
                         div class="col-xs-9 text-right" {
                             div style="font-size: 24px" {
-                                a href=(link) style="color: inherit; text-decoration: inherit;" (name)
+                                a href=(link) style="color: inherit; text-decoration: inherit;" (cluster_id.name())
                             }
                             div { (brokers) " brokers" }
                             div { (topics) " topics" }
@@ -36,8 +37,8 @@ fn cluster_pane_layout(name: &str, brokers: usize, topics: usize) -> PreEscaped<
     }
 }
 
-fn cluster_pane(cluster_id: &str, broker_cache: &BrokerCache, topic_cache: &TopicCache) -> PreEscaped<String> {
-    let broker_count = broker_cache.get(&cluster_id.to_owned()).unwrap_or(Vec::new()).len();
+fn cluster_pane(cluster_id: &ClusterId, broker_cache: &BrokerCache, topic_cache: &TopicCache) -> PreEscaped<String> {
+    let broker_count = broker_cache.get(cluster_id).unwrap_or(Vec::new()).len();
     let topics_count = topic_cache.count(|&(ref c, _)| c == cluster_id);
     cluster_pane_layout(cluster_id, broker_count, topics_count)
 }
