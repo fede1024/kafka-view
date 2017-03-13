@@ -19,7 +19,7 @@ fn topic_table(cluster_id: &str, topic_name: &str) -> PreEscaped<String> {
 fn consumer_groups_table(cluster_id: &str, topic_name: &str) -> PreEscaped<String> {
     let api_url = format!("/api/cluster/{}/topic/{}/groups", cluster_id, topic_name);
     layout::datatable_ajax("groups-ajax", &api_url, cluster_id,
-           html! { tr { th "Group name" th "#Members" th "Status" th "Stored topic offsets" } },
+           html! { tr { th "Group name" th "Status" th "Registered members" th "Stored topic offsets" } },
     )
 }
 

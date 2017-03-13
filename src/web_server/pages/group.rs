@@ -4,7 +4,7 @@ use maud::PreEscaped;
 use router::Router;
 
 use web_server::pages;
-use web_server::server::{CacheType, ConfigArc};
+use web_server::server::CacheType;
 use web_server::view::layout;
 use metadata::Broker;
 
@@ -29,12 +29,12 @@ pub fn group_page(req: &mut Request) -> IronResult<Response> {
     let group_name = req.extensions.get::<Router>().unwrap().find("group_name").unwrap();
 
     if cache.brokers.get(cluster_id).is_none() {
-        return pages::warning_page(req, &format!("Cluster: {}", cluster_id),
-                                   "The specified cluster doesn't exist.")
+        return pages::warning_page(req, group_name, "The specified cluster doesn't exist.")
     }
 
-    // let group = cache.groups.get(&(cluster_id.to_owned(), group_name.to_owned()));
-    // TODO: if group doesn't exist, say something
+//    if cache.groups.get(&(cluster_id.to_owned(), group_name.to_owned())).is_none() {
+//        return pages::warning_page(req, group_name, "The specified group doesn't exist.")
+//    }
 
     let content = html! {
         h3 style="margin-top: 0px" "Group information"

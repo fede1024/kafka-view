@@ -77,8 +77,8 @@ pub fn chain() -> iron::Chain {
     router.get("/brokers", pages::todo, "brokers");
     router.get("/topics", pages::todo, "topics");
     router.get("/consumers", pages::todo, "consumers");
-    router.get("/clusters/:cluster_id/broker/:broker_id", pages::todo, "broker");
-    router.get("/clusters/:cluster_id/consumer_offset/:group_id", pages::todo, "consumer_offset");
+    router.get("/cluster/:cluster_id/broker/:broker_id", pages::todo, "broker");
+    router.get("/cluster/:cluster_id/consumer_offset/:group_id", pages::todo, "consumer_offset");
     iron::Chain::new(router)
 }
 

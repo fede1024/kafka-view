@@ -177,14 +177,14 @@ pub trait OffsetStore {
 
 impl OffsetStore for Cache {
     fn offsets_by_cluster(&self, cluster: &ClusterId) -> Vec<((ClusterId, String, TopicName), Vec<i64>)> {
-        self.offsets.filter_clone(|&(ref c, _, _), _| c == cluster)
+        self.offsets.filter_clone(|&(ref c, _, _)| c == cluster)
     }
 
     fn offsets_by_cluster_topic(&self, cluster: &ClusterId, topic: &TopicName) -> Vec<((ClusterId, String, TopicName), Vec<i64>)> {
-        self.offsets.filter_clone(|&(ref c, _, ref t), _| c == cluster && t == topic)
+        self.offsets.filter_clone(|&(ref c, _, ref t)| c == cluster && t == topic)
     }
 
     fn offsets_by_cluster_group(&self, cluster: &ClusterId, group: &String) -> Vec<((ClusterId, String, TopicName), Vec<i64>)> {
-        self.offsets.filter_clone(|&(ref c, ref g, _), _| c == cluster && g == group)
+        self.offsets.filter_clone(|&(ref c, ref g, _)| c == cluster && g == group)
     }
 }

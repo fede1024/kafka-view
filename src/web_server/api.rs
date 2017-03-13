@@ -24,7 +24,7 @@ pub fn cluster_topics(req: &mut Request) -> IronResult<Response> {
     }
 
     let brokers = brokers.unwrap();
-    let topics = cache.topics.filter_clone(|&(ref c, _), _| c == cluster_id);
+    let topics = cache.topics.filter_clone(|&(ref c, _)| c == cluster_id);
     let topic_metrics = build_topic_metrics(&cluster_id, &brokers, topics.len(), &cache.metrics);
 
     let mut result_data = Vec::with_capacity(topics.len());
@@ -93,11 +93,11 @@ impl GroupInfo {
 fn build_group_list(cache: &Cache, cluster_id: &str, topic: Option<&str>) -> HashMap<String, GroupInfo> {
     let mut groups = HashMap::new();
     let registered_groups_map = match topic {
-        Some(topic) => cache.groups.filter_clone(|&(ref c, ref t), _| c == cluster_id && t == topic),
-        None => cache.groups.filter_clone(|&(ref c, _), _| c == cluster_id),
+        Some(topic) => cache.groups.filter_clone_v(|&(ref c, ref t)| c == cluster_id && t == topic),
+        None => cache.groups.filter_clone_v(|&(ref c, _)| c == cluster_id),
     };
 
-    for (_, group) in registered_groups_map {
+    for group in registered_groups_map {
         let group_result = GroupInfo::new(group.state, group.members.len());
         groups.insert(group.name, group_result);
     }

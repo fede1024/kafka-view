@@ -12,6 +12,7 @@ use serde_cbor;
 
 use std::borrow::Borrow;
 use std::collections::{HashMap, HashSet};
+use std::collections::hash_map;
 use std::hash::Hash;
 use std::sync::{Arc, RwLock};
 use std::thread;
@@ -119,7 +120,7 @@ impl ReplicaReader {
             .set("bootstrap.servers", brokers)
             .set("session.timeout.ms", "6000")
             .set("enable.auto.commit", "false")
-            .set("api.version.request", "true")
+            //.set("api.version.request", "true")
             .set_default_topic_config(
                 TopicConfig::new()
                 .set("auto.offset.reset", "smallest")
@@ -315,25 +316,44 @@ impl<K, V> ReplicatedMap<K, V> where K: Eq + Hash + Clone + Serialize + Deserial
         };
     }
 
-    // TODO: this could be more efficient
-    pub fn filter_clone<F>(&self, f: F) -> Vec<(K, V)>
-            where F: Fn(&K, &V) -> bool {
+    pub fn iter<F, R>(&self, f: F) -> R
+            where F: Fn(hash_map::Iter<K, V>) -> R {
         match self.map.read() {
-            Ok(cache) => {
-                cache.iter().filter(|&(k, v)| f(k, v))
-                    .map(|(k, v)| (k.clone(), v.clone()))
-                    .collect::<Vec<(K, V)>>()
-            },
+            Ok(cache) => f(cache.iter()),
             Err(_) => panic!("Poison error"),
         }
     }
 
     pub fn count<F>(&self, f: F) -> usize
-            where F: Fn(&K, &V) -> bool {
-        match self.map.read() {
-            Ok(cache) => cache.iter().filter(|&(k, v)| f(k, v)).count(),
-            Err(_) => panic!("Poison error"),
-        }
+            where F: Fn(&K) -> bool {
+        self.iter(|iter| iter.filter(|&(k, _)| f(k)).count())
+    }
+
+    pub fn filter_clone<F>(&self, f: F) -> Vec<(K, V)>
+            where F: Fn(&K) -> bool {
+        self.iter(|iter| {
+            iter.filter(|&(k, _)| f(k))
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect::<Vec<(K, V)>>()
+        })
+    }
+
+    pub fn filter_clone_v<F>(&self, f: F) -> Vec<V>
+            where F: Fn(&K) -> bool {
+        self.iter(|iter| {
+            iter.filter(|&(k, _)| f(k))
+                .map(|(_, v)| v.clone())
+                .collect::<Vec<V>>()
+        })
+    }
+
+    pub fn filter_clone_k<F>(&self, f: F) -> Vec<K>
+            where F: Fn(&K) -> bool {
+        self.iter(|iter| {
+            iter.filter(|&(k, _)| f(k))
+                .map(|(k, _)| k.clone())
+                .collect::<Vec<K>>()
+        })
     }
 }
 

@@ -38,7 +38,7 @@ fn cluster_pane_layout(name: &str, brokers: usize, topics: usize) -> PreEscaped<
 
 fn cluster_pane(cluster_id: &str, broker_cache: &BrokerCache, topic_cache: &TopicCache) -> PreEscaped<String> {
     let broker_count = broker_cache.get(&cluster_id.to_owned()).unwrap_or(Vec::new()).len();
-    let topics_count = topic_cache.count(|&(ref c, _), _| c == cluster_id);
+    let topics_count = topic_cache.count(|&(ref c, _)| c == cluster_id);
     cluster_pane_layout(cluster_id, broker_count, topics_count)
 }
 
