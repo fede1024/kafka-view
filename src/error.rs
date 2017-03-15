@@ -1,5 +1,8 @@
-extern crate error_chain;
-
 error_chain! {
-    errors { }
+    errors {
+        PoisonError(action: String) {
+            description("poison error")
+            display("poison error while {}", action)
+        }
+    }
 }
