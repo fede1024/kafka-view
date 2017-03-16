@@ -11,3 +11,8 @@ h3 {
     margin-top: 30px;
     border-bottom: 1px solid #eee;
 }
+
+table.dataTable tbody th.dt-body-right,
+table.dataTable tbody td.dt-body-right {
+  text-align: right;
+}

@@ -32,7 +32,8 @@ fn html_head(title: &str) -> PreEscaped<String> {
             link href="/public/sb-admin-2/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet" {}
             link href="/public/sb-admin-2/vendor/metisMenu/metisMenu.min.css" rel="stylesheet" {}
             link href="/public/sb-admin-2/vendor/datatables-plugins/dataTables.bootstrap.css" rel="stylesheet" {}
-            link href="/public/sb-admin-2/vendor/datatables-responsive/dataTables.responsive.css" rel="stylesheet" {}
+            // link href="/public/sb-admin-2/vendor/datatables/css/jquery.dataTables.min.css" rel="stylesheet" {}
+            // link href="/public/sb-admin-2/vendor/datatables/css/dataTables.jqueryui.min.css" rel="stylesheet" {}
             link href="/public/sb-admin-2/dist/css/sb-admin-2.css" rel="stylesheet" {}
             link href="/public/sb-admin-2/vendor/font-awesome/css/font-awesome.min.css" rel="stylesheet" type="text/css" {}
             link href="/public/my_css.css" rel="stylesheet" type="text/css" {}

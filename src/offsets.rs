@@ -1,5 +1,5 @@
 use futures::stream::Stream;
-use rdkafka::consumer::{Consumer, EmptyConsumerContext};
+use rdkafka::consumer::{Consumer, EmptyConsumerContext, CommitMode};
 use rdkafka::consumer::stream_consumer::StreamConsumer;
 use rdkafka::config::{ClientConfig, TopicConfig};
 use std::cmp;
@@ -59,10 +59,10 @@ fn parse_message(key: &[u8], payload: &[u8]) -> Result<ConsumerUpdate> {
 
 fn create_consumer(brokers: String) -> StreamConsumer<EmptyConsumerContext> {
     let mut consumer = ClientConfig::new()
-        .set("group.id", "consumer_reader_group")
+        .set("group.id", "kafka_web_offset_topic_consumer")
         .set("bootstrap.servers", &brokers)
         .set("enable.partition.eof", "false")
-        .set("session.timeout.ms", "6000")
+        .set("session.timeout.ms", "60000")
         .set("enable.auto.commit", "false")
         .set_default_topic_config(TopicConfig::new()
             .set("auto.offset.reset", "smallest")
@@ -111,11 +111,16 @@ fn consume_offset_topic(cluster_id: ClusterId, mut consumer: StreamConsumer<Empt
     let mut last_dump = Instant::now();
 
     for message in consumer.start().wait() {
-        if (Instant::now() - last_dump) > Duration::from_secs(60) {
+        // Update the cache if needed - TODO: this doesn't work if messages are not being received
+        if (Instant::now() - last_dump) > Duration::from_secs(10) {
             trace!("Dumping local offset cache ({}: {} updates)", cluster_id, local_cache.len());
             update_global_cache(&cluster_id, &local_cache, &cache);
             local_cache = HashMap::with_capacity(local_cache.len());
             last_dump = Instant::now();
+            time!("Commit", consumer.position()
+                   .and_then(|pos| consumer.commit(&pos, CommitMode::Sync))
+                   .map_err(|e| warn!("Error while fetching the current position: {:?}", e))
+            );
         }
         match message {
             Err(e) => {

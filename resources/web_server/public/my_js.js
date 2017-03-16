@@ -160,16 +160,25 @@ $(document).ready(function() {
         });
     });
     $('#datatable-group-offsets-ajax').each(function(index) {
-        $(this).DataTable({
+        var table = $(this).DataTable({
             "search": { "regex": true},
             "ajax": $(this).attr("data-url"),
             "lengthMenu": [ [10, 50, 200, -1], [10, 50, 200, "All"] ],
             "language": { "search": "Regex search:" },
-            "columnDefs": [ ],
+            "columnDefs": [
+                { "className": "dt-body-right", "targets": [ 1, 2, 3, 4, 5 ] }
+            ],
             "processing": true,
             "deferRender": true,
-            stateSave: true
+            stateSave: true,
+            "createdRow": function(row, data, index) {
+                var cluster_id = $(this).attr("data-param");
+                topic_to_url(cluster_id, $(row).children()[0]);
+            }
         });
+        setInterval( function () {
+            table.ajax.reload();
+        }, 20000 );
     });
 });
 
