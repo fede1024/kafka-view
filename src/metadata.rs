@@ -16,7 +16,7 @@ use std::collections::HashMap;
 pub type MetadataConsumer = BaseConsumer<EmptyConsumerContext>;
 
 lazy_static! {
-    static ref CONSUMERS: RwLock<HashMap<ClusterId, Arc<MetadataConsumer>>> = RwLock::new(HashMap::new());
+    pub static ref CONSUMERS: RwLock<HashMap<ClusterId, Arc<MetadataConsumer>>> = RwLock::new(HashMap::new());
 }
 
 // TODO: Use structs?

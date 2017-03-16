@@ -19,7 +19,8 @@ fn group_members_table(cluster_id: &ClusterId, group_name: &str) -> PreEscaped<S
 fn group_offsets_table(cluster_id: &ClusterId, group_name: &str) -> PreEscaped<String> {
     let api_url = format!("/api/cluster/{}/group/{}/offsets", cluster_id, group_name);
     layout::datatable_ajax("group-offsets-ajax", &api_url, cluster_id.name(),
-                           html! { tr { th "Topic" th "Partition" th "Offset" } },
+        html! { tr { th "Topic" th "Partition" th "Low mark" th "High mark" th "Current offset"
+                     th "Lag"} },
     )
 }
 
@@ -52,3 +53,4 @@ pub fn group_page(req: &mut Request) -> IronResult<Response> {
 
     Ok(Response::with((status::Ok, html)))
 }
+

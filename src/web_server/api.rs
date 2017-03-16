@@ -1,13 +1,17 @@
 use iron::prelude::{Request, Response};
 use router::Router;
 use iron::{IronResult, status};
+use futures_cpupool::Builder;
+use futures::{future, Future};
+use rdkafka::error::KafkaResult;
 
 use cache::Cache;
 use web_server::server::CacheType;
 use metrics::build_topic_metrics;
 use utils::json_gzip_response;
 use offsets::OffsetStore;
-use metadata::ClusterId;
+use metadata::{CONSUMERS, ClusterId, TopicName};
+use error::*;
 
 use std::collections::HashMap;
 
@@ -183,15 +187,62 @@ pub fn group_offsets(req: &mut Request) -> IronResult<Response> {
 
     let offsets = cache.offsets_by_cluster_group(&cluster_id, &group_name.to_owned());
 
+
+    let wms = time!("fetch wms", fetch_watermarks(&cluster_id, &offsets));
+    let wms = match wms {
+        Ok(wms) => wms,
+        Err(e) => {
+            error!("Error while fetching watermarks: {}", e);
+            return Ok(json_gzip_response(json!({})));  // TODO: show error to user?
+        }
+    };
+
     let mut result_data = Vec::with_capacity(offsets.len());
     for ((_, group, topic), partitions) in offsets {
         for (partition_id, offset) in partitions.iter().enumerate() {
-            result_data.push(json!((topic.clone(), partition_id, offset)));
+            let (low, high, lag) = match wms.get(&(topic.clone(), partition_id as i32)) {
+                Some(&Ok((low_mark, high_mark))) => (low_mark, high_mark, high_mark - offset),
+                _ => (-1, -1, -1),
+            };
+            result_data.push(json!((topic.clone(), partition_id, low, high, offset, lag)));
         }
     }
 
     let result = json!({"data": result_data});
     Ok(json_gzip_response(result))
+}
+
+fn fetch_watermarks(cluster_id: &ClusterId, offsets: &Vec<((ClusterId, String, TopicName), Vec<i64>)>)
+        -> Result<HashMap<(TopicName, i32), KafkaResult<(i64, i64)>>> {
+    let consumer = match CONSUMERS.read() {
+        Ok(ref cache) => match cache.get(&cluster_id) {
+            Some(consumer_arc) => consumer_arc.clone(),
+            None => bail!("No consumer found for {}", cluster_id),
+        },
+        Err(_) => panic!("Poison err"),
+    };
+
+    let cpu_pool = Builder::new().pool_size(32).create();
+
+    let mut futures = Vec::new();
+
+    for &((_, _, ref topic), ref partitions) in offsets {
+        for partition_id in 0..partitions.len() {
+            let consumer_clone = consumer.clone();
+            let topic_clone = topic.clone();
+            let wm_future = cpu_pool.spawn_fn(move || {
+                let wms = consumer_clone.fetch_watermarks(&topic_clone, partition_id as i32, 10000);
+                Ok::<_, ()>(((topic_clone, partition_id as i32), wms))  // never fail
+            });
+            futures.push(wm_future);
+        }
+    }
+
+    let watermarks = future::join_all(futures).wait().unwrap()
+        .into_iter()
+        .collect::<HashMap<_, _>>();
+
+    Ok(watermarks)
 }
 
 //
