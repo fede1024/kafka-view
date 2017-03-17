@@ -53,7 +53,7 @@ pub fn cluster_page(req: &mut Request) -> IronResult<Response> {
 
     let cluster_config = config.clusters.get(&cluster_id);
     let content = html! {
-        h3 style="margin-top: 0px" "Cluster information"
+        h3 style="margin-top: 0px" "Information"
         dl class="dl-horizontal" {
             dt "Cluster name: " dd (cluster_id.name())
             @if cluster_config.is_some() {
@@ -71,7 +71,7 @@ pub fn cluster_page(req: &mut Request) -> IronResult<Response> {
         h3 "Consumer groups"
         (groups_table(&cluster_id))
     };
-    let html = layout::page(req, &format!("{}", cluster_id), content);
+    let html = layout::page(req, &format!("Cluster: {}", cluster_id), content);
 
     Ok(Response::with((status::Ok, html)))
 }

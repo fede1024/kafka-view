@@ -199,12 +199,17 @@ pub fn group_offsets(req: &mut Request) -> IronResult<Response> {
 
     let mut result_data = Vec::with_capacity(offsets.len());
     for ((_, group, topic), partitions) in offsets {
-        for (partition_id, offset) in partitions.iter().enumerate() {
+        for (partition_id, &offset) in partitions.iter().enumerate() {
             let (low, high, lag) = match wms.get(&(topic.clone(), partition_id as i32)) {
                 Some(&Ok((low_mark, high_mark))) => (low_mark, high_mark, high_mark - offset),
                 _ => (-1, -1, -1),
             };
-            result_data.push(json!((topic.clone(), partition_id, low, high, offset, lag)));
+            let lag_shown = match (high, offset - low) {
+                (0, _) => "Empty topic".to_owned(),
+                (_, lag) if lag < 0 => "Out of retention".to_owned(),
+                _ => lag.to_string()
+            };
+            result_data.push(json!((topic.clone(), partition_id, low, high, offset, lag_shown)));
         }
     }
 

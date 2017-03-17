@@ -37,19 +37,24 @@ pub fn group_page(req: &mut Request) -> IronResult<Response> {
 //        return pages::warning_page(req, group_name, "The specified group doesn't exist.")
 //    }
 
+    let group_state = match cache.groups.get(&(cluster_id.to_owned(), group_name.to_owned())) {
+        Some(group) => group.state,
+        None => "Not registered".to_string(),
+    };
+
     let content = html! {
-        h3 style="margin-top: 0px" "Group information"
+        h3 style="margin-top: 0px" "Information"
         dl class="dl-horizontal" {
-            dt "Group name: " dd (group_name)
             dt "Cluster name:" dd (cluster_id)
-            dt "Group state: " dd (group_name)
+            dt "Group name: " dd (group_name)
+            dt "Group state: " dd (group_state)
         }
-        h3 "Group members"
+        h3 "Members"
         div (group_members_table(&cluster_id, group_name))
-        h3 "Group offsets"
+        h3 "Offsets"
         div (group_offsets_table(&cluster_id, group_name))
     };
-    let html = layout::page(req, &format!("{}", group_name), content);
+    let html = layout::page(req, &format!("Group: {}", group_name), content);
 
     Ok(Response::with((status::Ok, html)))
 }

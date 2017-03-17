@@ -53,7 +53,7 @@ pub fn topic_page(req: &mut Request) -> IronResult<Response> {
             dt "Number of replicas " dd (partitions[0].replicas.len())
             @if metrics.is_some() {
                 dt "Traffic last 15 minutes"
-                dd (format!("{:.1} KB/s {:.0} msg/s", metrics.unwrap().0 / 1000f64, metrics.unwrap().1))
+                dd (format!("{:.1}   KB/s {:.0} msg/s", metrics.unwrap().0 / 1000f64, metrics.unwrap().1))
             } @else {
                 dt "Traffic data" dd "Not available"
             }
