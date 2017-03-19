@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use std::io::prelude::*;
 use std::fs::File;
 
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ClusterConfig {
     pub broker_list: Vec<String>,
@@ -14,7 +15,7 @@ pub struct ClusterConfig {
 }
 
 impl ClusterConfig {
-    pub fn broker_string(&self) -> String {
+    pub fn bootstrap_servers(&self) -> String {
         self.broker_list.join(",")
     }
 }
@@ -29,6 +30,7 @@ pub struct CachingConfig {
 pub struct Config {
     pub metadata_refresh: u64,
     pub metrics_refresh: u64,
+    pub consumer_offsets_group_id: String,
     pub clusters: HashMap<ClusterId, ClusterConfig>,
     pub caching: CachingConfig,
 }

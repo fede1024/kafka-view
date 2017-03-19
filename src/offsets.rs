@@ -1,18 +1,20 @@
+use byteorder::{BigEndian, ReadBytesExt};
 use futures::stream::Stream;
-use rdkafka::consumer::{Consumer, EmptyConsumerContext, CommitMode};
-use rdkafka::consumer::stream_consumer::StreamConsumer;
 use rdkafka::config::{ClientConfig, TopicConfig};
+use rdkafka::consumer::stream_consumer::StreamConsumer;
+use rdkafka::consumer::{Consumer, EmptyConsumerContext, CommitMode};
+
+use cache::{Cache, OffsetsCache};
+use config::{Config, ClusterConfig};
+use error::*;
+use metadata::{ClusterId, TopicName};
+
 use std::cmp;
-use std::str;
 use std::collections::HashMap;
+use std::io::{Cursor, BufRead};
+use std::str;
 use std::thread;
 use std::time::{Instant, Duration};
-
-use std::io::{Cursor, BufRead};
-use byteorder::{BigEndian, ReadBytesExt};
-use error::*;
-use cache::{Cache, OffsetsCache};
-use metadata::{ClusterId, TopicName};
 
 
 #[derive(Debug)]
@@ -57,10 +59,10 @@ fn parse_message(key: &[u8], payload: &[u8]) -> Result<ConsumerUpdate> {
     }
 }
 
-fn create_consumer(brokers: String) -> StreamConsumer<EmptyConsumerContext> {
+fn create_consumer(brokers: &str, group_id: &str) -> StreamConsumer<EmptyConsumerContext> {
     let mut consumer = ClientConfig::new()
-        .set("group.id", "kafka_web_offset_topic_consumer")
-        .set("bootstrap.servers", &brokers)
+        .set("group.id", &group_id)
+        .set("bootstrap.servers", brokers)
         .set("enable.partition.eof", "false")
         .set("session.timeout.ms", "60000")
         .set("enable.auto.commit", "false")
@@ -163,9 +165,9 @@ fn consume_offset_topic(cluster_id: ClusterId, mut consumer: StreamConsumer<Empt
     Ok(())
 }
 
-pub fn run_offset_consumer(cluster_id: &ClusterId, brokers: &str, offset_cache: OffsetsCache) {
-    let brokers_owned = brokers.to_owned();
-    let consumer = create_consumer(brokers_owned);
+pub fn run_offset_consumer(cluster_id: &ClusterId, cluster_config: &ClusterConfig,
+                           config: &Config, offset_cache: OffsetsCache) {
+    let consumer = create_consumer(&cluster_config.bootstrap_servers(), &config.consumer_offsets_group_id);
 
     let cluster_id_clone = cluster_id.clone();
     thread::spawn(move || {

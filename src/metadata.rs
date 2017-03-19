@@ -2,9 +2,10 @@ use rdkafka::consumer::{BaseConsumer, EmptyConsumerContext};
 use rdkafka::config::ClientConfig;
 use rdkafka::error as rderror;
 
+use cache::ReplicatedMap;
+use config::ClusterConfig;
 use error::*;
 use scheduler::{Scheduler, ScheduledTask};
-use cache::ReplicatedMap;
 
 use std::time::Duration;
 use std::borrow::Borrow;
@@ -215,9 +216,9 @@ impl MetadataFetcher {
         }
     }
 
-    pub fn add_cluster(&mut self, cluster_id: &ClusterId, bootstrap_servers: &str) -> Result<()> {
+    pub fn add_cluster(&mut self, cluster_id: &ClusterId, cluster_config: &ClusterConfig) -> Result<()> {
         let consumer = ClientConfig::new()
-            .set("bootstrap.servers", bootstrap_servers)
+            .set("bootstrap.servers", &cluster_config.bootstrap_servers())
             .create::<MetadataConsumer>()
             .expect("Consumer creation failed");
 

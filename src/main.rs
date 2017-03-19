@@ -53,30 +53,31 @@ use offsets::run_offset_consumer;
 fn run_kafka_web(config_path: &str) -> Result<()> {
     let config = config::read_config(config_path)
         .chain_err(|| format!("Unable to load configuration from '{}'", config_path))?;
-    let brokers = match config.cluster(&config.caching.cluster) {
-        Some(cluster) => cluster.broker_string(),
+
+    let replicator_bootstrap_servers = match config.cluster(&config.caching.cluster) {
+        Some(cluster) => cluster.bootstrap_servers(),
         None => bail!("Can't find cache cluster {}", config.caching.cluster),
     };
     let topic_name = &config.caching.topic;
-    let replica_writer = ReplicaWriter::new(&brokers, topic_name)
-        .chain_err(|| format!("Replica writer creation failed (brokers: {}, topic: {})", brokers, topic_name))?;
-    let mut replica_reader = ReplicaReader::new(&brokers, topic_name)
-        .chain_err(|| format!("Replica reader creation failed (brokers: {}, topic: {})", brokers, topic_name))?;
+    let replica_writer = ReplicaWriter::new(&replicator_bootstrap_servers, topic_name)
+        .chain_err(|| format!("Replica writer creation failed (brokers: {}, topic: {})", replicator_bootstrap_servers, topic_name))?;
+    let mut replica_reader = ReplicaReader::new(&replicator_bootstrap_servers, topic_name)
+        .chain_err(|| format!("Replica reader creation failed (brokers: {}, topic: {})", replicator_bootstrap_servers, topic_name))?;
 
     let cache = Cache::new(replica_writer);
 
     // Load all the state from Kafka
     replica_reader.load_state(cache.alias())
-        .chain_err(|| format!("State load failed (brokers: {}, topic: {})", brokers, topic_name))?;
+        .chain_err(|| format!("State load failed (brokers: {}, topic: {})", replicator_bootstrap_servers, topic_name))?;
 
     // Metadata fetch
     let mut metadata_fetcher = MetadataFetcher::new(cache.brokers.alias(), cache.topics.alias(),
             cache.groups.alias(), Duration::from_secs(config.metadata_refresh));
-    for (cluster_name, cluster_config) in &config.clusters {
-        metadata_fetcher.add_cluster(cluster_name, &cluster_config.broker_string())
-            .chain_err(|| format!("Failed to add cluster {}", cluster_name))?;
-        run_offset_consumer(cluster_name, &cluster_config.broker_string(), cache.offsets.alias());
-        info!("Added cluster {}", cluster_name);
+    for (cluster_id, cluster_config) in &config.clusters {
+        metadata_fetcher.add_cluster(cluster_id, &cluster_config)
+            .chain_err(|| format!("Failed to add cluster {}", cluster_id))?;
+        run_offset_consumer(&cluster_id, &cluster_config, &config, cache.offsets.alias());
+        info!("Added cluster {}", cluster_id);
     }
 
     let mut metrics_fetcher = MetricsFetcher::new(cache.metrics.alias(),

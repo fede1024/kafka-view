@@ -1,11 +1,11 @@
-// jQuery.fn.dataTable.ext.type.order['my-numeric-pre'] = function (data) {
-//     var matches = data.match( /^(\d+(?:\.\d+)?)/ );
-//     if (matches) {
-//         return parseFloat(matches[1]);
-//     } else {
-//         return -1;
-//     };
-// };
+jQuery.fn.dataTable.ext.type.order['num-or-str-pre'] = function (data) {
+    var matches = data.match( /^(\d+(?:\.\d+)?)/ );
+    if (matches) {
+        return parseFloat(matches[1]);
+    } else {
+        return -1;
+    };
+};
 
 // jQuery.fn.dataTable.ext.type.order['my-err-pre'] = function (data) {
 //     if (data.indexOf("times") !== -1) {
@@ -166,7 +166,8 @@ $(document).ready(function() {
             "lengthMenu": [ [10, 50, 200, -1], [10, 50, 200, "All"] ],
             "language": { "search": "Regex search:" },
             "columnDefs": [
-                { "className": "dt-body-right", "targets": [ 1, 2, 3, 4, 5 ] }
+                { "className": "dt-body-right", "targets": [ 1, 2, 3, 4, 5 ] },
+                { "type": "num-or-str", "targets": [ 5 ] }
             ],
             "processing": true,
             "deferRender": true,
