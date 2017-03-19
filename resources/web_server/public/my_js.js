@@ -181,8 +181,22 @@ $(document).ready(function() {
             table.ajax.reload();
         }, 20000 );
     });
+    $('#datatable-topic-search-ajax').each(function(index) {
+        $(this).DataTable({
+            "searching": false,
+            "ajax": $(this).attr("data-url"),
+            "lengthMenu": [ [10, 50, 200, -1], [10, 50, 200, "All"] ],
+            "pageLength": 50,
+            "language": { "search": "Regex search:" },
+            "columnDefs": [ ],
+            "processing": true,
+            "deferRender": true,
+            stateSave: true
+        });
+    });
 });
 
 $(document).ready(function(){
     $('[data-toggle="tooltip"]').tooltip();
+    $(window).resize();
 });

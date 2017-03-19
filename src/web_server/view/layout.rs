@@ -2,6 +2,51 @@ use maud::{self, PreEscaped};
 use web_server::server::RequestTimer;
 use iron::Request;
 
+
+pub fn search_form(action: &str, placeholder: &str, value: &str, regex: bool) -> PreEscaped<String> {
+    html! {
+        form action=(action) {
+            div class="row" {
+                div class="col-md-12" style="margin-top: 20pt" {}
+            }
+            div class="row" {
+                div class="col-md-2" ""
+                div class="col-md-8" {
+                    div class="input-group custom-search-form" {
+                        input class="form-control" type="text" name="search" style="font-size: 18pt; height: 30pt"
+                            placeholder=(placeholder) value=(value) {
+                            span class="input-group-btn" {
+                                button class="btn btn-default" style="height: 30pt" type="submit" {
+                                    i class="fa fa-search fa-2x" {}
+                                }
+                            }
+                        }
+                    }
+                }
+                div class="col-md-2" {}
+            }
+            div class="row" {
+                div class="col-md-2" ""
+                div class="col-md-8" style="margin-top: 10pt" {
+                    strong "Search options:"
+                    label class="checkbox-inline" style="margin-left: 10pt" {
+                        @if regex {
+                            input type="checkbox" name="regex" checked="" {}
+                        } @else {
+                            input type="checkbox" name="regex" {}
+                        }
+                        "Regex"
+                    }
+                }
+                div class="col-md-2" ""
+            }
+            div class="row" {
+                div class="col-md-12" style="margin-top: 20pt" {}
+            }
+        }
+    }
+}
+
 pub fn notification(n_type: &str, content: PreEscaped<String>) -> PreEscaped<String> {
     let alert_class = format!("alert alert-{}", n_type);
     html! {
@@ -134,13 +179,13 @@ fn body(page_title: &str, content: PreEscaped<String>) -> PreEscaped<String> {
                 (navbar_side())
             }
 
-            div id="page-wrapper" {
+            div id="page-wrapper" class="flex-container" {
                 div class="row" {
                     div class="col-md-12" {
                         h1 class="page-header" (page_title)
                     }
                 }
-                div class="row" {
+                div class="row flex-body" {
                     div class="col-md-12" {
                         (content)
                     }
@@ -148,7 +193,7 @@ fn body(page_title: &str, content: PreEscaped<String>) -> PreEscaped<String> {
                 div class="row" {
                     div class="col-md-12" {}
                 }
-                div class="row" style="border-top: 1px solid #eee; margin-top: 0.2in"  {
+                div class="row flex-footer" style="border-top: 1px solid #eee; margin-top: 0.2in"  {
                     div class="col-md-4" style="text-align: center;" { "Kafka-web" }
                     div class="col-md-4" style="text-align: center;" {
                         "Version: " (option_env!("CARGO_PKG_VERSION").unwrap_or("unknown"))

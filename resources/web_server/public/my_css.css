@@ -1,10 +1,17 @@
 # .dataTables_filter label { width: 100% }
 .dataTables_info { margin-top: 12px }
 
-.flex-container {  /* https://css-tricks.com/snippets/css/a-guide-to-flexbox/ */
-    display:flex;
-    align-items: center; /* Vertical center alignment */
-    justify-content: center; /* Horizontal center alignment */
+.flex-container {
+    display: flex;
+    flex-flow: column;
+}
+
+.flex-body {
+    flex: 1 1 auto;
+}
+
+.flex-footer {
+    flex: 0 1 20pt;
 }
 
 h3 {
@@ -16,3 +23,4 @@ table.dataTable tbody th.dt-body-right,
 table.dataTable tbody td.dt-body-right {
   text-align: right;
 }
+

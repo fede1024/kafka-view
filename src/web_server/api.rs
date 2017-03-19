@@ -1,6 +1,7 @@
-use iron::prelude::{Request, Response};
+use iron::prelude::*;
 use router::Router;
 use iron::{IronResult, status};
+use params::{Params, Value};
 use futures_cpupool::Builder;
 use futures::{future, Future};
 use rdkafka::error::KafkaResult;
@@ -271,6 +272,30 @@ pub fn topic_topology(req: &mut Request) -> IronResult<Response> {
         result_data.push(json!((p.id, p.leader, p.replicas, p.isr, p.error)));
     }
 
+    let result = json!({"data": result_data});
+    Ok(json_gzip_response(result))
+}
+
+//
+// ********** SEARCH **********
+//
+
+pub fn search_topic(req: &mut Request) -> IronResult<Response> {
+    let parameters = req.get_ref::<Params>().unwrap().clone();
+    let cache = req.extensions.get::<CacheType>().unwrap();
+
+    let search_string = match parameters.get("search") {
+        Some(&Value::String(ref value)) => value,
+        _ => "",
+    };
+    let regex = match parameters.get("regex") {
+        Some(&Value::String(ref value)) => value == "on",
+        _ => false,
+    };
+
+    println!(">>> {} {}", search_string, regex);
+
+    let result_data: Vec<String> = Vec::new();
     let result = json!({"data": result_data});
     Ok(json_gzip_response(result))
 }

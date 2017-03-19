@@ -17,6 +17,7 @@ extern crate futures_cpupool;
 extern crate iron;
 extern crate iron_compress;
 extern crate itertools;
+extern crate params;
 extern crate maud;
 extern crate mount;
 extern crate rand;
