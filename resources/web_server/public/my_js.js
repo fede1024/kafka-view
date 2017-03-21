@@ -22,7 +22,7 @@ function formatToHuman(value, decimals, suffix, k, sizes) {
    if (decimals === undefined) {
        decimals = 3;
    }
-   if(value == 0) {
+   if (value == 0) {
        var i = 0;
        var result = 0;
    } else {
@@ -35,13 +35,21 @@ function formatToHuman(value, decimals, suffix, k, sizes) {
 function bytes_to_human(cell, suffix) {
     var bytes = parseInt(cell.innerHTML);
     var sizes = [' B', ' KiB', ' MiB', ' GiB', ' TiB', ' PiB'];
-    $(cell).html(formatToHuman(bytes, 1, suffix, 1024, sizes));
+    if (bytes == -1) {
+        $(cell).html("Unknown");
+    } else {
+        $(cell).html(formatToHuman(bytes, 1, suffix, 1024, sizes));
+    }
 }
 
 function big_num_to_human(cell, suffix) {
-    var bytes = parseInt(cell.innerHTML);
+    var value = parseInt(cell.innerHTML);
     var sizes = [' ', ' K', ' M', ' G'];
-    $(cell).html(formatToHuman(bytes, 1, suffix, 1000, sizes));
+    if (value == -1) {
+        $(cell).html("Unknown");
+    } else {
+        $(cell).html(formatToHuman(value, 1, suffix, 1000, sizes));
+    }
 }
 
 function broker_to_url(cluster_id, cell) {
@@ -62,6 +70,13 @@ function group_to_url(cluster_id, cell) {
     var group_name = cell.innerHTML;
     var url = "/cluster/" + cluster_id + "/group/" + group_name;
     var link = $('<a>', { text: group_name, title: 'Group page', href: url });
+    $(cell).html(link);
+}
+
+function cluster_to_url(cell) {
+    var cluster_id = cell.innerHTML;
+    var url = "/cluster/" + cluster_id;
+    var link = $('<a>', { text: cluster_id, title: 'Cluster page', href: url });
     $(cell).html(link);
 }
 
@@ -188,10 +203,21 @@ $(document).ready(function() {
             "lengthMenu": [ [10, 50, 200, -1], [10, 50, 200, "All"] ],
             "pageLength": 50,
             "language": { "search": "Regex search:" },
-            "columnDefs": [ ],
+            "columnDefs": [
+                { "className": "dt-body-right", "targets": [ 2, 3, 4, 5 ] }
+            ],
             "processing": true,
             "deferRender": true,
-            stateSave: true
+            "stateSave": true,
+            "createdRow": function(row, data, index) {
+                var cluster_id = $(this).attr("data-param");
+                var row = $(row).children();
+                cluster_to_url(row[0]);
+                topic_to_url(row[0].innerHTML, row[1]);
+                error_to_graphic(row[3]);
+                bytes_to_human(row[4], "/s");
+                big_num_to_human(row[5], "msg/s");
+            }
         });
     });
 });

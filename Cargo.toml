@@ -20,9 +20,11 @@ log = "^0.3.0"
 maud = { version = "0.16.1", features = ["iron"] }
 maud_macros = "0.16.1"
 mount = "^0.3.0"
-params = "0.6.0"
+urlencoded = "0.5.0"
 rand = "0.3"
 rdkafka = { git = "https://github.com/fede1024/rust-rdkafka.git"}
+# rdkafka = { path = "/home/fede/rust/rust-rdkafka"}
+# rdkafka = "^0.8.0"
 regex = "0.1.80"
 router = "^0.5.1"
 serde = "^0.9.8"
@@ -33,4 +35,3 @@ serde_json = "^0.9.8"
 serde_yaml = "^0.6.2"
 staticfile = { version = "^0.4.0", features = ["cache"] }
 typemap = "0.3.3"
-urlencoded = "0.4.1"

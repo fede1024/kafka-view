@@ -2,8 +2,8 @@ use iron::prelude::{Request, Response};
 use router::Router;
 use iron::{IronResult, status};
 use maud::PreEscaped;
-use params::{Params, Value};
 use iron::prelude::*;
+use urlencoded::UrlEncodedQuery;
 
 use web_server::server::CacheType;
 use web_server::view::layout;
@@ -12,17 +12,15 @@ use metadata::ClusterId;
 
 
 pub fn topic_search(req: &mut Request) -> IronResult<Response> {
-    let parameters = req.get_ref::<Params>().unwrap().clone();
+    let params = req.get_ref::<UrlEncodedQuery>().unwrap().clone();
     let cache = req.extensions.get::<CacheType>().unwrap();
 
-    let search_string = match parameters.get("search") {
-        Some(&Value::String(ref value)) => value,
-        _ => "",
-    };
-    let regex = match parameters.get("regex") {
-        Some(&Value::String(ref value)) => value == "on",
-        _ => false,
-    };
+    let search_string = params.get("search")
+        .map(|results| results[0].as_str())
+        .unwrap_or("");
+    let regex = params.get("regex")
+        .map(|results| results[0] == "on")
+        .unwrap_or(false);
 
     let search_form = layout::search_form("/topics", "Topic name", search_string, regex);
     let api_url = format!("/api/search/topic?search={}&regex={}", search_string, regex);

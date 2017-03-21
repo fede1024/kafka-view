@@ -84,7 +84,7 @@ impl ReplicaWriter {
         // trace!("Serialized value size: {}", serialized_value.len());
         trace!("Serialized update size: key={:.3}KB value={:.3}KB",
             (serialized_key.len() as f64 / 1000f64), (serialized_value.len() as f64 / 1000f64));
-        let _f = self.producer_topic.send_copy(None, Some(&serialized_value), Some(&serialized_key))
+        let _f = self.producer_topic.send_copy(None, Some(&serialized_value), Some(&serialized_key), None)
             .chain_err(|| "Failed to produce message")?;
         // _f.wait();  // Uncomment to make production synchronous
         Ok(())

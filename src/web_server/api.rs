@@ -1,18 +1,19 @@
-use iron::prelude::*;
-use router::Router;
-use iron::{IronResult, status};
-use params::{Params, Value};
-use futures_cpupool::Builder;
 use futures::{future, Future};
+use futures_cpupool::Builder;
+use iron::prelude::*;
+use iron::{IronResult, status};
 use rdkafka::error::KafkaResult;
+use regex::Regex;
+use router::Router;
+use urlencoded::UrlEncodedQuery;
 
 use cache::Cache;
-use web_server::server::CacheType;
-use metrics::build_topic_metrics;
-use utils::json_gzip_response;
-use offsets::OffsetStore;
-use metadata::{CONSUMERS, ClusterId, TopicName};
 use error::*;
+use metadata::{CONSUMERS, ClusterId, TopicName};
+use metrics::build_topic_metrics;
+use offsets::OffsetStore;
+use utils::json_gzip_response;
+use web_server::server::CacheType;
 
 use std::collections::HashMap;
 
@@ -281,21 +282,43 @@ pub fn topic_topology(req: &mut Request) -> IronResult<Response> {
 //
 
 pub fn search_topic(req: &mut Request) -> IronResult<Response> {
-    let parameters = req.get_ref::<Params>().unwrap().clone();
+    let params = req.get_ref::<UrlEncodedQuery>().unwrap().clone();
     let cache = req.extensions.get::<CacheType>().unwrap();
 
-    let search_string = match parameters.get("search") {
-        Some(&Value::String(ref value)) => value,
-        _ => "",
-    };
-    let regex = match parameters.get("regex") {
-        Some(&Value::String(ref value)) => value == "on",
-        _ => false,
+    let search_string = params.get("search")
+        .map(|results| results[0].as_str())
+        .unwrap_or("");
+    let regex = params.get("regex")
+        .map(|results| results[0].as_str())
+        .unwrap_or("");
+
+    let topics = match (search_string, regex) {
+        (pattern, "true") => {
+            Regex::new(search_string)
+                .map(|r| cache.topics.filter_clone(|&(_, ref name)| r.is_match(name)))
+                .unwrap_or(Vec::new())
+        },
+        (search, _) if search.len() >= 3 => {
+            cache.topics.filter_clone(|&(_, ref name)| name.contains(search))
+        },
+        _ => Vec::new(),
     };
 
-    println!(">>> {} {}", search_string, regex);
+    let mut metrics_map = HashMap::new();
+    let mut result_data = Vec::new();
+    for ((cluster_id, topic_name), partitions) in topics {
+        let cluster_metrics = metrics_map.entry(cluster_id.clone())
+            .or_insert_with(|| {
+                cache.brokers.get(&cluster_id)
+                    .map(|brokers| build_topic_metrics(&cluster_id, &brokers, 100, &cache.metrics))
+            });
+        let (b_rate, m_rate) = cluster_metrics.as_ref()
+            .and_then(|c_metrics| c_metrics.get(&topic_name).cloned())
+            .unwrap_or((-1f64, -1f64));
+        let errors = partitions.iter().find(|p| p.error.is_some());
+        result_data.push(json!((cluster_id, topic_name, partitions.len(), errors, b_rate, m_rate)));
+    }
 
-    let result_data: Vec<String> = Vec::new();
     let result = json!({"data": result_data});
     Ok(json_gzip_response(result))
 }
