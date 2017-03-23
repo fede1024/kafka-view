@@ -316,7 +316,7 @@ impl<K, V> ReplicatedMap<K, V> where K: Eq + Hash + Clone + Serialize + Deserial
         };
     }
 
-    pub fn iter<F, R>(&self, f: F) -> R
+    pub fn lock_iter<F, R>(&self, f: F) -> R
             where F: Fn(hash_map::Iter<K, V>) -> R {
         match self.map.read() {
             Ok(cache) => f(cache.iter()),
@@ -326,12 +326,12 @@ impl<K, V> ReplicatedMap<K, V> where K: Eq + Hash + Clone + Serialize + Deserial
 
     pub fn count<F>(&self, f: F) -> usize
             where F: Fn(&K) -> bool {
-        self.iter(|iter| iter.filter(|&(k, _)| f(k)).count())
+        self.lock_iter(|iter| iter.filter(|&(k, _)| f(k)).count())
     }
 
     pub fn filter_clone<F>(&self, f: F) -> Vec<(K, V)>
             where F: Fn(&K) -> bool {
-        self.iter(|iter| {
+        self.lock_iter(|iter| {
             iter.filter(|&(k, _)| f(k))
                 .map(|(k, v)| (k.clone(), v.clone()))
                 .collect::<Vec<(K, V)>>()
@@ -340,7 +340,7 @@ impl<K, V> ReplicatedMap<K, V> where K: Eq + Hash + Clone + Serialize + Deserial
 
     pub fn filter_clone_v<F>(&self, f: F) -> Vec<V>
             where F: Fn(&K) -> bool {
-        self.iter(|iter| {
+        self.lock_iter(|iter| {
             iter.filter(|&(k, _)| f(k))
                 .map(|(_, v)| v.clone())
                 .collect::<Vec<V>>()
@@ -349,7 +349,7 @@ impl<K, V> ReplicatedMap<K, V> where K: Eq + Hash + Clone + Serialize + Deserial
 
     pub fn filter_clone_k<F>(&self, f: F) -> Vec<K>
             where F: Fn(&K) -> bool {
-        self.iter(|iter| {
+        self.lock_iter(|iter| {
             iter.filter(|&(k, _)| f(k))
                 .map(|(k, _)| k.clone())
                 .collect::<Vec<K>>()

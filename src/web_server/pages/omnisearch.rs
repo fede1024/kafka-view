@@ -10,6 +10,36 @@ use web_server::view::layout;
 use web_server::pages;
 use metadata::ClusterId;
 
+use std::collections::HashMap;
+
+
+pub fn consumer_search(req: &mut Request) -> IronResult<Response> {
+    let params = req.get_ref::<UrlEncodedQuery>().unwrap_or(&HashMap::new()).clone();
+    let cache = req.extensions.get::<CacheType>().unwrap();
+
+    let search_string = params.get("search")
+        .map(|results| results[0].as_str())
+        .unwrap_or("");
+    let regex = params.get("regex")
+        .map(|results| results[0] == "on")
+        .unwrap_or(false);
+
+    let search_form = layout::search_form("/consumers", "Consumer name", search_string, regex);
+    let api_url = format!("/api/search/consumer?search={}&regex={}", search_string, regex);
+    let results = layout::datatable_ajax("group-search-ajax", &api_url, "",
+         html! { tr { th "Group name" th "Status" th "Registered members" th "Stored topic offsets" } }
+    );
+
+    let page = layout::page(req, "Consumer search", html! {
+        (search_form)
+        @if search_string.len() > 0 {
+            h3 "Search results"
+            (results)
+        }
+    });
+
+    Ok(Response::with((status::Ok, page)))
+}
 
 pub fn topic_search(req: &mut Request) -> IronResult<Response> {
     let params = req.get_ref::<UrlEncodedQuery>().unwrap().clone();

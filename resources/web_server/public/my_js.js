@@ -220,6 +220,20 @@ $(document).ready(function() {
             }
         });
     });
+    $('#datatable-group-search-ajax').each(function(index) {
+        $(this).DataTable({
+            "searching": false,
+            "ajax": $(this).attr("data-url"),
+            "lengthMenu": [ [10, 50, 200, -1], [10, 50, 200, "All"] ],
+            "pageLength": 50,
+            "columnDefs": [ ],
+            "processing": true,
+            "deferRender": true,
+            "stateSave": true,
+            "createdRow": function(row, data, index) {
+            }
+        });
+    });
 });
 
 $(document).ready(function(){

@@ -97,26 +97,21 @@ impl GroupInfo {
     }
 }
 
-fn build_group_list(cache: &Cache, cluster_id: &ClusterId, topic: Option<&str>) -> HashMap<String, GroupInfo> {
-    let mut groups = HashMap::new();
-    let registered_groups_map = match topic {
-        Some(topic) => cache.groups.filter_clone_v(|&(ref c, ref t)| c == cluster_id && t == topic),
-        None => cache.groups.filter_clone_v(|&(ref c, _)| c == cluster_id),
-    };
+// TOOD: add doc
+fn build_group_list<F>(cache: &Cache, filter_fn: F) -> HashMap<String, GroupInfo>
+        where F: Fn(&ClusterId, &TopicName, &String) -> bool {
 
-    for group in registered_groups_map {
-        let group_result = GroupInfo::new(group.state, group.members.len());
-        groups.insert(group.name, group_result);
-    }
+    let mut groups: HashMap<String, GroupInfo> = cache.groups.lock_iter(|iter| {
+            iter.filter(|&(&(ref c, ref t), ref g)| filter_fn(&c, &t, &g.name))
+                .map(|(_, g)| (g.name.clone(), GroupInfo::new(g.state.clone(), g.members.len())))
+                .collect()
+        });
 
-    let offsets = match topic {
-        Some(topic) => cache.offsets_by_cluster_topic(&cluster_id.to_owned(), &topic.to_owned()),
-        None => cache.offsets_by_cluster(&cluster_id.to_owned()),
-    };
-
-    for ((_, group, _), _) in offsets {
+    let offsets = cache.offsets.filter_clone_k(|&(ref c, ref g, ref t)| filter_fn(c, g, t));
+    for (_, group, _) in offsets {
         (*groups.entry(group).or_insert(GroupInfo::new_empty())).add_offset();
     }
+
     return groups;
 }
 
@@ -129,7 +124,7 @@ pub fn cluster_groups(req: &mut Request) -> IronResult<Response> {
         return Ok(Response::with((status::NotFound, "")));
     }
 
-    let groups = build_group_list(cache, &cluster_id, None);
+    let groups = build_group_list(cache, |c, _, _| &cluster_id == c);
 
     let mut result_data = Vec::with_capacity(groups.len());
     for (group_name, info) in groups {
@@ -150,7 +145,7 @@ pub fn topic_groups(req: &mut Request) -> IronResult<Response> {
         return Ok(Response::with((status::NotFound, "")));
     }
 
-    let groups = build_group_list(cache, &cluster_id, Some(topic_name));
+    let groups = build_group_list(cache, |c, t, _| &cluster_id == c && topic_name == t);
 
     let mut result_data = Vec::with_capacity(groups.len());
     for (group_name, info) in groups {
@@ -188,7 +183,6 @@ pub fn group_offsets(req: &mut Request) -> IronResult<Response> {
     let group_name = req.extensions.get::<Router>().unwrap().find("group_name").unwrap();
 
     let offsets = cache.offsets_by_cluster_group(&cluster_id, &group_name.to_owned());
-
 
     let wms = time!("fetch wms", fetch_watermarks(&cluster_id, &offsets));
     let wms = match wms {
@@ -281,8 +275,35 @@ pub fn topic_topology(req: &mut Request) -> IronResult<Response> {
 // ********** SEARCH **********
 //
 
-pub fn search_topic(req: &mut Request) -> IronResult<Response> {
-    let params = req.get_ref::<UrlEncodedQuery>().unwrap().clone();
+pub fn consumer_search(req: &mut Request) -> IronResult<Response> {
+    let params = req.get_ref::<UrlEncodedQuery>().unwrap_or(&HashMap::new()).clone();
+    let cache = req.extensions.get::<CacheType>().unwrap();
+
+    let search_string = params.get("search")
+        .map(|results| results[0].as_str())
+        .unwrap_or("");
+    let regex = params.get("regex")
+        .map(|results| results[0].as_str())
+        .unwrap_or("");
+
+    let topics: Vec<i32> = match (search_string, regex) {
+        (pattern, "true") => {
+            Vec::new()
+        },
+        (search, _) if search.len() >= 3 => {
+            Vec::new()
+        },
+        _ => Vec::new(),
+    };
+
+    //let mut result_data = Vec::new();
+
+    let result = json!({"data": topics});
+    Ok(json_gzip_response(result))
+}
+
+pub fn topic_search(req: &mut Request) -> IronResult<Response> {
+    let params = req.get_ref::<UrlEncodedQuery>().unwrap_or(&HashMap::new()).clone();
     let cache = req.extensions.get::<CacheType>().unwrap();
 
     let search_string = params.get("search")
