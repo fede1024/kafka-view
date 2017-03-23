@@ -98,7 +98,9 @@ $(document).ready(function() {
             "ajax": $(this).attr("data-url"),
             "lengthMenu": [ [10, 50, 200, -1], [10, 50, 200, "All"] ],
             "language": { "search": "Regex search:" },
-            "columnDefs": [ ],
+            "columnDefs": [
+                { "className": "dt-body-right", "targets": [ 2, 3 ] }
+            ],
             "processing": true,
             "deferRender": true,
             "stateSave": true,
@@ -117,7 +119,9 @@ $(document).ready(function() {
             "lengthMenu": [ [10, 50, 200, -1], [10, 50, 200, "All"] ],
             "language": { "search": "Regex search:" },
             "processing": true,
-            "columnDefs": [ ],
+            "columnDefs": [
+                { "className": "dt-body-right", "targets": [ 1, 2, 3, 4 ] }
+            ],
             "deferRender": true,
             "stateSave": true,
             "createdRow": function(row, data, index) {
@@ -135,7 +139,9 @@ $(document).ready(function() {
             "ajax": $(this).attr("data-url"),
             "lengthMenu": [ [10, 50, 200, -1], [10, 50, 200, "All"] ],
             "language": { "search": "Regex search:" },
-            "columnDefs": [ ],
+            "columnDefs": [
+                { "className": "dt-body-right", "targets": [ 2, 3 ] }
+            ],
             "processing": true,
             "deferRender": true,
             stateSave: true,
@@ -212,8 +218,8 @@ $(document).ready(function() {
             "createdRow": function(row, data, index) {
                 var cluster_id = $(this).attr("data-param");
                 var row = $(row).children();
-                cluster_to_url(row[0]);
                 topic_to_url(row[0].innerHTML, row[1]);
+                cluster_to_url(row[0]);
                 error_to_graphic(row[3]);
                 bytes_to_human(row[4], "/s");
                 big_num_to_human(row[5], "msg/s");
@@ -226,11 +232,16 @@ $(document).ready(function() {
             "ajax": $(this).attr("data-url"),
             "lengthMenu": [ [10, 50, 200, -1], [10, 50, 200, "All"] ],
             "pageLength": 50,
-            "columnDefs": [ ],
+            "columnDefs": [
+                { "className": "dt-body-right", "targets": [ 3, 4 ] }
+            ],
             "processing": true,
             "deferRender": true,
             "stateSave": true,
             "createdRow": function(row, data, index) {
+                var row = $(row).children();
+                group_to_url(row[0].innerHTML, row[1]);
+                cluster_to_url(row[0]);
             }
         });
     });

@@ -43,8 +43,7 @@ pub fn cluster_topics(req: &mut Request) -> IronResult<Response> {
         result_data.push(json!((topic_name, partitions.len(), &errors, rate.0.round(), rate.1.round())));
     }
 
-    let result = json!({"data": result_data});
-    Ok(json_gzip_response(result))
+    Ok(json_gzip_response(json!({"data": result_data})))
 }
 
 //
@@ -69,8 +68,7 @@ pub fn cluster_brokers(req: &mut Request) -> IronResult<Response> {
         result_data.push(json!((broker.id, broker.hostname, rate.0.round(), rate.1.round())));
     }
 
-    let result = json!({"data": result_data});
-    Ok(json_gzip_response(result))
+    Ok(json_gzip_response(json!({"data": result_data})))
 }
 
 //
@@ -98,18 +96,18 @@ impl GroupInfo {
 }
 
 // TOOD: add doc
-fn build_group_list<F>(cache: &Cache, filter_fn: F) -> HashMap<String, GroupInfo>
+fn build_group_list<F>(cache: &Cache, filter_fn: F) -> HashMap<(ClusterId, String), GroupInfo>
         where F: Fn(&ClusterId, &TopicName, &String) -> bool {
 
-    let mut groups: HashMap<String, GroupInfo> = cache.groups.lock_iter(|iter| {
+    let mut groups: HashMap<(ClusterId, String), GroupInfo> = cache.groups.lock_iter(|iter| {
             iter.filter(|&(&(ref c, ref t), ref g)| filter_fn(&c, &t, &g.name))
-                .map(|(_, g)| (g.name.clone(), GroupInfo::new(g.state.clone(), g.members.len())))
+                .map(|(&(ref c, _), g)| ((c.clone(), g.name.clone()), GroupInfo::new(g.state.clone(), g.members.len())))
                 .collect()
         });
 
-    let offsets = cache.offsets.filter_clone_k(|&(ref c, ref g, ref t)| filter_fn(c, g, t));
-    for (_, group, _) in offsets {
-        (*groups.entry(group).or_insert(GroupInfo::new_empty())).add_offset();
+    let offsets = cache.offsets.filter_clone_k(|&(ref c, ref g, ref t)| filter_fn(c, t, g));
+    for (cluster_id, group, _) in offsets {
+        (*groups.entry((cluster_id, group)).or_insert(GroupInfo::new_empty())).add_offset();
     }
 
     return groups;
@@ -127,7 +125,7 @@ pub fn cluster_groups(req: &mut Request) -> IronResult<Response> {
     let groups = build_group_list(cache, |c, _, _| &cluster_id == c);
 
     let mut result_data = Vec::with_capacity(groups.len());
-    for (group_name, info) in groups {
+    for ((cluster_id, group_name), info) in groups {
         result_data.push(json!((group_name, info.state, info.members, info.stored_offsets)));
     }
 
@@ -148,12 +146,11 @@ pub fn topic_groups(req: &mut Request) -> IronResult<Response> {
     let groups = build_group_list(cache, |c, t, _| &cluster_id == c && topic_name == t);
 
     let mut result_data = Vec::with_capacity(groups.len());
-    for (group_name, info) in groups {
+    for ((cluster_id, group_name), info) in groups {
         result_data.push(json!((group_name, info.state, info.members, info.stored_offsets)));
     }
 
-    let result = json!({"data": result_data});
-    Ok(json_gzip_response(result))
+    Ok(json_gzip_response(json!({"data": result_data})))
 }
 
 pub fn group_members(req: &mut Request) -> IronResult<Response> {
@@ -173,8 +170,7 @@ pub fn group_members(req: &mut Request) -> IronResult<Response> {
         result_data.push(json!((member.id, member.client_id, member.client_host)));
     }
 
-    let result = json!({"data": result_data});
-    Ok(json_gzip_response(result))
+    Ok(json_gzip_response(json!({"data": result_data})))
 }
 
 pub fn group_offsets(req: &mut Request) -> IronResult<Response> {
@@ -209,8 +205,7 @@ pub fn group_offsets(req: &mut Request) -> IronResult<Response> {
         }
     }
 
-    let result = json!({"data": result_data});
-    Ok(json_gzip_response(result))
+    Ok(json_gzip_response(json!({"data": result_data})))
 }
 
 fn fetch_watermarks(cluster_id: &ClusterId, offsets: &Vec<((ClusterId, String, TopicName), Vec<i64>)>)
@@ -267,8 +262,7 @@ pub fn topic_topology(req: &mut Request) -> IronResult<Response> {
         result_data.push(json!((p.id, p.leader, p.replicas, p.isr, p.error)));
     }
 
-    let result = json!({"data": result_data});
-    Ok(json_gzip_response(result))
+    Ok(json_gzip_response(json!({"data": result_data})))
 }
 
 //
@@ -286,20 +280,25 @@ pub fn consumer_search(req: &mut Request) -> IronResult<Response> {
         .map(|results| results[0].as_str())
         .unwrap_or("");
 
-    let topics: Vec<i32> = match (search_string, regex) {
+    let groups = match (search_string, regex) {
         (pattern, "true") => {
-            Vec::new()
+            Regex::new(search_string)
+                .map(|r| build_group_list(cache, |_, _, g| r.is_match(g)))
+                .unwrap_or(HashMap::new())
         },
         (search, _) if search.len() >= 3 => {
-            Vec::new()
+            build_group_list(cache, |_, _, g| g.contains(search))
         },
-        _ => Vec::new(),
+        _ => HashMap::new(),
     };
 
-    //let mut result_data = Vec::new();
 
-    let result = json!({"data": topics});
-    Ok(json_gzip_response(result))
+    let mut result_data = Vec::with_capacity(groups.len());
+    for ((cluster_id, group_name), info) in groups {
+        result_data.push(json!((cluster_id, group_name, info.state, info.members, info.stored_offsets)));
+    }
+
+    Ok(json_gzip_response(json!({"data": result_data})))
 }
 
 pub fn topic_search(req: &mut Request) -> IronResult<Response> {
@@ -340,6 +339,5 @@ pub fn topic_search(req: &mut Request) -> IronResult<Response> {
         result_data.push(json!((cluster_id, topic_name, partitions.len(), errors, b_rate, m_rate)));
     }
 
-    let result = json!({"data": result_data});
-    Ok(json_gzip_response(result))
+    Ok(json_gzip_response(json!({"data": result_data})))
 }

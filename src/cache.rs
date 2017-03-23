@@ -316,6 +316,7 @@ impl<K, V> ReplicatedMap<K, V> where K: Eq + Hash + Clone + Serialize + Deserial
         };
     }
 
+    // TODO: add doc
     pub fn lock_iter<F, R>(&self, f: F) -> R
             where F: Fn(hash_map::Iter<K, V>) -> R {
         match self.map.read() {

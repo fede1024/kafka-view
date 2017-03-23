@@ -27,7 +27,7 @@ pub fn consumer_search(req: &mut Request) -> IronResult<Response> {
     let search_form = layout::search_form("/consumers", "Consumer name", search_string, regex);
     let api_url = format!("/api/search/consumer?search={}&regex={}", search_string, regex);
     let results = layout::datatable_ajax("group-search-ajax", &api_url, "",
-         html! { tr { th "Group name" th "Status" th "Registered members" th "Stored topic offsets" } }
+         html! { tr { th "Cluster" th "Group name" th "Status" th "Registered members" th "Stored topic offsets" } }
     );
 
     let page = layout::page(req, "Consumer search", html! {
