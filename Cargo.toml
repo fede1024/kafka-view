@@ -22,8 +22,8 @@ maud_macros = "0.16.1"
 mount = "^0.3.0"
 urlencoded = "0.5.0"
 rand = "0.3"
-rdkafka = { git = "https://github.com/fede1024/rust-rdkafka.git"}
-# rdkafka = { path = "/home/fede/rust/rust-rdkafka"}
+# rdkafka = { git = "https://github.com/fede1024/rust-rdkafka.git"}
+rdkafka = { path = "/home/fede/rust/rust-rdkafka"}
 # rdkafka = "^0.8.0"
 regex = "0.1.80"
 router = "^0.5.1"

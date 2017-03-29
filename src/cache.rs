@@ -3,7 +3,7 @@ use rdkafka::client::EmptyContext;
 use rdkafka::config::{ClientConfig, TopicConfig};
 use rdkafka::consumer::stream_consumer::StreamConsumer;
 use rdkafka::consumer::{Consumer, EmptyConsumerContext};
-use rdkafka::producer::{FutureProducer, FutureProducerTopic};
+use rdkafka::producer::FutureProducer;
 use rdkafka::error::KafkaError;
 use rdkafka::message::Message;
 use serde::de::Deserialize;
@@ -45,9 +45,8 @@ impl WrappedKey {
 //
 
 pub struct ReplicaWriter {
-//    brokers: String,
-//    topic_name: String,
-    producer_topic: FutureProducerTopic<EmptyContext>,
+    topic_name: String,
+    producer: FutureProducer<EmptyContext>,
 }
 
 impl ReplicaWriter {
@@ -59,15 +58,9 @@ impl ReplicaWriter {
             .create::<FutureProducer<_>>()
             .expect("Producer creation error");
 
-        producer.start();
-
-        let topic = producer.get_topic(topic_name, &TopicConfig::new())
-            .expect("Topic creation error");
-
         let writer = ReplicaWriter {
-//            brokers: brokers.to_owned(),
-//            topic_name: topic_name.to_owned(),
-            producer_topic: topic,
+            topic_name: topic_name.to_owned(),
+            producer: producer,
         };
 
         Ok(writer)
@@ -84,7 +77,8 @@ impl ReplicaWriter {
         // trace!("Serialized value size: {}", serialized_value.len());
         trace!("Serialized update size: key={:.3}KB value={:.3}KB",
             (serialized_key.len() as f64 / 1000f64), (serialized_value.len() as f64 / 1000f64));
-        let _f = self.producer_topic.send_copy(None, Some(&serialized_value), Some(&serialized_key), None)
+        let _f = self.producer.send_copy(self.topic_name.as_str(), None, Some(&serialized_value),
+                                         Some(&serialized_key), None)
             .chain_err(|| "Failed to produce message")?;
         // _f.wait();  // Uncomment to make production synchronous
         Ok(())

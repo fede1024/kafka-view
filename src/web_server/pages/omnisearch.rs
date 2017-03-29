@@ -42,7 +42,7 @@ pub fn consumer_search(req: &mut Request) -> IronResult<Response> {
 }
 
 pub fn topic_search(req: &mut Request) -> IronResult<Response> {
-    let params = req.get_ref::<UrlEncodedQuery>().unwrap().clone();
+    let params = req.get_ref::<UrlEncodedQuery>().unwrap_or(&HashMap::new()).clone();
     let cache = req.extensions.get::<CacheType>().unwrap();
 
     let search_string = params.get("search")
