@@ -119,7 +119,7 @@ fn main() {
 
     let config_path = matches.value_of("conf").unwrap();
 
-    info!("Kafka-web is starting up!");
+    info!("Kafka-view is starting up!");
     if let Err(e) = run_kafka_web(config_path) {
         format_error_chain!(e);
         std::process::exit(1);

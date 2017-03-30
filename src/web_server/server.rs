@@ -130,7 +130,7 @@ pub fn run_server(cache: Cache, config: &Config) -> Result<()> {
         .chain_err(|| "Failed to start iron server")?;
 
     let version = option_env!("CARGO_PKG_VERSION").unwrap_or("?");
-    info!("Running kafka-web v{} on port {}.", version, port);
+    info!("Running kafka-view v{} on port {}.", version, port);
 
     Ok(())
 }

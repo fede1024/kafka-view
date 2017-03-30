@@ -99,7 +99,7 @@ fn navbar_header() -> PreEscaped<String> {
                     img src="/public/images/kafka_logo.png"
                         style="float:left;max-width:160%;max-height:160%; margin-top: -0.06in; margin-right: 0.07in"
                         align="bottom"
-                "Kafka-web"
+                "Kafka-view"
             }
         }
     }
@@ -139,7 +139,7 @@ fn navbar_side() -> PreEscaped<String> {
                         }
                     }
                     // li a href="/" { i class="fa fa-dashboard fa-fw" {}  " Home" }
-                    li a href="/" style="font-size: 12pt" { i class="fa fa-info-circle fa-fw" {}  " Home" }
+                    //li a href="/" style="font-size: 12pt" { i class="fa fa-info-circle fa-fw" {}  " Home" }
                     li a href="/clusters/" style="font-size: 12pt" { i class="fa fa-server fa-fw" {}  " Clusters" }
                     li a href="/topics/" style="font-size: 12pt" { i class="fa fa-exchange fa-fw" {}  " Topics" }
                     li a href="/consumers/" style="font-size: 12pt" { i class="fa fa-cubes fa-fw" {}  " Consumers" }
@@ -194,7 +194,7 @@ fn body(page_title: &str, content: PreEscaped<String>) -> PreEscaped<String> {
                     div class="col-md-12" {}
                 }
                 div class="row flex-footer" style="border-top: 1px solid #eee; margin-top: 0.2in"  {
-                    div class="col-md-4" style="text-align: center;" { "Kafka-web" }
+                    div class="col-md-4" style="text-align: center;" { "Kafka-view" }
                     div class="col-md-4" style="text-align: center;" {
                         "Version: " (option_env!("CARGO_PKG_VERSION").unwrap_or("unknown"))
                     }

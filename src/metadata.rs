@@ -209,7 +209,7 @@ impl MetadataFetcher {
         interval: Duration
     ) -> MetadataFetcher {
         MetadataFetcher {
-            scheduler: Scheduler::new(interval, 2),
+            scheduler: Scheduler::new(interval, 4),
             broker_cache: broker_cache,
             topic_cache: topic_cache,
             group_cache: group_cache,
@@ -219,6 +219,7 @@ impl MetadataFetcher {
     pub fn add_cluster(&mut self, cluster_id: &ClusterId, cluster_config: &ClusterConfig) -> Result<()> {
         let consumer = ClientConfig::new()
             .set("bootstrap.servers", &cluster_config.bootstrap_servers())
+            .set("api.version.request", "true")
             .create::<MetadataConsumer>()
             .expect("Consumer creation failed");
 
