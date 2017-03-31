@@ -55,7 +55,7 @@ fn redirect_to(dest: &str) -> impl Handler {
 
 pub fn chain() -> iron::Chain {
     let mut router = Router::new();
-    // router.get("/", redirect_to("clusters"), "home");
+    router.get("/", redirect_to("clusters"), "home");
     router.get("/clusters", pages::clusters_page, "clusters");
     router.get("/cluster/:cluster_id", pages::cluster_page, "cluster");
     router.get("/cluster/:cluster_id/topic/:topic_name", pages::topic_page, "topic");
