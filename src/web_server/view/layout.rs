@@ -82,6 +82,7 @@ fn html_head(title: &str) -> PreEscaped<String> {
             link href="/public/sb-admin-2/dist/css/sb-admin-2.css" rel="stylesheet" {}
             link href="/public/sb-admin-2/vendor/font-awesome/css/font-awesome.min.css" rel="stylesheet" type="text/css" {}
             link href="/public/my_css.css" rel="stylesheet" type="text/css" {}
+            script async="" defer="" src="https://buttons.github.io/buttons.js" {}
         }
     }
 }
@@ -114,7 +115,9 @@ fn navbar_top() -> PreEscaped<String> {
                     i class="fa fa-caret-down" {}
                 }
                 ul class="dropdown-menu dropdown-user" {
-                    li { a href="#" {i class="fa fa-github fa-fw" {} "GitHub" } }
+                    li { a href="https://github.com/fede1024/kafka-view" {
+                        i class="fa fa-github fa-fw" {} "GitHub" }
+                    }
                     // li class="divider" {}
                     // li { a href="#" {i class="fa fa-sign-out fa-fw" {} "Logout" } }
                 }
@@ -193,13 +196,18 @@ fn body(page_title: &str, content: PreEscaped<String>) -> PreEscaped<String> {
                 div class="row" {
                     div class="col-md-12" {}
                 }
-                div class="row flex-footer" style="border-top: 1px solid #eee; margin-top: 0.2in"  {
-                    div class="col-md-4" style="text-align: center;" { "Kafka-view" }
+                div class="row flex-footer" style="border-top: 1px solid #eee; margin-top: 0.2in; padding-top: 0.05in"  {
                     div class="col-md-4" style="text-align: center;" {
-                        "Version: " (option_env!("CARGO_PKG_VERSION").unwrap_or("unknown"))
+                        "kafka-view " (option_env!("CARGO_PKG_VERSION").unwrap_or("")) }
+                    div class="col-md-4" style="text-align: center;" {
+                        "Rust nightly"
                     }
                     div class="col-md-4" style="text-align: center;" {
-                        "Request time: " span id="request_time" "loading"
+                        a class="github-button" href="https://github.com/fede1024/kafka-view"
+                            data-icon="octicon-star" data-count-href="/fede1024/kafka-view/stargazers"
+                            data-count-api="/repos/fede1024/kafka-view#stargazers_count"
+                            data-count-aria-label="# stargazers on GitHub" // data-style="mega"
+                            aria-label="Star fede1024/kafka-view on GitHub" { "Star" }
                     }
                 }
             }
@@ -212,6 +220,7 @@ fn body(page_title: &str, content: PreEscaped<String>) -> PreEscaped<String> {
         script src="/public/sb-admin-2/vendor/datatables-plugins/dataTables.bootstrap.min.js" {}
         script src="/public/sb-admin-2/vendor/datatables-responsive/dataTables.responsive.js" {}
         script src="/public/sb-admin-2/dist/js/sb-admin-2.js" {}
+        // (PreEscaped("<script async defer src=\"https://buttons.github.io/buttons.js\">"))
         script src="/public/my_js.js" {}
     }
 }
