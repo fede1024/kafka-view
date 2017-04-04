@@ -198,9 +198,11 @@ fn body(page_title: &str, content: PreEscaped<String>) -> PreEscaped<String> {
                 }
                 div class="row flex-footer" style="border-top: 1px solid #eee; margin-top: 0.2in; padding-top: 0.05in"  {
                     div class="col-md-4" style="text-align: center;" {
-                        "kafka-view " (option_env!("CARGO_PKG_VERSION").unwrap_or("")) }
+                        a href="https://github.com/fede1024/kafka-view" {
+                            "kafka-view " (option_env!("CARGO_PKG_VERSION").unwrap_or("")) }
+                        }
                     div class="col-md-4" style="text-align: center;" {
-                        "Rust nightly"
+                        a href="https://www.rust-lang.org" "Rust 1.17.0-nightly"
                     }
                     div class="col-md-4" style="text-align: center;" {
                         a class="github-button" href="https://github.com/fede1024/kafka-view"
