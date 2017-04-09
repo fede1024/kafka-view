@@ -25,6 +25,7 @@ extern crate regex;
 extern crate router;
 extern crate serde;
 extern crate serde_cbor;
+extern crate scheduled_executor;
 extern crate staticfile;
 extern crate urlencoded;
 
@@ -39,6 +40,7 @@ mod web_server;
 mod offsets;
 
 use clap::{App, Arg, ArgMatches};
+use scheduled_executor::{Executor, TaskGroup};
 
 use std::time;
 use time::Duration;
@@ -46,8 +48,7 @@ use time::Duration;
 use cache::{Cache, ReplicaReader, ReplicaWriter};
 use error::*;
 use metrics::MetricsFetcher;
-use metadata::MetadataFetcher;
-
+use metadata::MetadataFetchTaskGroup;
 use offsets::run_offset_consumer;
 
 fn run_kafka_web(config_path: &str) -> Result<()> {
@@ -71,14 +72,19 @@ fn run_kafka_web(config_path: &str) -> Result<()> {
         .chain_err(|| format!("State load failed (brokers: {}, topic: {})", replicator_bootstrap_servers, topic_name))?;
 
     // Metadata fetch
-    let mut metadata_fetcher = MetadataFetcher::new(cache.brokers.alias(), cache.topics.alias(),
-            cache.groups.alias(), Duration::from_secs(config.metadata_refresh));
-    for (cluster_id, cluster_config) in &config.clusters {
-        metadata_fetcher.add_cluster(cluster_id, &cluster_config)
-            .chain_err(|| format!("Failed to add cluster {}", cluster_id))?;
-        run_offset_consumer(&cluster_id, &cluster_config, &config, cache.offsets.alias());
-        info!("Added cluster {}", cluster_id);
-    }
+    let executor = Executor::new();
+    let task_group = MetadataFetchTaskGroup::new(cache.alias(), config.clone());
+    task_group.schedule(Duration::from_secs(config.metadata_refresh), &executor, None);
+//    let mut metadata_fetcher = MetadataFetcher::new(cache.brokers.alias(), cache.topics.alias(),
+//            cache.groups.alias(), Duration::from_secs(config.metadata_refresh));
+//    for (cluster_id, cluster_config) in &config.clusters {
+//        metadata_fetcher.add_cluster(cluster_id, &cluster_config)
+//            .chain_err(|| format!("Failed to add cluster {}", cluster_id))?;
+//        run_offset_consumer(&cluster_id, &cluster_config, &config, cache.offsets.alias());
+//        info!("Added cluster {}", cluster_id);
+//    }
+
+
 
     let mut metrics_fetcher = MetricsFetcher::new(cache.metrics.alias(),
         Duration::from_secs(config.metrics_refresh));

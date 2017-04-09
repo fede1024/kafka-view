@@ -2,10 +2,11 @@ use rdkafka::consumer::{BaseConsumer, EmptyConsumerContext};
 use rdkafka::config::ClientConfig;
 use rdkafka::error as rderror;
 
-use cache::ReplicatedMap;
-use config::ClusterConfig;
+use cache::{Cache, ReplicatedMap};
+use config::{ClusterConfig, Config};
 use error::*;
 use scheduler::{Scheduler, ScheduledTask};
+use scheduled_executor::{Executor, Handle, TaskGroup};
 
 use std::time::Duration;
 use std::borrow::Borrow;
@@ -17,7 +18,51 @@ use std::collections::HashMap;
 pub type MetadataConsumer = BaseConsumer<EmptyConsumerContext>;
 
 lazy_static! {
-    pub static ref CONSUMERS: RwLock<HashMap<ClusterId, Arc<MetadataConsumer>>> = RwLock::new(HashMap::new());
+    pub static ref CONSUMERS: MetadataConsumerCache = MetadataConsumerCache::new();
+}
+
+pub struct MetadataConsumerCache {
+    consumers: RwLock<HashMap<ClusterId, Arc<MetadataConsumer>>>,
+}
+
+impl MetadataConsumerCache {
+    pub fn new() -> MetadataConsumerCache {
+        MetadataConsumerCache {
+            consumers: RwLock::new(HashMap::new())
+        }
+    }
+
+    pub fn get(&self, cluster_id: &ClusterId) -> Option<Arc<MetadataConsumer>> {
+        match self.consumers.read() {
+            Ok(consumers) => (*consumers).get(cluster_id).cloned(),
+            Err(_) => panic!("Poison error while reading consumer from cache")
+        }
+    }
+
+    pub fn get_err(&self, cluster_id: &ClusterId) -> Result<Arc<MetadataConsumer>> {
+        self.get(cluster_id).ok_or(ErrorKind::MissingConsumerError(cluster_id.clone()).into())
+    }
+
+    pub fn get_or_initialize(&self, cluster_id: &ClusterId, config: &ClusterConfig) -> Result<Arc<MetadataConsumer>> {
+        if let Some(consumer) = self.get(cluster_id) {
+            return Ok(consumer);
+        }
+
+        debug!("Creating metadata consumer for {}", cluster_id);
+        let consumer = ClientConfig::new()
+            .set("bootstrap.servers", &config.bootstrap_servers())
+            .set("api.version.request", "true")
+            .create::<MetadataConsumer>()
+            .chain_err(|| format!("Consumer creation failed for {}", cluster_id))?;
+
+        let consumer_arc = Arc::new(consumer);
+        match self.consumers.write() {
+            Ok(mut consumers) => (*consumers).insert(cluster_id.clone(), consumer_arc.clone()),
+            Err(_) => panic!("Poison error while writing consumer to cache")
+        };
+
+        Ok(consumer_arc)
+    }
 }
 
 // TODO: Use structs?
@@ -194,6 +239,34 @@ impl ScheduledTask for MetadataFetcherTask {
     }
 }
 
+pub struct MetadataFetchTaskGroup {
+    cache: Cache,
+    config: Config,
+}
+
+impl MetadataFetchTaskGroup {
+    pub fn new(cache: Cache, config: Config) -> MetadataFetchTaskGroup {
+        MetadataFetchTaskGroup {
+            cache: cache,
+            config: config,
+        }
+    }
+}
+
+impl TaskGroup for MetadataFetchTaskGroup {
+    type TaskId = ClusterId;
+
+    fn get_tasks(&self) -> Vec<ClusterId> {
+        self.config.clusters.keys().cloned().collect::<Vec<_>>()
+    }
+
+    fn execute(&self, cluster_id: ClusterId, _handle: Option<Handle>) {
+        let consumer = CONSUMERS.get_or_initialize(&cluster_id, self.config.cluster(&cluster_id).unwrap());
+        debug!("Fetch metadata for {}", cluster_id);
+    }
+}
+
+
 pub struct MetadataFetcher {
     scheduler: Scheduler<ClusterId, MetadataFetcherTask>,
     broker_cache: ReplicatedMap<ClusterId, Vec<Broker>>,
@@ -225,9 +298,9 @@ impl MetadataFetcher {
 
         let consumer_arc = Arc::new(consumer);
 
-        CONSUMERS.write()
-            .map(|mut cache| (*cache).insert(cluster_id.clone(), consumer_arc.clone()))
-            .map_err(|_| ErrorKind::PoisonError("adding consumer to cache".to_owned()))?;
+//        CONSUMERS.write()
+//            .map(|mut cache| (*cache).insert(cluster_id.clone(), consumer_arc.clone()))
+//            .map_err(|_| ErrorKind::PoisonError("adding consumer to cache".to_owned()))?;
 
         let mut task = MetadataFetcherTask::new(
             cluster_id, consumer_arc, self.broker_cache.alias(),

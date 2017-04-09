@@ -210,13 +210,7 @@ pub fn group_offsets(req: &mut Request) -> IronResult<Response> {
 
 fn fetch_watermarks(cluster_id: &ClusterId, offsets: &Vec<((ClusterId, String, TopicName), Vec<i64>)>)
         -> Result<HashMap<(TopicName, i32), KafkaResult<(i64, i64)>>> {
-    let consumer = match CONSUMERS.read() {
-        Ok(ref cache) => match cache.get(&cluster_id) {
-            Some(consumer_arc) => consumer_arc.clone(),
-            None => bail!("No consumer found for {}", cluster_id),
-        },
-        Err(_) => panic!("Poison err"),
-    };
+    let consumer = CONSUMERS.get_err(&cluster_id)?;
 
     let cpu_pool = Builder::new().pool_size(32).create();
 
