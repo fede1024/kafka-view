@@ -40,7 +40,7 @@ mod web_server;
 mod offsets;
 
 use clap::{App, Arg, ArgMatches};
-use scheduled_executor::{Executor, TaskGroup};
+use scheduled_executor::{thread_pool, Executor, TaskGroup};
 
 use std::time;
 use time::Duration;
@@ -73,18 +73,9 @@ fn run_kafka_web(config_path: &str) -> Result<()> {
 
     // Metadata fetch
     let executor = Executor::new();
+    let pool = thread_pool(4, "metadata-fetch-");
     let task_group = MetadataFetchTaskGroup::new(cache.alias(), config.clone());
-    task_group.schedule(Duration::from_secs(config.metadata_refresh), &executor, None);
-//    let mut metadata_fetcher = MetadataFetcher::new(cache.brokers.alias(), cache.topics.alias(),
-//            cache.groups.alias(), Duration::from_secs(config.metadata_refresh));
-//    for (cluster_id, cluster_config) in &config.clusters {
-//        metadata_fetcher.add_cluster(cluster_id, &cluster_config)
-//            .chain_err(|| format!("Failed to add cluster {}", cluster_id))?;
-//        run_offset_consumer(&cluster_id, &cluster_config, &config, cache.offsets.alias());
-//        info!("Added cluster {}", cluster_id);
-//    }
-
-
+    task_group.schedule(Duration::from_secs(config.metadata_refresh), &executor, Some(pool.clone()));
 
     let mut metrics_fetcher = MetricsFetcher::new(cache.metrics.alias(),
         Duration::from_secs(config.metrics_refresh));

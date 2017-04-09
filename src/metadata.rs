@@ -10,8 +10,7 @@ use scheduled_executor::{Executor, Handle, TaskGroup};
 
 use std::time::Duration;
 use std::borrow::Borrow;
-use std::fmt;
-use std::sync::{Arc, RwLock};
+use std::fmt; use std::sync::{Arc, RwLock};
 use std::collections::HashMap;
 
 
@@ -43,7 +42,7 @@ impl MetadataConsumerCache {
         self.get(cluster_id).ok_or(ErrorKind::MissingConsumerError(cluster_id.clone()).into())
     }
 
-    pub fn get_or_initialize(&self, cluster_id: &ClusterId, config: &ClusterConfig) -> Result<Arc<MetadataConsumer>> {
+    pub fn get_or_init(&self, cluster_id: &ClusterId, config: &ClusterConfig) -> Result<Arc<MetadataConsumer>> {
         if let Some(consumer) = self.get(cluster_id) {
             return Ok(consumer);
         }
@@ -180,65 +179,6 @@ fn fetch_groups(consumer: &MetadataConsumer, timeout_ms: i32) -> Result<Vec<Grou
     Ok(groups)
 }
 
-
-// TODO: remove and use MetadataFetcher directly
-struct MetadataFetcherTask {
-    cluster_id: ClusterId,
-    consumer: Arc<MetadataConsumer>,
-    broker_cache: ReplicatedMap<ClusterId, Vec<Broker>>,
-    topic_cache: ReplicatedMap<(ClusterId, TopicName), Vec<Partition>>,
-    group_cache: ReplicatedMap<(ClusterId, String), Group>
-}
-
-impl MetadataFetcherTask {
-    fn new(
-        cluster_id: &ClusterId,
-        consumer: Arc<MetadataConsumer>,
-        broker_cache: ReplicatedMap<ClusterId, Vec<Broker>>,
-        topic_cache: ReplicatedMap<(ClusterId, TopicName), Vec<Partition>>,
-        group_cache: ReplicatedMap<(ClusterId, String), Group>
-    ) -> MetadataFetcherTask {
-        MetadataFetcherTask {
-            cluster_id: cluster_id.to_owned(),
-            consumer: consumer,
-            broker_cache: broker_cache,
-            topic_cache: topic_cache,
-            group_cache: group_cache,
-        }
-    }
-}
-
-impl ScheduledTask for MetadataFetcherTask {
-    fn run(&self) -> Result<()> {
-        let metadata = self.consumer.fetch_metadata(60000)
-            .chain_err(|| format!("Failed to fetch metadata from {}", self.cluster_id))?;
-        let mut brokers = Vec::new();
-        for broker in metadata.brokers() {
-            brokers.push(Broker::new(broker.id(), broker.host().to_owned(), broker.port()));
-        }
-        self.broker_cache.insert(self.cluster_id.to_owned(), brokers)
-            .chain_err(|| "Failed to insert broker information in cache")?;
-
-        for topic in metadata.topics() {
-            let mut partitions = Vec::with_capacity(topic.partitions().len());
-            for p in topic.partitions() {
-                partitions.push(Partition::new(p.id(), p.leader(), p.replicas().to_owned(), p.isr().to_owned(),
-                                               p.error().map(|e| rderror::resp_err_description(e))));
-            }
-            partitions.sort_by(|a, b| a.id.cmp(&b.id));
-            self.topic_cache.insert((self.cluster_id.to_owned(), topic.name().to_owned()), partitions)
-                .chain_err(|| "Failed to insert broker information in cache")?;
-        }
-
-        // Fetch groups
-        for group in fetch_groups(self.consumer.as_ref(), 30000)? {
-            self.group_cache.insert((self.cluster_id.to_owned(), group.name.to_owned()), group);
-        }
-
-        Ok(())
-    }
-}
-
 pub struct MetadataFetchTaskGroup {
     cache: Cache,
     config: Config,
@@ -251,6 +191,35 @@ impl MetadataFetchTaskGroup {
             config: config,
         }
     }
+
+    fn fetch_data(&self, consumer: Arc<MetadataConsumer>, cluster_id: &ClusterId) -> Result<()> {
+        let metadata = consumer.fetch_metadata(60000)
+            .chain_err(|| format!("Failed to fetch metadata from {}", cluster_id))?;
+        let mut brokers = Vec::new();
+        for broker in metadata.brokers() {
+            brokers.push(Broker::new(broker.id(), broker.host().to_owned(), broker.port()));
+        }
+        self.cache.brokers.insert(cluster_id.to_owned(), brokers)
+            .chain_err(|| "Failed to insert broker information in cache")?;
+
+        for topic in metadata.topics() {
+            let mut partitions = Vec::with_capacity(topic.partitions().len());
+            for p in topic.partitions() {
+                partitions.push(Partition::new(p.id(), p.leader(), p.replicas().to_owned(), p.isr().to_owned(),
+                                               p.error().map(|e| rderror::resp_err_description(e))));
+            }
+            partitions.sort_by(|a, b| a.id.cmp(&b.id));
+            self.cache.topics.insert((cluster_id.clone(), topic.name().to_owned()), partitions)
+                .chain_err(|| "Failed to insert broker information in cache")?;
+        }
+
+        // Fetch groups
+        for group in fetch_groups(consumer.as_ref(), 30000)? {
+            self.cache.groups.insert((cluster_id.clone(), group.name.to_owned()), group);
+        }
+
+        Ok(())
+    }
 }
 
 impl TaskGroup for MetadataFetchTaskGroup {
@@ -261,53 +230,13 @@ impl TaskGroup for MetadataFetchTaskGroup {
     }
 
     fn execute(&self, cluster_id: ClusterId, _handle: Option<Handle>) {
-        let consumer = CONSUMERS.get_or_initialize(&cluster_id, self.config.cluster(&cluster_id).unwrap());
-        debug!("Fetch metadata for {}", cluster_id);
-    }
-}
-
-
-pub struct MetadataFetcher {
-    scheduler: Scheduler<ClusterId, MetadataFetcherTask>,
-    broker_cache: ReplicatedMap<ClusterId, Vec<Broker>>,
-    topic_cache: ReplicatedMap<(ClusterId, TopicName), Vec<Partition>>,
-    group_cache: ReplicatedMap<(ClusterId, String), Group>
-}
-
-impl MetadataFetcher {
-    pub fn new(
-        broker_cache: ReplicatedMap<ClusterId, Vec<Broker>>,
-        topic_cache: ReplicatedMap<(ClusterId, TopicName), Vec<Partition>>,
-        group_cache: ReplicatedMap<(ClusterId, String), Group>,
-        interval: Duration
-    ) -> MetadataFetcher {
-        MetadataFetcher {
-            scheduler: Scheduler::new(interval, 4),
-            broker_cache: broker_cache,
-            topic_cache: topic_cache,
-            group_cache: group_cache,
+        match CONSUMERS.get_or_init(&cluster_id, self.config.cluster(&cluster_id).unwrap()) {
+            Ok(consumer) => {
+                if let Err(e) = self.fetch_data(consumer, &cluster_id) {
+                    format_error_chain!(e);
+                }
+            },
+            Err(e) => format_error_chain!(e),
         }
-    }
-
-    pub fn add_cluster(&mut self, cluster_id: &ClusterId, cluster_config: &ClusterConfig) -> Result<()> {
-        let consumer = ClientConfig::new()
-            .set("bootstrap.servers", &cluster_config.bootstrap_servers())
-            .set("api.version.request", "true")
-            .create::<MetadataConsumer>()
-            .expect("Consumer creation failed");
-
-        let consumer_arc = Arc::new(consumer);
-
-//        CONSUMERS.write()
-//            .map(|mut cache| (*cache).insert(cluster_id.clone(), consumer_arc.clone()))
-//            .map_err(|_| ErrorKind::PoisonError("adding consumer to cache".to_owned()))?;
-
-        let mut task = MetadataFetcherTask::new(
-            cluster_id, consumer_arc, self.broker_cache.alias(),
-            self.topic_cache.alias(), self.group_cache.alias());
-
-        // TODO: scheduler should receive a lambda
-        self.scheduler.add_task(cluster_id.to_owned(), task);
-        Ok(())
     }
 }
