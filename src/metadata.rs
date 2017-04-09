@@ -5,7 +5,6 @@ use rdkafka::error as rderror;
 use cache::{Cache, ReplicatedMap};
 use config::{ClusterConfig, Config};
 use error::*;
-use scheduler::{Scheduler, ScheduledTask};
 use scheduled_executor::{Executor, Handle, TaskGroup};
 
 use std::time::Duration;
@@ -185,10 +184,10 @@ pub struct MetadataFetchTaskGroup {
 }
 
 impl MetadataFetchTaskGroup {
-    pub fn new(cache: Cache, config: Config) -> MetadataFetchTaskGroup {
+    pub fn new(cache: &Cache, config: &Config) -> MetadataFetchTaskGroup {
         MetadataFetchTaskGroup {
-            cache: cache,
-            config: config,
+            cache: cache.alias(),
+            config: config.clone(),
         }
     }
 

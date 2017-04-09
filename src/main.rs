@@ -35,7 +35,6 @@ mod config;
 mod error;
 mod metadata;
 mod metrics;
-mod scheduler;
 mod web_server;
 mod offsets;
 
@@ -47,7 +46,7 @@ use time::Duration;
 
 use cache::{Cache, ReplicaReader, ReplicaWriter};
 use error::*;
-use metrics::MetricsFetcher;
+use metrics::MetricsFetchTaskGroup;
 use metadata::MetadataFetchTaskGroup;
 use offsets::run_offset_consumer;
 
@@ -71,19 +70,21 @@ fn run_kafka_web(config_path: &str) -> Result<()> {
     replica_reader.load_state(cache.alias())
         .chain_err(|| format!("State load failed (brokers: {}, topic: {})", replicator_bootstrap_servers, topic_name))?;
 
-    // Metadata fetch
-    let executor = Executor::new();
-    let pool = thread_pool(4, "metadata-fetch-");
-    let task_group = MetadataFetchTaskGroup::new(cache.alias(), config.clone());
-    task_group.schedule(Duration::from_secs(config.metadata_refresh), &executor, Some(pool.clone()));
+    let executor = Executor::new("executor")
+        .chain_err(|| "Failed to start main executor")?;
+    let pool = thread_pool(4, "data-fetch-");
 
-    let mut metrics_fetcher = MetricsFetcher::new(cache.metrics.alias(),
-        Duration::from_secs(config.metrics_refresh));
-    for cluster_id in &cache.brokers.keys() {
-        // TODO there is a race condition here, a broker could be removed
-        for broker in cache.brokers.get(cluster_id).unwrap().iter() {
-            metrics_fetcher.add_broker(cluster_id, broker.id, &broker.hostname);
-        }
+    // Metadata fetch
+    let metadata_task_group = MetadataFetchTaskGroup::new(&cache, &config);
+    metadata_task_group.schedule(Duration::from_secs(config.metadata_refresh), &executor, Some(pool.clone()));
+
+    // Metrics fetch
+    let metrics_task_group = MetricsFetchTaskGroup::new(&cache);
+    metrics_task_group.schedule(Duration::from_secs(config.metrics_refresh), &executor, Some(pool.clone()));
+
+    // Consumer offsets
+    for (cluster_id, cluster_config) in &config.clusters {
+        run_offset_consumer(cluster_id, cluster_config, &config, cache.offsets.alias());
     }
 
     web_server::server::run_server(cache.alias(), &config)

@@ -2,16 +2,15 @@ use curl::easy::Easy;
 use serde_json::Value;
 use chrono::{DateTime, UTC};
 use serde_json;
-
 use regex::Regex;
+use scheduled_executor::{Handle, TaskGroup};
 
 use std::time::Duration;
 use std::collections::HashMap;
 
-use cache::MetricsCache;
+use cache::{Cache, MetricsCache};
 use error::*;
 use metadata::{ClusterId, BrokerId, Broker, TopicName};
-use scheduler::{Scheduler, ScheduledTask};
 
 
 fn format_jolokia_path(hostname: &str, port: i32, filter: &str) -> String {
@@ -115,35 +114,25 @@ impl BrokerMetrics {
     }
 }
 
-struct MetricsFetcherTask {
-    cluster_id: ClusterId,
-    broker_id: BrokerId,
-    cache: MetricsCache,
-    hostname: String,
+pub struct MetricsFetchTaskGroup {
+    cache: Cache,
 }
 
-impl MetricsFetcherTask {
-    fn new(cluster_id: ClusterId, broker_id: BrokerId, hostname: String, cache: MetricsCache)
-            -> MetricsFetcherTask {
-        MetricsFetcherTask {
-            cluster_id: cluster_id,
-            broker_id: broker_id,
-            cache: cache,
-            hostname: hostname,
+impl MetricsFetchTaskGroup {
+    pub fn new(cache: &Cache) -> MetricsFetchTaskGroup {
+        MetricsFetchTaskGroup {
+            cache: cache.alias(),
         }
     }
-}
 
-impl ScheduledTask for MetricsFetcherTask {
-    fn run(&self) -> Result<()> {
-        debug!("Starting fetch for {}", self.hostname);
+    fn fetch_metrics(&self, cluster_id: &ClusterId, broker: &Broker) -> Result<()> {
         let start = UTC::now();
-        let byte_rate_json = fetch_metrics_json(&self.hostname, 8778, "kafka.server:name=BytesInPerSec,*,type=BrokerTopicMetrics/FifteenMinuteRate")
-            .chain_err(|| format!("Failed to fetch byte rate metrics from {}", self.hostname))?;
+        let byte_rate_json = fetch_metrics_json(&broker.hostname, 8778, "kafka.server:name=BytesInPerSec,*,type=BrokerTopicMetrics/FifteenMinuteRate")
+            .chain_err(|| format!("Failed to fetch byte rate metrics from {}", broker.hostname))?;
         let byte_rate_metrics = parse_broker_rate_metrics(&byte_rate_json)
             .chain_err(|| "Failed to parse byte rate broker metrics")?;
-        let msg_rate_json = fetch_metrics_json(&self.hostname, 8778, "kafka.server:name=MessagesInPerSec,*,type=BrokerTopicMetrics/FifteenMinuteRate")
-            .chain_err(|| format!("Failed to fetch message rate metrics from {}", self.hostname))?;
+        let msg_rate_json = fetch_metrics_json(&broker.hostname, 8778, "kafka.server:name=MessagesInPerSec,*,type=BrokerTopicMetrics/FifteenMinuteRate")
+            .chain_err(|| format!("Failed to fetch message rate metrics from {}", broker.hostname))?;
         let msg_rate_metrics = parse_broker_rate_metrics(&msg_rate_json)
             .chain_err(|| "Failed to parse message rate broker metrics")?;
         let mut metrics = BrokerMetrics::new();
@@ -151,30 +140,33 @@ impl ScheduledTask for MetricsFetcherTask {
             let msg_rate = msg_rate_metrics.get(&topic).unwrap_or(&-1f64).clone();
             metrics.set(&topic, byte_rate, msg_rate);
         }
-        self.cache.insert((self.cluster_id.clone(), self.broker_id), metrics)
+        self.cache.metrics.insert((cluster_id.clone(), broker.id), metrics)
             .chain_err(|| "Failed to update metrics cache")?;
         log_elapsed_time("metrics fetch", start);
         Ok(())
     }
 }
 
-pub struct MetricsFetcher {
-    scheduler: Scheduler<(ClusterId, BrokerId), MetricsFetcherTask>,
-    cache: MetricsCache,
-}
+impl TaskGroup for MetricsFetchTaskGroup {
+    type TaskId = (ClusterId, Broker);
 
-impl MetricsFetcher {
-    pub fn new(cache: MetricsCache, interval: Duration) -> MetricsFetcher {
-        MetricsFetcher {
-            scheduler: Scheduler::new(interval, 4),
-            cache: cache,
+    fn get_tasks(&self) -> Vec<(ClusterId, Broker)> {
+        self.cache.brokers.lock_iter(|iter| {
+            let mut tasks = Vec::new();
+            for (cluster_id, brokers) in iter {
+                for broker in brokers {
+                    tasks.push((cluster_id.clone(), broker.clone()));
+                }
+            }
+            tasks
+        })
+    }
+
+    fn execute(&self, task_id: (ClusterId, Broker), _: Option<Handle>) {
+        debug!("Starting fetch for {}: {}", task_id.0, task_id.1.id);
+        if let Err(e) = self.fetch_metrics(&task_id.0, &task_id.1) {
+            format_error_chain!(e);
         }
     }
-
-    pub fn add_broker(&mut self, cluster_id: &ClusterId, broker_id: BrokerId, hostname: &str) -> Result<()> {
-        let task = MetricsFetcherTask::new(cluster_id.to_owned(), broker_id, hostname.to_owned(),
-                                           self.cache.alias());
-        self.scheduler.add_task((cluster_id.to_owned(), broker_id), task);
-        Ok(())
-    }
 }
+
