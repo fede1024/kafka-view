@@ -1,20 +1,20 @@
 kafka-view
 ==========
 
-Kafka-view is an experimental web interface for Kafka written in Rust. Kafka-view creates and maintains a materialized view of the internal state of Kafka including cluster metadata, traffic metrics, group membership, consumer offsets etc.
+Kafka-view is an experimental web interface for Kafka written in Rust. Kafka-view creates and maintains a materialized view of the internal state of Kafka including cluster metadata, traffic metrics, group membership, consumer offsets etc. It uses the [rdkafka](https://github.com/fede1024/rust-rdkafka) Kafka client library for Rust.
 
 Kafka-view supports multiple clusters and implements a fast search functionality to quickly find a topic or consumer group by name or by regex, across all clusters.
 
 ### Current features
 * Available data:
- * Broker and topic metrics: byte rate and message rate for each broker and topic in every cluster.
- * Topic metadata: leader, replicas, ISR, topic health.
- * Group membership: show active consumer groups and members, easily find all the consumers for a given cluster or topic.
- * Consumer offsets: show the current consumer offsets, the high watermark and the difference between the two.
+  * Broker and topic metrics: byte rate and message rate for each broker and topic in every cluster.
+  * Topic metadata: leader, replicas, ISR, topic health.
+  * Group membership: show active consumer groups and members, easily find all the consumers for a given cluster or topic.
+  * Consumer offsets: show the current consumer offsets, the high watermark and the difference between the two.
 * Search:
- * Search topics in all clusters by name or regex.
- * Search consumers in all clusters by name or regex.
- * Sort by any field (traffic, consumer lag, etc)
+  * Search topics in all clusters by name or regex.
+  * Search consumers in all clusters by name or regex.
+  * Sort by any field (traffic, consumer lag, etc)
 
 ### Coming features
 * More metrics (topic size, traffic charts).
