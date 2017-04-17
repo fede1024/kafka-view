@@ -192,7 +192,7 @@ impl MetadataFetchTaskGroup {
     }
 
     fn fetch_data(&self, consumer: Arc<MetadataConsumer>, cluster_id: &ClusterId) -> Result<()> {
-        let metadata = consumer.fetch_metadata(60000)
+        let metadata = consumer.fetch_metadata(None, 120000)
             .chain_err(|| format!("Failed to fetch metadata from {}", cluster_id))?;
         let mut brokers = Vec::new();
         for broker in metadata.brokers() {

@@ -50,6 +50,7 @@ use metrics::MetricsFetchTaskGroup;
 use metadata::MetadataFetchTaskGroup;
 use offsets::run_offset_consumer;
 
+
 fn run_kafka_web(config_path: &str) -> Result<()> {
     let config = config::read_config(config_path)
         .chain_err(|| format!("Unable to load configuration from '{}'", config_path))?;
@@ -84,7 +85,9 @@ fn run_kafka_web(config_path: &str) -> Result<()> {
 
     // Consumer offsets
     for (cluster_id, cluster_config) in &config.clusters {
-        run_offset_consumer(cluster_id, cluster_config, &config, cache.offsets.alias());
+        if let Err(e) = run_offset_consumer(cluster_id, cluster_config, &config, &cache) {
+            format_error_chain!(e);
+        }
     }
 
     web_server::server::run_server(cache.alias(), &config)

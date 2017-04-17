@@ -164,16 +164,14 @@ impl ReplicaReader {
         let mut state: HashMap<WrappedKey, Message> = HashMap::new();
 
         let topic_name = &self.topic_name;
-        let metadata = self.consumer.fetch_metadata(5000)
+        let metadata = self.consumer.fetch_metadata(Some(topic_name), 30000)
             .chain_err(|| "Failed to fetch metadata")?;
-        let topic_metadata = metadata.topics().iter()
-            .find(|m| m.name() == self.topic_name);
 
-        if topic_metadata.is_none() {
+        if metadata.topics().len() == 0{
             warn!("No replicator topic found ({} {})", self.brokers, self.topic_name);
             return Ok(HashMap::new());
         }
-        let topic_metadata = topic_metadata.unwrap();
+        let ref topic_metadata = metadata.topics()[0];
 
         for message in self.consumer.start().wait() {
             match message {
@@ -357,11 +355,17 @@ impl<K, V> ReplicatedMap<K, V> where K: Eq + Hash + Clone + Serialize + Deserial
 // ********** CACHE **********
 //
 
+/// Metrics for a specific broker. TODO: put topic in the key.
 pub type MetricsCache = ReplicatedMap<(ClusterId, BrokerId), BrokerMetrics>;
+
+/// Offsets
 pub type OffsetsCache = ReplicatedMap<(ClusterId, String, TopicName), Vec<i64>>;
 pub type BrokerCache = ReplicatedMap<ClusterId, Vec<Broker>>;
 pub type TopicCache = ReplicatedMap<(ClusterId, TopicName), Vec<Partition>>;
 pub type GroupCache = ReplicatedMap<(ClusterId, String), Group>;
+
+/// Offsets for the internal consumers of the __consumer_offsets topic
+pub type InternalConsumerOffsetCache = ReplicatedMap<ClusterId, Vec<i64>>;
 
 
 pub struct Cache {
@@ -370,6 +374,7 @@ pub struct Cache {
     pub brokers: BrokerCache,
     pub topics: TopicCache,
     pub groups: GroupCache,
+    pub internal_offsets: InternalConsumerOffsetCache,
 }
 
 impl Cache {
@@ -380,7 +385,8 @@ impl Cache {
             offsets: ReplicatedMap::new("offsets", replica_writer_arc.clone()),
             brokers: ReplicatedMap::new("brokers", replica_writer_arc.clone()),
             topics: ReplicatedMap::new("topics", replica_writer_arc.clone()),
-            groups: ReplicatedMap::new("groups", replica_writer_arc)
+            groups: ReplicatedMap::new("groups", replica_writer_arc.clone()),
+            internal_offsets: ReplicatedMap::new("internal_offsets", replica_writer_arc)
         }
     }
 
@@ -391,6 +397,7 @@ impl Cache {
             brokers: self.brokers.alias(),
             topics: self.topics.alias(),
             groups: self.groups.alias(),
+            internal_offsets: self.internal_offsets.alias(),
         }
     }
 }
@@ -403,42 +410,9 @@ impl UpdateReceiver for Cache {
             "brokers" => self.brokers.receive_update(update),
             "topics" => self.topics.receive_update(update),
             "groups" => self.groups.receive_update(update),
+            "internal_offsets" => self.internal_offsets.receive_update(update),
             _ => bail!("Unknown cache name: {}", cache_name),
         };
         Ok(())
     }
 }
-
-// pub struct Cache<K, V>
-//   where K: Eq + Hash + Serialize + Deserialize,
-//         V: Serialize + Deserialize {
-//     cache_lock: Arc<RwLock<HashMap<K, V>>>,
-//     on_insert: Option<Box<Fn(&K, &V)>>,
-//     on_delete: Option<Box<Fn(&K, &V)>>
-// }
-//
-// impl<K, V> Cache<K, V>
-//   where K: Eq + Hash + Serialize + Deserialize,
-//         V: Serialize + Deserialize {
-//
-//     pub fn new() -> Cache<K, V> {
-//         Cache {
-//             cache_lock: Arc::new(RwLock::new(HashMap::new())),
-//             on_insert: None,
-//             on_delete: None,
-//         }
-//     }
-//
-//     pub fn set_on_insert<'a, CB: 'static + Fn(&K, &V)>(&'a mut self, cb: CB) -> &'a mut Cache<K, V> {
-//         self.on_insert = Some(Box::new(cb));
-//         self
-//     }
-//
-//     pub fn insert(&self, key: K, value: V) {
-//         self.on_insert.as_ref().map(|f| (f)(&key, &value));
-//         match self.cache_lock.write() {
-//             Ok(mut cache_ref) => (*cache_ref).insert(key, value),
-//             Err(_) => panic!("Poison error!"),
-//         };
-//     }
-// }

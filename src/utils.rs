@@ -71,3 +71,12 @@ macro_rules! time {
         ret
     }};
 }
+
+/// Given a vector, will insert `value` at the desired position `pos`, filling the items
+/// with `default`s if needed.
+pub fn insert_at<T: Copy>(vector: &mut Vec<T>, pos: usize, value: T, default: T) {
+    for _ in vector.len()..(pos+1) {
+        vector.push(default);
+    }
+    vector[pos] = value;
+}

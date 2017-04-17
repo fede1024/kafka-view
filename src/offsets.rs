@@ -3,11 +3,13 @@ use futures::stream::Stream;
 use rdkafka::config::{ClientConfig, TopicConfig};
 use rdkafka::consumer::stream_consumer::StreamConsumer;
 use rdkafka::consumer::{Consumer, EmptyConsumerContext, CommitMode};
+use rdkafka::topic_partition_list::TopicPartitionList;
 
-use cache::{Cache, OffsetsCache};
+use cache::{Cache, InternalConsumerOffsetCache, OffsetsCache};
 use config::{Config, ClusterConfig};
 use error::*;
 use metadata::{ClusterId, TopicName};
+use utils::insert_at;
 
 use std::cmp;
 use std::collections::HashMap;
@@ -59,30 +61,35 @@ fn parse_message(key: &[u8], payload: &[u8]) -> Result<ConsumerUpdate> {
     }
 }
 
-fn create_consumer(brokers: &str, group_id: &str) -> StreamConsumer<EmptyConsumerContext> {
+fn create_consumer(brokers: &str, group_id: &str, start_offsets: Option<Vec<i64>>) -> Result<StreamConsumer<EmptyConsumerContext>> {
     let mut consumer = ClientConfig::new()
         .set("group.id", &group_id)
         .set("bootstrap.servers", brokers)
         .set("enable.partition.eof", "false")
-        .set("session.timeout.ms", "60000")
-        .set("enable.auto.commit", "false")
+        .set("session.timeout.ms", "30000")
         .set_default_topic_config(TopicConfig::new()
             .set("auto.offset.reset", "smallest")
             .finalize())
         .create::<StreamConsumer<_>>()
-        .expect("Consumer creation failed");
+        .chain_err(|| format!("Consumer creation failed: {}", brokers))?;
 
-    consumer.subscribe(&vec!["__consumer_offsets"])
-        .expect("Can't subscribe to specified topics");
-
-    consumer
-}
-
-fn insert_at(v: &mut Vec<i64>, pos: usize, value: i64) {
-    for _ in v.len()..(pos+1) {
-        v.push(-1);
+    match start_offsets {
+        Some(pos) => {
+            let res = pos.iter().enumerate().map(|(n, &o)| (n as i32, o)).collect::<Vec<_>>();
+            let mut tp_list = TopicPartitionList::new();
+            tp_list.add_topic_with_partitions_and_offsets("__consumer_offsets", &res);
+            debug!("Previous offsets found, assigning offsets explicitly: {:?}", tp_list);
+            consumer.assign(&tp_list)
+                .chain_err(|| "Failure during consumer assignment")?;
+        },
+        None => {
+            debug!("No previous offsets found, subscribing to topic");
+            consumer.subscribe(&vec!["__consumer_offsets"])
+                .chain_err(|| format!("Can't subscribe to offset __consumer_offsets ({})", brokers))?;
+        }
     }
-    v[pos] = value;
+
+    Ok(consumer)
 }
 
 // we should really have some tests here
@@ -97,7 +104,7 @@ fn update_global_cache(cluster_id: &ClusterId, local_cache: &HashMap<(String, St
                     let new_offset = cmp::max(
                         offsets.get(i).cloned().unwrap_or(-1),
                         existing_offsets.get(i).cloned().unwrap_or(-1));
-                    insert_at(&mut existing_offsets, i, new_offset);
+                    insert_at(&mut existing_offsets, i, new_offset, -1);
                 }
                 cache.insert((cluster_id.to_owned(), group.to_owned(), topic.to_owned()), existing_offsets);
                 continue;
@@ -107,22 +114,40 @@ fn update_global_cache(cluster_id: &ClusterId, local_cache: &HashMap<(String, St
     }
 }
 
+fn commit_offset_position_to_array(tp_list: TopicPartitionList) -> Vec<i64> {
+    let ref partitions = tp_list.topics.get("__consumer_offsets").unwrap().as_ref().unwrap();
+    let mut offsets = vec![0; partitions.len()];
+    for p in partitions.iter() {
+        offsets[p.id as usize] = if p.offset < 0 {
+            -2 // Beginning
+        } else {
+            p.offset
+        }
+    }
+    offsets
+}
+
 fn consume_offset_topic(cluster_id: ClusterId, mut consumer: StreamConsumer<EmptyConsumerContext>,
-                        cache: OffsetsCache) -> Result<()> {
+                        cache: &Cache) -> Result<()> {
     let mut local_cache = HashMap::new();
     let mut last_dump = Instant::now();
+
+    debug!("Starting offset consumer loop for {:?}", cluster_id);
 
     for message in consumer.start().wait() {
         // Update the cache if needed - TODO: this doesn't work if messages are not being received
         if (Instant::now() - last_dump) > Duration::from_secs(10) {
             trace!("Dumping local offset cache ({}: {} updates)", cluster_id, local_cache.len());
-            update_global_cache(&cluster_id, &local_cache, &cache);
+            update_global_cache(&cluster_id, &local_cache, &cache.offsets);
+            consumer.position()
+                .map(|pos| {
+                    debug!("Consumer position: {:?}", pos);
+                    let vec = commit_offset_position_to_array(pos);
+                    debug!("Offset vector: {:?}", vec);
+                    cache.internal_offsets.insert(cluster_id.clone(), vec);
+                });
             local_cache = HashMap::with_capacity(local_cache.len());
             last_dump = Instant::now();
-            time!("Commit", consumer.position()
-                   .and_then(|pos| consumer.commit(&pos, CommitMode::Sync))
-                   .map_err(|e| warn!("Error while fetching the current position: {:?}", e))
-            );
         }
         match message {
             Err(e) => {
@@ -150,7 +175,7 @@ fn consume_offset_topic(cluster_id: ClusterId, mut consumer: StreamConsumer<Empt
                     Ok(update) => match update {
                         ConsumerUpdate::SetCommit {group, topic, partition, offset} => {
                             let mut offsets = local_cache.entry((group.to_owned(), topic.to_owned())).or_insert(Vec::new());
-                            insert_at(&mut offsets, partition as usize, offset);
+                            insert_at(&mut offsets, partition as usize, offset, -1);
                         },
                         _ => {},
                     },
@@ -166,13 +191,19 @@ fn consume_offset_topic(cluster_id: ClusterId, mut consumer: StreamConsumer<Empt
 }
 
 pub fn run_offset_consumer(cluster_id: &ClusterId, cluster_config: &ClusterConfig,
-                           config: &Config, offset_cache: OffsetsCache) {
-    let consumer = create_consumer(&cluster_config.bootstrap_servers(), &config.consumer_offsets_group_id);
+                           config: &Config, cache: &Cache) -> Result<()> {
+    let start_position = cache.internal_offsets.get(&cluster_id);
+    let consumer = create_consumer(&cluster_config.bootstrap_servers(), &config.consumer_offsets_group_id,
+                                   start_position)
+        .chain_err(|| format!("Failed to create offset consumer for {}", cluster_id))?;
 
     let cluster_id_clone = cluster_id.clone();
+    let cache_alias = cache.alias();
     thread::spawn(move || {
-        consume_offset_topic(cluster_id_clone, consumer, offset_cache);
+        consume_offset_topic(cluster_id_clone, consumer, &cache_alias);
     });
+
+    Ok(())
 }
 
 

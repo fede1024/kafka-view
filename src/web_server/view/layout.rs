@@ -110,7 +110,7 @@ fn navbar_top() -> PreEscaped<String> {
     html! {
         ul class="nav navbar-top-links navbar-right" {
             li class="dropdown" {
-                a class="dropdown-toggle" data-toggle="dropdown" href="#" {
+                a class="dropdown-toggle" style="font-size: 12pt" data-toggle="dropdown" href="#" {
                     i class="fa fa-question-circle-o fa-fw" {}
                     i class="fa fa-caret-down" {}
                 }
