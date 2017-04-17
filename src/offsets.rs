@@ -183,7 +183,7 @@ fn consume_offset_topic(cluster_id: ClusterId, mut consumer: StreamConsumer<Empt
                 };
             },
             Ok(Err(e)) => {
-                warn!("Kafka error: {:?}", e);
+                warn!("Kafka error: {} {:?}", cluster_id, e);
             },
         };
     }

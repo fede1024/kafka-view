@@ -7,6 +7,7 @@
   caching:
     cluster: local_cluster     # which cluster
     topic: replicator_topic    # which topic
+  consumer_offsets_group_id: kafka_view_consumer
 
   clusters:
     cluster_type0.cluster_name0:
@@ -15,15 +16,18 @@
         - host2:9092
         - host3:9092
       zookeeper: zkhost1:2181
+      jolokia_port: 8778
     cluster_type0.cluster_name1:
       broker_list:
         - host4:9092
         - host5:9092
         - host6:9092
       zookeeper: zkhost2:2181
+      jolokia_port: 8778
     flat_cluster_name:
       broker_list:
         - host7:9092
         - host8:9092
         - host9:9092
       zookeeper: zkhost3:2181
+      # jolokia_port: 8778  disabled

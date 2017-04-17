@@ -80,7 +80,7 @@ fn run_kafka_web(config_path: &str) -> Result<()> {
     metadata_task_group.schedule(Duration::from_secs(config.metadata_refresh), &executor, Some(pool.clone()));
 
     // Metrics fetch
-    let metrics_task_group = MetricsFetchTaskGroup::new(&cache);
+    let metrics_task_group = MetricsFetchTaskGroup::new(&cache, &config);
     metrics_task_group.schedule(Duration::from_secs(config.metrics_refresh), &executor, Some(pool.clone()));
 
     // Consumer offsets

@@ -12,6 +12,7 @@ use std::fs::File;
 pub struct ClusterConfig {
     pub broker_list: Vec<String>,
     pub zookeeper: String,
+    pub jolokia_port: Option<i32>,
 }
 
 impl ClusterConfig {

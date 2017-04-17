@@ -9,6 +9,7 @@ use std::time::Duration;
 use std::collections::HashMap;
 
 use cache::{Cache, MetricsCache};
+use config::Config;
 use error::*;
 use metadata::{ClusterId, BrokerId, Broker, TopicName};
 
@@ -116,22 +117,24 @@ impl BrokerMetrics {
 
 pub struct MetricsFetchTaskGroup {
     cache: Cache,
+    config: Config,
 }
 
 impl MetricsFetchTaskGroup {
-    pub fn new(cache: &Cache) -> MetricsFetchTaskGroup {
+    pub fn new(cache: &Cache, config: &Config) -> MetricsFetchTaskGroup {
         MetricsFetchTaskGroup {
             cache: cache.alias(),
+            config: config.clone(),
         }
     }
 
-    fn fetch_metrics(&self, cluster_id: &ClusterId, broker: &Broker) -> Result<()> {
+    fn fetch_metrics(&self, cluster_id: &ClusterId, broker: &Broker, port: i32) -> Result<()> {
         let start = UTC::now();
-        let byte_rate_json = fetch_metrics_json(&broker.hostname, 8778, "kafka.server:name=BytesInPerSec,*,type=BrokerTopicMetrics/FifteenMinuteRate")
+        let byte_rate_json = fetch_metrics_json(&broker.hostname, port, "kafka.server:name=BytesInPerSec,*,type=BrokerTopicMetrics/FifteenMinuteRate")
             .chain_err(|| format!("Failed to fetch byte rate metrics from {}", broker.hostname))?;
         let byte_rate_metrics = parse_broker_rate_metrics(&byte_rate_json)
             .chain_err(|| "Failed to parse byte rate broker metrics")?;
-        let msg_rate_json = fetch_metrics_json(&broker.hostname, 8778, "kafka.server:name=MessagesInPerSec,*,type=BrokerTopicMetrics/FifteenMinuteRate")
+        let msg_rate_json = fetch_metrics_json(&broker.hostname, port, "kafka.server:name=MessagesInPerSec,*,type=BrokerTopicMetrics/FifteenMinuteRate")
             .chain_err(|| format!("Failed to fetch message rate metrics from {}", broker.hostname))?;
         let msg_rate_metrics = parse_broker_rate_metrics(&msg_rate_json)
             .chain_err(|| "Failed to parse message rate broker metrics")?;
@@ -148,23 +151,27 @@ impl MetricsFetchTaskGroup {
 }
 
 impl TaskGroup for MetricsFetchTaskGroup {
-    type TaskId = (ClusterId, Broker);
+    type TaskId = (ClusterId, Broker, i32);
 
-    fn get_tasks(&self) -> Vec<(ClusterId, Broker)> {
+    fn get_tasks(&self) -> Vec<Self::TaskId> {
         self.cache.brokers.lock_iter(|iter| {
             let mut tasks = Vec::new();
             for (cluster_id, brokers) in iter {
-                for broker in brokers {
-                    tasks.push((cluster_id.clone(), broker.clone()));
+                let port = self.config.cluster(cluster_id)
+                    .and_then(|cluster_config| cluster_config.jolokia_port);
+                if port.is_some() {
+                    for broker in brokers {
+                        tasks.push((cluster_id.clone(), broker.clone(), port.unwrap()));
+                    }
                 }
             }
             tasks
         })
     }
 
-    fn execute(&self, task_id: (ClusterId, Broker), _: Option<Handle>) {
+    fn execute(&self, task_id: (ClusterId, Broker, i32), _: Option<Handle>) {
         debug!("Starting fetch for {}: {}", task_id.0, task_id.1.id);
-        if let Err(e) = self.fetch_metrics(&task_id.0, &task_id.1) {
+        if let Err(e) = self.fetch_metrics(&task_id.0, &task_id.1, task_id.2) {
             format_error_chain!(e);
         }
     }

@@ -167,11 +167,14 @@ impl ReplicaReader {
         let metadata = self.consumer.fetch_metadata(Some(topic_name), 30000)
             .chain_err(|| "Failed to fetch metadata")?;
 
-        if metadata.topics().len() == 0{
+        if metadata.topics().len() == 0 {
             warn!("No replicator topic found ({} {})", self.brokers, self.topic_name);
             return Ok(HashMap::new());
         }
         let ref topic_metadata = metadata.topics()[0];
+        if topic_metadata.partitions().len() == 0 {
+            return Ok(state);  // Topic is empty and autocreated
+        }
 
         for message in self.consumer.start().wait() {
             match message {
