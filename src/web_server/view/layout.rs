@@ -80,7 +80,7 @@ fn html_head(title: &str) -> PreEscaped<String> {
             // link href="/public/sb-admin-2/vendor/datatables/css/jquery.dataTables.min.css" rel="stylesheet" {}
             // link href="/public/sb-admin-2/vendor/datatables/css/dataTables.jqueryui.min.css" rel="stylesheet" {}
             link href="/public/sb-admin-2/dist/css/sb-admin-2.css" rel="stylesheet" {}
-            link href="/public/sb-admin-2/vendor/font-awesome/css/font-awesome.min.css" rel="stylesheet" type="text/css" {}
+            link href="/public/css/font-awesome.min.css" rel="stylesheet" type="text/css" {}
             link href="/public/my_css.css" rel="stylesheet" type="text/css" {}
             script async="" defer="" src="https://buttons.github.io/buttons.js" {}
         }
@@ -146,26 +146,26 @@ fn navbar_side() -> PreEscaped<String> {
                     li a href="/clusters/" style="font-size: 12pt" { i class="fa fa-server fa-fw" {}  " Clusters" }
                     li a href="/topics/" style="font-size: 12pt" { i class="fa fa-exchange fa-fw" {}  " Topics" }
                     li a href="/consumers/" style="font-size: 12pt" { i class="fa fa-cubes fa-fw" {}  " Consumers" }
-                    //li {
-                    //    a href="#" {
-                    //        i class="fa fa-server fa-fw" {} " Clusters"
-                    //        span class="fa arrow" {}
-                    //    }
-                    //    ul class="nav nav-second-level" {
-                    //        @for cluster_id in clusters.iter() {
-                    //            li a href=(format_cluster_path(cluster_id)) (cluster_id)
-                    //        }
-                    //        // li {
-                    //        //     a href="#" { "Third Level" span class="fa arrow" {} }
-                    //        //     ul class="nav nav-third-level" {
-                    //        //         li a href="#" "Third Level Item"
-                    //        //         li a href="#" "Third Level Item"
-                    //        //         li a href="#" "Third Level Item"
-                    //        //         li a href="#" "Third Level Item"
-                    //        //     }
-                    //        // }
-                    //    }
-                    //}
+                    li {
+                        a href="#" style="font-size: 12pt" {
+                            i class="fa fa-gear fa-fw" {} " Internals"
+                            span class="fa arrow" {}
+                        }
+                        ul class="nav nav-second-level" {
+                            li a href="/internals/caches" {
+                                i class="fa fa-microchip fa-fw" {}  " Caches"
+                            }
+                            // li {
+                            //     a href="#" { "Third Level" span class="fa arrow" {} }
+                            //     ul class="nav nav-third-level" {
+                            //         li a href="#" "Third Level Item"
+                            //         li a href="#" "Third Level Item"
+                            //         li a href="#" "Third Level Item"
+                            //         li a href="#" "Third Level Item"
+                            //     }
+                            // }
+                        }
+                    }
                 }
             }
         }
@@ -207,7 +207,7 @@ fn body(page_title: &str, content: PreEscaped<String>) -> PreEscaped<String> {
                     div class="col-md-4" style="text-align: center;" {
                         a class="github-button" href="https://github.com/fede1024/kafka-view"
                             data-icon="octicon-star" data-count-href="/fede1024/kafka-view/stargazers"
-                            data-count-api="/repos/fede1024/kafka-view#stargazers_count"
+                            data-show-count="true"
                             data-count-aria-label="# stargazers on GitHub" // data-style="mega"
                             aria-label="Star fede1024/kafka-view on GitHub" { "Star" }
                     }

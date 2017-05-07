@@ -245,6 +245,32 @@ $(document).ready(function() {
             }
         });
     });
+    $('#datatable-internals-cache-brokers-ajax').each(function(index) {
+        var table = $(this).DataTable({
+            "ajax": $(this).attr("data-url"),
+            "lengthMenu": [ [10, 50, 200, -1], [10, 50, 200, "All"] ],
+            "pageLength": 50,
+            "processing": true,
+            "deferRender": true,
+            "stateSave": true
+        });
+        setInterval( function () {
+            table.ajax.reload();
+        }, 20000 );
+    });
+    $('#datatable-internals-cache-metrics-ajax').each(function(index) {
+        var table = $(this).DataTable({
+            "ajax": $(this).attr("data-url"),
+            "lengthMenu": [ [10, 50, 200, -1], [10, 50, 200, "All"] ],
+            "pageLength": 50,
+            "processing": true,
+            "deferRender": true,
+            "stateSave": true
+        });
+        setInterval( function () {
+            table.ajax.reload();
+        }, 20000 );
+    });
 });
 
 $(document).ready(function(){

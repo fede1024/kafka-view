@@ -3,6 +3,7 @@ use futures::stream::Stream;
 use rdkafka::config::{ClientConfig, TopicConfig};
 use rdkafka::consumer::stream_consumer::StreamConsumer;
 use rdkafka::consumer::{Consumer, EmptyConsumerContext, CommitMode};
+use rdkafka::error::KafkaError;
 use rdkafka::topic_partition_list::TopicPartitionList;
 
 use cache::{Cache, InternalConsumerOffsetCache, OffsetsCache};
@@ -134,21 +135,7 @@ fn consume_offset_topic(cluster_id: ClusterId, mut consumer: StreamConsumer<Empt
 
     debug!("Starting offset consumer loop for {:?}", cluster_id);
 
-    for message in consumer.start().wait() {
-        // Update the cache if needed - TODO: this doesn't work if messages are not being received
-        if (Instant::now() - last_dump) > Duration::from_secs(10) {
-            trace!("Dumping local offset cache ({}: {} updates)", cluster_id, local_cache.len());
-            update_global_cache(&cluster_id, &local_cache, &cache.offsets);
-            consumer.position()
-                .map(|pos| {
-                    debug!("Consumer position: {:?}", pos);
-                    let vec = commit_offset_position_to_array(pos);
-                    debug!("Offset vector: {:?}", vec);
-                    cache.internal_offsets.insert(cluster_id.clone(), vec);
-                });
-            local_cache = HashMap::with_capacity(local_cache.len());
-            last_dump = Instant::now();
-        }
+    for message in consumer.start_with(Duration::from_millis(200), true).wait() {
         match message {
             Err(e) => {
                 warn!("Can't receive data from stream: {:?}", e);
@@ -182,10 +169,27 @@ fn consume_offset_topic(cluster_id: ClusterId, mut consumer: StreamConsumer<Empt
                     Err(e) => format_error_chain!(e),
                 };
             },
+            Ok(Err(KafkaError::NoMessageReceived)) => {
+               continue;  // Jump to the end of the loop
+            },
             Ok(Err(e)) => {
                 warn!("Kafka error: {} {:?}", cluster_id, e);
             },
         };
+        // Update the cache if needed
+        if (Instant::now() - last_dump) > Duration::from_secs(10) {
+            trace!("Dumping local offset cache ({}: {} updates)", cluster_id, local_cache.len());
+            update_global_cache(&cluster_id, &local_cache, &cache.offsets);
+            consumer.position()
+                .map(|pos| {
+                    debug!("Consumer position: {:?}", pos);
+                    let vec = commit_offset_position_to_array(pos);
+                    debug!("Offset vector: {:?}", vec);
+                    cache.internal_offsets.insert(cluster_id.clone(), vec);
+                });
+            local_cache = HashMap::with_capacity(local_cache.len());
+            last_dump = Instant::now();
+        }
     }
     Ok(())
 }
@@ -199,9 +203,11 @@ pub fn run_offset_consumer(cluster_id: &ClusterId, cluster_config: &ClusterConfi
 
     let cluster_id_clone = cluster_id.clone();
     let cache_alias = cache.alias();
-    thread::spawn(move || {
-        consume_offset_topic(cluster_id_clone, consumer, &cache_alias);
-    });
+    thread::Builder::new()
+        .name("offset-consumer".to_owned())
+        .spawn(move || {
+            consume_offset_topic(cluster_id_clone, consumer, &cache_alias);
+        });
 
     Ok(())
 }

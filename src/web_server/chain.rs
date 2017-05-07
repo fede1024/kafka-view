@@ -79,10 +79,16 @@ pub fn chain() -> iron::Chain {
     router.get("/api/cluster/:cluster_id/group/:group_name/offsets", api::group_offsets, "api_group_offsets");
     router.get("/api/search/topic", api::topic_search, "api_topic_search");
     router.get("/api/search/consumer", api::consumer_search, "api_consumer_search");
+    router.get("/api/internals/cache/brokers", api::cache_brokers, "api_internals_cache_brokers");
+    router.get("/api/internals/cache/metrics", api::cache_metrics, "api_internals_cache_metrics");
 
     // todo
     router.get("/brokers", pages::todo, "brokers");
     router.get("/cluster/:cluster_id/broker/:broker_id", pages::todo, "broker");
+
+    // internals
+    router.get("/internals/caches", pages::internals::caches_page, "internals_caches");
+
     iron::Chain::new(router)
 }
 

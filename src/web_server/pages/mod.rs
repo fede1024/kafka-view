@@ -2,6 +2,7 @@ mod cluster;
 mod clusters;
 mod error_defaults;
 mod group;
+pub mod internals;
 mod omnisearch;
 mod topic;
 

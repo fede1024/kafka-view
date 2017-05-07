@@ -335,3 +335,33 @@ pub fn topic_search(req: &mut Request) -> IronResult<Response> {
 
     Ok(json_gzip_response(json!({"data": result_data})))
 }
+
+//
+// ********** INTERNALS **********
+//
+
+pub fn cache_brokers(req: &mut Request) -> IronResult<Response> {
+    let cache = req.extensions.get::<CacheType>().unwrap();
+
+    let result_data = cache.brokers.lock_iter(|brokers_cache_entry| {
+        brokers_cache_entry.map(|(cluster_id, brokers)| {
+            ((cluster_id.clone(), brokers.iter().map(|b| b.id).collect::<Vec<_>>()))
+        })
+        .collect::<Vec<_>>()
+    });
+
+    Ok(json_gzip_response(json!({"data": result_data})))
+}
+
+pub fn cache_metrics(req: &mut Request) -> IronResult<Response> {
+    let cache = req.extensions.get::<CacheType>().unwrap();
+
+    let result_data = cache.metrics.lock_iter(|metrics_cache_entry| {
+        metrics_cache_entry
+            .map(|(&(ref cluster_id, ref broker_id), metrics)| {
+                ((cluster_id.clone(), broker_id.clone(), metrics.topics.len()))
+            }).collect::<Vec<_>>()
+    });
+
+    Ok(json_gzip_response(json!({"data": result_data})))
+}

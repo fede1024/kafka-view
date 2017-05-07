@@ -165,6 +165,7 @@ impl TaskGroup for MetricsFetchTaskGroup {
                     }
                 }
             }
+            debug!("New metrics tasks: {:?}", tasks);
             tasks
         })
     }
