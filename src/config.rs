@@ -29,6 +29,8 @@ pub struct CachingConfig {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Config {
+    pub listen_port: i32,
+    pub listen_host: String,
     pub metadata_refresh: u64,
     pub metrics_refresh: u64,
     pub consumer_offsets_group_id: String,

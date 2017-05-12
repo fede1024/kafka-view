@@ -124,13 +124,12 @@ pub fn run_server(cache: Cache, config: &Config) -> Result<()> {
     chain.link_after(request_timer.clone());
     chain.link_after(ErrorHandler);
 
-    let port = 3000;
-    let bind_addr = format!("localhost:{}", port);
+    let bind_addr = format!("{}:{}", config.listen_host, config.listen_port);
     let _server_guard = Iron::new(chain).http(bind_addr.as_str())
         .chain_err(|| "Failed to start iron server")?;
 
     let version = option_env!("CARGO_PKG_VERSION").unwrap_or("?");
-    info!("Running kafka-view v{} on port {}.", version, port);
+    info!("Running kafka-view v{}, listening on {}.", version, bind_addr);
 
     Ok(())
 }

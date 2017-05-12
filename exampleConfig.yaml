@@ -1,4 +1,7 @@
 ---
+  # Listen host and port
+  listen_host: 0.0.0.0
+  listen_port: 8080
   # Refresh rate for metadata and group membership information
   metadata_refresh: 60
   # Refresh rate for metrics
