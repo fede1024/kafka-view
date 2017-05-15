@@ -11,14 +11,14 @@ use metadata::ClusterId;
 
 
 fn topic_table(cluster_id: &ClusterId, topic_name: &str) -> PreEscaped<String> {
-    let api_url = format!("/api/cluster/{}/topic/{}/topology", cluster_id, topic_name);
+    let api_url = format!("/api/clusters/{}/topics/{}/topology", cluster_id, topic_name);
     layout::datatable_ajax("topology-ajax", &api_url, cluster_id.name(),
         html! { tr { th "Id" th "Leader" th "Replicas" th "ISR" th "Status" } }
     )
 }
 
 fn consumer_groups_table(cluster_id: &ClusterId, topic_name: &str) -> PreEscaped<String> {
-    let api_url = format!("/api/cluster/{}/topic/{}/groups", cluster_id, topic_name);
+    let api_url = format!("/api/clusters/{}/topics/{}/groups", cluster_id, topic_name);
     layout::datatable_ajax("groups-ajax", &api_url, cluster_id.name(),
            html! { tr { th "Group name" th "Status" th "Registered members" th "Stored topic offsets" } },
     )

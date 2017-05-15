@@ -5,25 +5,53 @@ use iron::prelude::*;
 use router::NoRoute;
 use rand;
 use std::sync::Mutex;
+use rocket;
 
 use error::*;
-use web_server::chain;
 use web_server::pages;
+use web_server::api;
 use std::sync::Arc;
 use chrono::{DateTime, UTC};
 use cache::Cache;
 use config::Config;
+use metadata::ClusterId;
 
+use rocket::response::NamedFile;
+use rocket::request::FromParam;
+
+use std::path::{Path, PathBuf};
+use std::time;
+use std;
+
+
+// Make ClusterId a valid parameter
+impl<'a> FromParam<'a> for ClusterId {
+    type Error = ();
+
+    fn from_param(param: &'a str) -> std::result::Result<Self, Self::Error> {
+        Ok(param.into())
+    }
+}
+
+#[get("/public/<file..>")]
+fn files(file: PathBuf) -> Option<NamedFile> {
+    NamedFile::open(Path::new("resources/web_server/public/").join(file)).ok()
+}
+
+#[get("/public/<file..>?<_version>")]
+fn files_v(file: PathBuf, _version: &str) -> Option<NamedFile> {
+    NamedFile::open(Path::new("resources/web_server/public/").join(file)).ok()
+}
 
 pub struct CacheType;
 
 impl Key for CacheType { type Value = Cache; }
 
 impl BeforeMiddleware for Cache {
-    fn before(&self, request: &mut Request) -> IronResult<()> {
-        request.extensions.insert::<CacheType>(self.alias());
-        Ok(())
-    }
+   fn before(&self, request: &mut Request) -> IronResult<()> {
+       request.extensions.insert::<CacheType>(self.alias());
+       Ok(())
+   }
 }
 
 #[derive(Clone)]
@@ -48,9 +76,9 @@ impl BeforeMiddleware for ConfigArc {
 
 #[derive(Clone)]
 pub struct RequestTimer {
-    pub request_id: i32,
-    pub start_time: DateTime<UTC>,
-    pub timings: Arc<Mutex<Vec<(i32, i64, DateTime<UTC>)>>>
+     pub request_id: i32,
+     pub start_time: DateTime < UTC >,
+     pub timings: Arc< Mutex < Vec < (i32, i64, DateTime < UTC > ) > > >
 }
 
 impl RequestTimer {
@@ -115,21 +143,41 @@ impl AfterMiddleware for ErrorHandler {
     }
 }
 
+#[get("/")]
+fn index() -> &'static str {
+    "Hello, world!"
+}
+
 pub fn run_server(cache: Cache, config: &Config) -> Result<()> {
-    let request_timer = RequestTimer::new();
-    let mut chain = chain::chain();
-    chain.link_before(request_timer.clone());
-    chain.link_before(cache);
-    chain.link_before(ConfigArc::new(config.clone()));
-    chain.link_after(request_timer.clone());
-    chain.link_after(ErrorHandler);
-
-    let bind_addr = format!("{}:{}", config.listen_host, config.listen_port);
-    let _server_guard = Iron::new(chain).http(bind_addr.as_str())
-        .chain_err(|| "Failed to start iron server")?;
-
     let version = option_env!("CARGO_PKG_VERSION").unwrap_or("?");
-    info!("Running kafka-view v{}, listening on {}.", version, bind_addr);
+    info!("Starting kafka-view v{}, listening on {}:{}.", version, config.listen_host, config.listen_port);
+
+    let rocket_config = rocket::config::Config::build(rocket::config::Environment::Development)
+        .address(config.listen_host.to_owned())
+        .port(config.listen_port)
+        .workers(32)
+        .log_level(rocket::logger::LoggingLevel::Critical)
+        .finalize()
+        .chain_err(|| "Invalid rocket configuration")?;
+
+    rocket::custom(rocket_config, false)
+        .manage(cache)
+        .manage(config.clone())
+        .mount("/", routes![
+            index,
+            files,
+            files_v,
+            pages::clusters::clusters_page,
+            pages::cluster::cluster_page,
+            api::brokers,
+            api::cluster_groups,
+            api::cluster_topics,
+            api::group_members,
+            api::group_offsets,
+            api::topic_groups,
+            api::topic_topology
+        ])
+        .launch();
 
     Ok(())
 }

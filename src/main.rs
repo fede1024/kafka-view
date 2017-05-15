@@ -1,5 +1,8 @@
 #![feature(alloc_system, plugin, conservative_impl_trait)]
+#![plugin(rocket_codegen)]
 #![plugin(maud_macros)]
+
+extern crate rocket;
 extern crate alloc_system;
 
 #[macro_use] extern crate error_chain;
@@ -40,16 +43,13 @@ mod offsets;
 
 use clap::{App, Arg, ArgMatches};
 use scheduled_executor::{thread_pool, Executor, TaskGroup};
-
-use std::time;
-use time::Duration;
+use std::time::Duration;
 
 use cache::{Cache, ReplicaReader, ReplicaWriter};
 use error::*;
 use metrics::MetricsFetchTaskGroup;
 use metadata::MetadataFetchTaskGroup;
 use offsets::run_offset_consumer;
-
 
 fn run_kafka_web(config_path: &str) -> Result<()> {
     let config = config::read_config(config_path)

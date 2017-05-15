@@ -10,14 +10,14 @@ use metadata::{Broker, ClusterId};
 
 
 fn group_members_table(cluster_id: &ClusterId, group_name: &str) -> PreEscaped<String> {
-    let api_url = format!("/api/cluster/{}/group/{}/members", cluster_id, group_name);
+    let api_url = format!("/api/clusters/{}/group/{}/members", cluster_id, group_name);
     layout::datatable_ajax("group-members-ajax", &api_url, cluster_id.name(),
            html! { tr { th "Member id" th "Client id" th "Hostname" } },
     )
 }
 
 fn group_offsets_table(cluster_id: &ClusterId, group_name: &str) -> PreEscaped<String> {
-    let api_url = format!("/api/cluster/{}/group/{}/offsets", cluster_id, group_name);
+    let api_url = format!("/api/clusters/{}/group/{}/offsets", cluster_id, group_name);
     layout::datatable_ajax("group-offsets-ajax", &api_url, cluster_id.name(),
         html! { tr { th "Topic" th "Partition" th "Size" th "Low mark" th "High mark"
                      th "Current offset" th "Lag" th "Lag %"} },

@@ -2,6 +2,8 @@ use web_server::view::layout;
 use iron::status;
 use iron::prelude::*;
 
+use maud::Markup;
+
 pub fn warning_page(req: &Request, title: &str, message: &str) -> IronResult<Response> {
     let content = layout::notification("warning",
         html! {
@@ -14,6 +16,19 @@ pub fn warning_page(req: &Request, title: &str, message: &str) -> IronResult<Res
         });
     let html = layout::page(req, title, content);
     Ok(Response::with((status::NotFound, html)))   // TODO fix return status
+}
+
+pub fn warning_page2(title: &str, message: &str) -> Markup {
+    let content = layout::notification("warning",
+                                       html! {
+            div class="flex-container" {
+                span class="flex-item" style="padding: 0.3in; font-size: 16pt" {
+                    i class="fa fa-frown-o fa-3x" style="vertical-align: middle;" ""
+                    " " (message)
+                }
+            }
+        });
+    layout::page2(title, content)
 }
 
 pub fn not_found_page(req: &Request) -> IronResult<Response> {

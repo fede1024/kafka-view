@@ -55,39 +55,37 @@ fn redirect_to(dest: &str) -> impl Handler {
 
 pub fn chain() -> iron::Chain {
     let mut router = Router::new();
-    router.get("/", redirect_to("clusters"), "home");
-    router.get("/clusters", pages::clusters_page, "clusters");
-    router.get("/cluster/:cluster_id", pages::cluster_page, "cluster");
-    router.get("/cluster/:cluster_id/topic/:topic_name", pages::topic_page, "topic");
-    router.get("/cluster/:cluster_id/group/:group_name", pages::group_page, "group");
+    // router.get("/", redirect_to("clusters"), "home");
+    // router.get("/cluster/:cluster_id/topic/:topic_name", pages::topic_page, "topic");
+    // router.get("/cluster/:cluster_id/group/:group_name", pages::group_page, "group");
 
     // search
-    router.get("/topics", pages::topic_search, "topics");
-    router.get("/consumers", pages::consumer_search, "consumers");
+//    router.get("/topics", pages::topic_search, "topics");
+//    router.get("/consumers", pages::consumer_search, "consumers");
 
     // Various
-    router.get("/public/*", AssetsHandler::new("/public/", "resources/web_server/public/"), "public_assets");
-    router.get("/meta/request_time/:request_id/", request_timing, "request_timing");
+//    router.get("/public/*", AssetsHandler::new("/public/", "resources/web_server/public/"), "public_assets");
+//    router.get("/meta/request_time/:request_id/", request_timing, "request_timing");
 
     // API
-    router.get("/api/cluster/:cluster_id/brokers", api::cluster_brokers, "api_cluster_brokers");
-    router.get("/api/cluster/:cluster_id/topics", api::cluster_topics, "api_cluster_topics");
-    router.get("/api/cluster/:cluster_id/groups", api::cluster_groups, "api_cluster_groups");
-    router.get("/api/cluster/:cluster_id/topic/:topic_name/topology", api::topic_topology, "api_topic_topology");
-    router.get("/api/cluster/:cluster_id/topic/:topic_name/groups", api::topic_groups, "api_topic_groups");
-    router.get("/api/cluster/:cluster_id/group/:group_name/members", api::group_members, "api_group_members");
-    router.get("/api/cluster/:cluster_id/group/:group_name/offsets", api::group_offsets, "api_group_offsets");
-    router.get("/api/search/topic", api::topic_search, "api_topic_search");
-    router.get("/api/search/consumer", api::consumer_search, "api_consumer_search");
-    router.get("/api/internals/cache/brokers", api::cache_brokers, "api_internals_cache_brokers");
-    router.get("/api/internals/cache/metrics", api::cache_metrics, "api_internals_cache_metrics");
+//    router.get("/api/cluster/:cluster_id/brokers", api::cluster_brokers, "api_cluster_brokers");
+//    router.get("/api/cluster/:cluster_id/topics", api::cluster_topics, "api_cluster_topics");
+//    router.get("/api/cluster/:cluster_id/groups", api::cluster_groups, "api_cluster_groups");
+//    router.get("/api/cluster/:cluster_id/topic/:topic_name/topology", api::topic_topology, "api_topic_topology");
+//    router.get("/api/cluster/:cluster_id/topic/:topic_name/groups", api::topic_groups, "api_topic_groups");
+//    router.get("/api/cluster/:cluster_id/group/:group_name/members", api::group_members, "api_group_members");
+//    router.get("/api/cluster/:cluster_id/group/:group_name/offsets", api::group_offsets, "api_group_offsets");
+//    router.get("/api/search/topic", api::topic_search, "api_topic_search");
+//    router.get("/api/search/consumer", api::consumer_search, "api_consumer_search");
+//    router.get("/api/internals/cache/brokers", api::cache_brokers, "api_internals_cache_brokers");
+//    router.get("/api/internals/cache/metrics", api::cache_metrics, "api_internals_cache_metrics");
 
     // todo
-    router.get("/brokers", pages::todo, "brokers");
-    router.get("/cluster/:cluster_id/broker/:broker_id", pages::todo, "broker");
+//    router.get("/brokers", pages::todo, "brokers");
+//    router.get("/cluster/:cluster_id/broker/:broker_id", pages::todo, "broker");
 
     // internals
-    router.get("/internals/caches", pages::internals::caches_page, "internals_caches");
+    // router.get("/internals/caches", pages::internals::caches_page, "internals_caches");
 
     iron::Chain::new(router)
 }
