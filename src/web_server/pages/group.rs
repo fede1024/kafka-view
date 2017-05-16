@@ -1,41 +1,36 @@
 use iron::prelude::{Request, Response};
 use iron::{IronResult, status};
-use maud::PreEscaped;
+use maud::{Markup, PreEscaped};
 use router::Router;
 
 use web_server::pages;
 use web_server::server::CacheType;
 use web_server::view::layout;
 use metadata::{Broker, ClusterId};
+use cache::Cache;
 
+use rocket::State;
 
 fn group_members_table(cluster_id: &ClusterId, group_name: &str) -> PreEscaped<String> {
-    let api_url = format!("/api/clusters/{}/group/{}/members", cluster_id, group_name);
+    let api_url = format!("/api/clusters/{}/groups/{}/members", cluster_id, group_name);
     layout::datatable_ajax("group-members-ajax", &api_url, cluster_id.name(),
            html! { tr { th "Member id" th "Client id" th "Hostname" } },
     )
 }
 
 fn group_offsets_table(cluster_id: &ClusterId, group_name: &str) -> PreEscaped<String> {
-    let api_url = format!("/api/clusters/{}/group/{}/offsets", cluster_id, group_name);
+    let api_url = format!("/api/clusters/{}/groups/{}/offsets", cluster_id, group_name);
     layout::datatable_ajax("group-offsets-ajax", &api_url, cluster_id.name(),
         html! { tr { th "Topic" th "Partition" th "Size" th "Low mark" th "High mark"
                      th "Current offset" th "Lag" th "Lag %"} },
     )
 }
 
-pub fn group_page(req: &mut Request) -> IronResult<Response> {
-    let cache = req.extensions.get::<CacheType>().unwrap();
-    let cluster_id = req.extensions.get::<Router>().unwrap().find("cluster_id").unwrap().into();
-    let group_name = req.extensions.get::<Router>().unwrap().find("group_name").unwrap();
-
+#[get("/clusters/<cluster_id>/groups/<group_name>")]
+pub fn group_page(cluster_id: ClusterId, group_name: &str, cache: State<Cache>) -> Markup {
     if cache.brokers.get(&cluster_id).is_none() {
-        return pages::warning_page(req, group_name, "The specified cluster doesn't exist.")
+        return pages::warning_page(group_name, "The specified cluster doesn't exist.")
     }
-
-//    if cache.groups.get(&(cluster_id.to_owned(), group_name.to_owned())).is_none() {
-//        return pages::warning_page(req, group_name, "The specified group doesn't exist.")
-//    }
 
     let group_state = match cache.groups.get(&(cluster_id.to_owned(), group_name.to_owned())) {
         Some(group) => group.state,
@@ -54,8 +49,7 @@ pub fn group_page(req: &mut Request) -> IronResult<Response> {
         h3 "Offsets"
         div (group_offsets_table(&cluster_id, group_name))
     };
-    let html = layout::page(req, &format!("Group: {}", group_name), content);
 
-    Ok(Response::with((status::Ok, html)))
+    layout::page(&format!("Group: {}", group_name), content)
 }
 

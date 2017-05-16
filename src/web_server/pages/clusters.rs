@@ -56,5 +56,5 @@ pub fn clusters_page(cache: State<Cache>) -> Markup {
         }
     };
 
-    layout::page2("Clusters", content)
+    layout::page("Clusters", content)
 }

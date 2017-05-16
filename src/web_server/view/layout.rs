@@ -13,7 +13,7 @@ pub fn search_form(action: &str, placeholder: &str, value: &str, regex: bool) ->
                 div class="col-md-2" ""
                 div class="col-md-8" {
                     div class="input-group custom-search-form" {
-                        input class="form-control" type="text" name="search" style="font-size: 18pt; height: 30pt"
+                        input class="form-control" type="text" name="string" style="font-size: 18pt; height: 30pt"
                             placeholder=(placeholder) value=(value) {
                             span class="input-group-btn" {
                                 button class="btn btn-default" style="height: 30pt" type="submit" {
@@ -227,17 +227,7 @@ fn body(page_title: &str, content: PreEscaped<String>) -> PreEscaped<String> {
     }
 }
 
-pub fn page(_req: &Request, page_title: &str, page_content: PreEscaped<String>) -> PreEscaped<String> {
-    html! {
-        (maud::DOCTYPE)
-        html {
-            (html_head(page_title))
-            body (body(page_title, page_content))
-        }
-    }
-}
-
-pub fn page2(page_title: &str, page_content: PreEscaped<String>) -> Markup {
+pub fn page(page_title: &str, page_content: PreEscaped<String>) -> PreEscaped<String> {
     html! {
         (maud::DOCTYPE)
         html {

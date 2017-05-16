@@ -16,32 +16,15 @@ use cache::Cache;
 use config::Config;
 use metadata::ClusterId;
 
-use rocket::response::NamedFile;
+use rocket::response::{self, Redirect, Responder, NamedFile};
 use rocket::request::FromParam;
 
 use std::path::{Path, PathBuf};
 use std::time;
 use std;
+use std::cell::RefCell;
 
 
-// Make ClusterId a valid parameter
-impl<'a> FromParam<'a> for ClusterId {
-    type Error = ();
-
-    fn from_param(param: &'a str) -> std::result::Result<Self, Self::Error> {
-        Ok(param.into())
-    }
-}
-
-#[get("/public/<file..>")]
-fn files(file: PathBuf) -> Option<NamedFile> {
-    NamedFile::open(Path::new("resources/web_server/public/").join(file)).ok()
-}
-
-#[get("/public/<file..>?<_version>")]
-fn files_v(file: PathBuf, _version: &str) -> Option<NamedFile> {
-    NamedFile::open(Path::new("resources/web_server/public/").join(file)).ok()
-}
 
 pub struct CacheType;
 
@@ -131,21 +114,57 @@ impl AfterMiddleware for RequestTimer {
     }
 }
 
-struct ErrorHandler;
+#[get("/")]
+fn index() -> Redirect {
+    Redirect::to("/clusters")
+}
 
-impl AfterMiddleware for ErrorHandler {
-    fn catch(&self, request: &mut Request, err: IronError) -> IronResult<Response> {
-        if err.error.is::<NoRoute>() {
-            pages::not_found_page(request)
-        } else {
-            Ok(err.response)
-        }
+// Make ClusterId a valid parameter
+impl<'a> FromParam<'a> for ClusterId {
+    type Error = ();
+
+    fn from_param(param: &'a str) -> std::result::Result<Self, Self::Error> {
+        Ok(param.into())
     }
 }
 
-#[get("/")]
-fn index() -> &'static str {
-    "Hello, world!"
+#[get("/public/<file..>")]
+fn files(file: PathBuf) -> Option<CachedFile> {
+    NamedFile::open(Path::new("resources/web_server/public/").join(file))
+        .map(CachedFile::from)
+        .ok()
+}
+
+#[get("/public/<file..>?<_version>")]
+fn files_v(file: PathBuf, _version: &str) -> Option<CachedFile> {
+    NamedFile::open(Path::new("resources/web_server/public/").join(file))
+        .map(CachedFile::from)
+        .ok()
+}
+
+pub struct CachedFile {
+    ttl: usize,
+    file: NamedFile,
+}
+
+impl CachedFile {
+    pub fn from(file: NamedFile) -> CachedFile {
+        CachedFile::with_ttl(7200, file)
+    }
+
+    pub fn with_ttl(ttl: usize, file: NamedFile) -> CachedFile {
+        CachedFile { ttl, file }
+    }
+}
+
+impl<'a> Responder<'a> for CachedFile {
+    fn respond(self) -> response::Result<'a> {
+        let inner_response = self.file.respond().unwrap(); // fixme
+        response::Response::build_from(inner_response)
+            .raw_header("Cache-Control", format!("max-age={}, must-revalidate", self.ttl))
+            //.raw_header("Content-Encoding", "gzip")
+            .ok()
+    }
 }
 
 pub fn run_server(cache: Cache, config: &Config) -> Result<()> {
@@ -169,12 +188,19 @@ pub fn run_server(cache: Cache, config: &Config) -> Result<()> {
             files_v,
             pages::clusters::clusters_page,
             pages::cluster::cluster_page,
+            pages::topic::topic_page,
+            pages::omnisearch::consumer_search,
+            pages::omnisearch::consumer_search_p,
+            pages::internals::caches_page,
+            pages::group::group_page,
             api::brokers,
             api::cluster_groups,
             api::cluster_topics,
             api::group_members,
             api::group_offsets,
             api::topic_groups,
+            api::cache_brokers,
+            api::cache_metrics,
             api::topic_topology
         ])
         .launch();

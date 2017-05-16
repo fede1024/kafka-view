@@ -1,4 +1,4 @@
-#![feature(alloc_system, plugin, conservative_impl_trait)]
+#![feature(alloc_system, custom_derive, plugin, conservative_impl_trait)]
 #![plugin(rocket_codegen)]
 #![plugin(maud_macros)]
 

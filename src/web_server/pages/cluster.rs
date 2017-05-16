@@ -48,7 +48,7 @@ fn groups_table(cluster_id: &ClusterId) -> PreEscaped<String> {
 #[get("/clusters/<cluster_id>")]
 pub fn cluster_page(cluster_id: ClusterId, cache: State<Cache>, config: State<Config>) -> Markup {
     if cache.brokers.get(&cluster_id).is_none() {
-        return pages::warning_page2(
+        return pages::warning_page(
             &format!("Cluster: {}", cluster_id),
             "The specified cluster doesn't exist.")
     }
@@ -73,5 +73,5 @@ pub fn cluster_page(cluster_id: ClusterId, cache: State<Cache>, config: State<Co
         h3 "Consumer groups"
         (groups_table(&cluster_id))
     };
-    layout::page2(&format!("Cluster: {}", cluster_id), content)
+    layout::page(&format!("Cluster: {}", cluster_id), content)
 }
