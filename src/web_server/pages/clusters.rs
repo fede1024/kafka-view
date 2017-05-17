@@ -1,15 +1,13 @@
-use iron::prelude::{Request, Response};
-use iron::{IronResult, status};
-use maud::PreEscaped;
+use maud::{Markup, PreEscaped};
+use rocket::State;
 
-use web_server::server::CacheType;
 use web_server::view::layout;
-use cache::{BrokerCache, TopicCache};
+use cache::{Cache, BrokerCache, TopicCache};
 use metadata::ClusterId;
 
 
 fn cluster_pane_layout(cluster_id: &ClusterId, brokers: usize, topics: usize) -> PreEscaped<String> {
-    let link = format!("/cluster/{}/", cluster_id.name());
+    let link = format!("/clusters/{}/", cluster_id.name());
     html! {
         div class="col-lg-4 col-md-6" {
             div class="panel panel-primary" {
@@ -44,8 +42,8 @@ fn cluster_pane(cluster_id: &ClusterId, broker_cache: &BrokerCache, topic_cache:
     cluster_pane_layout(cluster_id, broker_count, topics_count)
 }
 
-pub fn clusters_page(req: &mut Request) -> IronResult<Response> {
-    let cache = req.extensions.get::<CacheType>().unwrap();
+#[get("/clusters")]
+pub fn clusters_page(cache: State<Cache>) -> Markup {
     let mut cluster_ids = cache.brokers.keys();
     cluster_ids.sort();
 
@@ -55,7 +53,5 @@ pub fn clusters_page(req: &mut Request) -> IronResult<Response> {
         }
     };
 
-    let html = layout::page(req, "Clusters", content);
-
-    Ok(Response::with((status::Ok, html)))
+    layout::page("Clusters", content)
 }

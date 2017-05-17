@@ -1,4 +1,4 @@
-extern crate serde_yaml;
+use serde_yaml;
 
 use metadata::ClusterId;
 use error::*;
@@ -29,7 +29,7 @@ pub struct CachingConfig {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Config {
-    pub listen_port: i32,
+    pub listen_port: u16,
     pub listen_host: String,
     pub metadata_refresh: u64,
     pub metrics_refresh: u64,

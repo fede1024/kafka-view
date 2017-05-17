@@ -54,28 +54,28 @@ function big_num_to_human(cell, suffix) {
 
 function broker_to_url(cluster_id, cell) {
     var broker_name = cell.innerHTML;
-    var url = "/cluster/" + cluster_id + "/broker/" + broker_name;
+    var url = "/clusters/" + cluster_id + "/brokers/" + broker_name;
     var link = $('<a>', { text: broker_name, title: 'Broker page', href: url });
     $(cell).html(link);
 }
 
 function topic_to_url(cluster_id, cell) {
     var topic_name = cell.innerHTML;
-    var url = "/cluster/" + cluster_id + "/topic/" + topic_name;
+    var url = "/clusters/" + cluster_id + "/topics/" + topic_name;
     var link = $('<a>', { text: topic_name, title: 'Topic page', href: url });
     $(cell).html(link);
 }
 
 function group_to_url(cluster_id, cell) {
     var group_name = cell.innerHTML;
-    var url = "/cluster/" + cluster_id + "/group/" + group_name;
+    var url = "/clusters/" + cluster_id + "/groups/" + group_name;
     var link = $('<a>', { text: group_name, title: 'Group page', href: url });
     $(cell).html(link);
 }
 
 function cluster_to_url(cell) {
     var cluster_id = cell.innerHTML;
-    var url = "/cluster/" + cluster_id;
+    var url = "/clusters/" + cluster_id;
     var link = $('<a>', { text: cluster_id, title: 'Cluster page', href: url });
     $(cell).html(link);
 }

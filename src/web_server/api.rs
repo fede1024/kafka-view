@@ -1,19 +1,15 @@
 use futures::{future, Future};
 use futures_cpupool::Builder;
-use iron::prelude::*;
-use iron::{IronResult, status};
 use rdkafka::error::KafkaResult;
 use regex::Regex;
-use router::Router;
-use urlencoded::UrlEncodedQuery;
+use rocket::State;
 
 use cache::Cache;
 use error::*;
 use metadata::{CONSUMERS, ClusterId, TopicName};
 use metrics::build_topic_metrics;
 use offsets::OffsetStore;
-use utils::json_gzip_response;
-use web_server::server::CacheType;
+use web_server::pages::omnisearch::OmnisearchFormParams;
 
 use std::collections::HashMap;
 
@@ -21,13 +17,12 @@ use std::collections::HashMap;
 // ********** TOPICS LIST **********
 //
 
-pub fn cluster_topics(req: &mut Request) -> IronResult<Response> {
-    let cache = req.extensions.get::<CacheType>().unwrap();
-    let cluster_id = req.extensions.get::<Router>().unwrap().find("cluster_id").unwrap().into();
-
+#[get("/api/clusters/<cluster_id>/topics?<timestamp>")]
+pub fn cluster_topics(cluster_id: ClusterId, cache: State<Cache>, timestamp: &str) -> String {
+    let _ = timestamp;
     let brokers = cache.brokers.get(&cluster_id);
     if brokers.is_none() {  // TODO: Improve here
-        return Ok(Response::with((status::NotFound, "")));
+        return json!({"data": []}).to_string();
     }
 
     let brokers = brokers.unwrap();
@@ -43,20 +38,20 @@ pub fn cluster_topics(req: &mut Request) -> IronResult<Response> {
         result_data.push(json!((topic_name, partitions.len(), &errors, rate.0.round(), rate.1.round())));
     }
 
-    Ok(json_gzip_response(json!({"data": result_data})))
+    //Ok(json_gzip_response(json!({"data": result_data})))
+    json!({"data": result_data}).to_string()
 }
 
 //
 // ********** BROKERS LIST **********
 //
 
-pub fn cluster_brokers(req: &mut Request) -> IronResult<Response> {
-    let cache = req.extensions.get::<CacheType>().unwrap();
-    let cluster_id = req.extensions.get::<Router>().unwrap().find("cluster_id").unwrap().into();
-
+#[get("/api/clusters/<cluster_id>/brokers?<timestamp>")]
+pub fn brokers(cluster_id: ClusterId, cache: State<Cache>, timestamp: &str) -> String {
+    let _ = timestamp;
     let brokers = cache.brokers.get(&cluster_id);
     if brokers.is_none() {  // TODO: Improve here
-        return Ok(Response::with((status::NotFound, "")));
+        return json!({"data": []}).to_string();
     }
 
     let brokers = brokers.unwrap();
@@ -68,7 +63,7 @@ pub fn cluster_brokers(req: &mut Request) -> IronResult<Response> {
         result_data.push(json!((broker.id, broker.hostname, rate.0.round(), rate.1.round())));
     }
 
-    Ok(json_gzip_response(json!({"data": result_data})))
+    json!({"data": result_data}).to_string()
 }
 
 //
@@ -95,11 +90,13 @@ impl GroupInfo {
     }
 }
 
-// TOOD: add doc
+// TODO: add doc
+// TODO: add limit
 fn build_group_list<F>(cache: &Cache, filter_fn: F) -> HashMap<(ClusterId, String), GroupInfo>
         where F: Fn(&ClusterId, &TopicName, &String) -> bool {
 
-    let mut groups: HashMap<(ClusterId, String), GroupInfo> = cache.groups.lock_iter(|iter| {
+    let mut groups: HashMap<(ClusterId, String), GroupInfo> = cache.groups
+        .lock_iter(|iter| {
             iter.filter(|&(&(ref c, ref t), ref g)| filter_fn(&c, &t, &g.name))
                 .map(|(&(ref c, _), g)| ((c.clone(), g.name.clone()), GroupInfo::new(g.state.clone(), g.members.len())))
                 .collect()
@@ -110,57 +107,51 @@ fn build_group_list<F>(cache: &Cache, filter_fn: F) -> HashMap<(ClusterId, Strin
         (*groups.entry((cluster_id, group)).or_insert(GroupInfo::new_empty())).add_offset();
     }
 
-    return groups;
+    groups
 }
 
-pub fn cluster_groups(req: &mut Request) -> IronResult<Response> {
-    let cache = req.extensions.get::<CacheType>().unwrap();
-    let cluster_id = req.extensions.get::<Router>().unwrap().find("cluster_id").unwrap().into();
-
+#[get("/api/clusters/<cluster_id>/groups?<timestamp>")]
+pub fn cluster_groups(cluster_id: ClusterId, cache: State<Cache>, timestamp: &str) -> String {
+    let _ = timestamp;
     let brokers = cache.brokers.get(&cluster_id);
     if brokers.is_none() {  // TODO: Improve here
-        return Ok(Response::with((status::NotFound, "")));
+        return json!({"data": []}).to_string();
     }
 
-    let groups = build_group_list(cache, |c, _, _| &cluster_id == c);
+    let groups = build_group_list(cache.inner(), |c, _, _| &cluster_id == c);
 
     let mut result_data = Vec::with_capacity(groups.len());
-    for ((cluster_id, group_name), info) in groups {
+    for ((_cluster_id, group_name), info) in groups {
         result_data.push(json!((group_name, info.state, info.members, info.stored_offsets)));
     }
 
-    let result = json!({"data": result_data});
-    Ok(json_gzip_response(result))
+    json!({"data": result_data}).to_string()
 }
 
-pub fn topic_groups(req: &mut Request) -> IronResult<Response> {
-    let cache = req.extensions.get::<CacheType>().unwrap();
-    let cluster_id = req.extensions.get::<Router>().unwrap().find("cluster_id").unwrap().into();
-    let topic_name = req.extensions.get::<Router>().unwrap().find("topic_name").unwrap();
-
+#[get("/api/clusters/<cluster_id>/topics/<topic_name>/groups?<timestamp>")]
+pub fn topic_groups(cluster_id: ClusterId, topic_name: &str, cache: State<Cache>, timestamp: &str) -> String {
+    let _ = timestamp;
     let brokers = cache.brokers.get(&cluster_id);
     if brokers.is_none() {  // TODO: Improve here
-        return Ok(Response::with((status::NotFound, "")));
+        return json!({"data": []}).to_string();
     }
 
-    let groups = build_group_list(cache, |c, t, _| &cluster_id == c && topic_name == t);
+    let groups = build_group_list(cache.inner(), |c, t, _| &cluster_id == c && topic_name == t);
 
     let mut result_data = Vec::with_capacity(groups.len());
-    for ((cluster_id, group_name), info) in groups {
+    for ((_cluster_id, group_name), info) in groups {
         result_data.push(json!((group_name, info.state, info.members, info.stored_offsets)));
     }
 
-    Ok(json_gzip_response(json!({"data": result_data})))
+    json!({"data": result_data}).to_string()
 }
 
-pub fn group_members(req: &mut Request) -> IronResult<Response> {
-    let cache = req.extensions.get::<CacheType>().unwrap();
-    let cluster_id: ClusterId = req.extensions.get::<Router>().unwrap().find("cluster_id").unwrap().into();
-    let group_name = req.extensions.get::<Router>().unwrap().find("group_name").unwrap();
-
+#[get("/api/clusters/<cluster_id>/groups/<group_name>/members?<timestamp>")]
+pub fn group_members(cluster_id: ClusterId, group_name: &str, cache: State<Cache>, timestamp: &str) -> String {
+    let _ = timestamp;
     let group = cache.groups.get(&(cluster_id.clone(), group_name.to_owned()));
     if group.is_none() {  // TODO: Improve here
-        return Ok(json_gzip_response(json!({"data": []})));
+        return json!({"data": []}).to_string();
     }
 
     let group = group.unwrap();
@@ -170,14 +161,12 @@ pub fn group_members(req: &mut Request) -> IronResult<Response> {
         result_data.push(json!((member.id, member.client_id, member.client_host)));
     }
 
-    Ok(json_gzip_response(json!({"data": result_data})))
+    json!({"data": result_data}).to_string()
 }
 
-pub fn group_offsets(req: &mut Request) -> IronResult<Response> {
-    let cache = req.extensions.get::<CacheType>().unwrap();
-    let cluster_id = req.extensions.get::<Router>().unwrap().find("cluster_id").unwrap().into();
-    let group_name = req.extensions.get::<Router>().unwrap().find("group_name").unwrap();
-
+#[get("/api/clusters/<cluster_id>/groups/<group_name>/offsets?<timestamp>")]
+pub fn group_offsets(cluster_id: ClusterId, group_name: &str, cache: State<Cache>, timestamp: &str) -> String {
+    let _ = timestamp;
     let offsets = cache.offsets_by_cluster_group(&cluster_id, &group_name.to_owned());
 
     let wms = time!("fetch wms", fetch_watermarks(&cluster_id, &offsets));
@@ -185,12 +174,12 @@ pub fn group_offsets(req: &mut Request) -> IronResult<Response> {
         Ok(wms) => wms,
         Err(e) => {
             error!("Error while fetching watermarks: {}", e);
-            return Ok(json_gzip_response(json!({})));  // TODO: show error to user?
+            return json!({"data": []}).to_string();
         }
     };
 
     let mut result_data = Vec::with_capacity(offsets.len());
-    for ((_, group, topic), partitions) in offsets {
+    for ((_cluster_id, _group, topic), partitions) in offsets {
         for (partition_id, &curr_offset) in partitions.iter().enumerate() {
             let (low, high) = match wms.get(&(topic.clone(), partition_id as i32)) {
                 Some(&Ok((low_mark, high_mark))) => (low_mark, high_mark),
@@ -205,7 +194,7 @@ pub fn group_offsets(req: &mut Request) -> IronResult<Response> {
         }
     }
 
-    Ok(json_gzip_response(json!({"data": result_data})))
+    json!({"data": result_data}).to_string()
 }
 
 fn fetch_watermarks(cluster_id: &ClusterId, offsets: &Vec<((ClusterId, String, TopicName), Vec<i64>)>)
@@ -239,14 +228,12 @@ fn fetch_watermarks(cluster_id: &ClusterId, offsets: &Vec<((ClusterId, String, T
 // ********** TOPIC TOPOLOGY **********
 //
 
-pub fn topic_topology(req: &mut Request) -> IronResult<Response> {
-    let cache = req.extensions.get::<CacheType>().unwrap();
-    let cluster_id: ClusterId = req.extensions.get::<Router>().unwrap().find("cluster_id").unwrap().into();
-    let topic_name = req.extensions.get::<Router>().unwrap().find("topic_name").unwrap();
-
+#[get("/api/clusters/<cluster_id>/topics/<topic_name>/topology?<timestamp>")]
+pub fn topic_topology(cluster_id: ClusterId, topic_name: &str, cache: State<Cache>, timestamp: &str) -> String {
+    let _ = timestamp;
     let partitions = cache.topics.get(&(cluster_id.to_owned(), topic_name.to_owned()));
     if partitions.is_none() {
-        return Ok(Response::with((status::NotFound, "")));
+        return json!({"data": []}).to_string();
     }
 
     let partitions = partitions.unwrap();
@@ -256,66 +243,39 @@ pub fn topic_topology(req: &mut Request) -> IronResult<Response> {
         result_data.push(json!((p.id, p.leader, p.replicas, p.isr, p.error)));
     }
 
-    Ok(json_gzip_response(json!({"data": result_data})))
+    json!({"data": result_data}).to_string()
 }
 
 //
 // ********** SEARCH **********
 //
 
-pub fn consumer_search(req: &mut Request) -> IronResult<Response> {
-    let params = req.get_ref::<UrlEncodedQuery>().unwrap_or(&HashMap::new()).clone();
-    let cache = req.extensions.get::<CacheType>().unwrap();
-
-    let search_string = params.get("search")
-        .map(|results| results[0].as_str())
-        .unwrap_or("");
-    let regex = params.get("regex")
-        .map(|results| results[0].as_str())
-        .unwrap_or("");
-
-    let groups = match (search_string, regex) {
-        (pattern, "true") => {
-            Regex::new(search_string)
-                .map(|r| build_group_list(cache, |_, _, g| r.is_match(g)))
-                .unwrap_or(HashMap::new())
-        },
-        (search, _) if search.len() >= 3 => {
-            build_group_list(cache, |_, _, g| g.contains(search))
-        },
-        _ => HashMap::new(),
+#[get("/api/search/consumer?<search>")]
+pub fn consumer_search(search: OmnisearchFormParams, cache: State<Cache>) -> String {
+    let groups = if search.regex {
+        Regex::new(&search.string)
+            .map(|r| build_group_list(&cache, |_, _, g| r.is_match(g)))
+            .unwrap_or(HashMap::new())
+    } else {
+        build_group_list(&cache, |_, _, g| g.contains(&search.string))
     };
-
 
     let mut result_data = Vec::with_capacity(groups.len());
     for ((cluster_id, group_name), info) in groups {
         result_data.push(json!((cluster_id, group_name, info.state, info.members, info.stored_offsets)));
     }
 
-    Ok(json_gzip_response(json!({"data": result_data})))
+    json!({"data": result_data}).to_string()
 }
 
-pub fn topic_search(req: &mut Request) -> IronResult<Response> {
-    let params = req.get_ref::<UrlEncodedQuery>().unwrap_or(&HashMap::new()).clone();
-    let cache = req.extensions.get::<CacheType>().unwrap();
-
-    let search_string = params.get("search")
-        .map(|results| results[0].as_str())
-        .unwrap_or("");
-    let regex = params.get("regex")
-        .map(|results| results[0].as_str())
-        .unwrap_or("");
-
-    let topics = match (search_string, regex) {
-        (pattern, "true") => {
-            Regex::new(search_string)
-                .map(|r| cache.topics.filter_clone(|&(_, ref name)| r.is_match(name)))
-                .unwrap_or(Vec::new())
-        },
-        (search, _) if search.len() >= 3 => {
-            cache.topics.filter_clone(|&(_, ref name)| name.contains(search))
-        },
-        _ => Vec::new(),
+#[get("/api/search/topic?<search>")]
+pub fn topic_search(search: OmnisearchFormParams, cache: State<Cache>) -> String {
+    let topics = if search.regex {
+        Regex::new(&search.string)
+            .map(|r| cache.topics.filter_clone(|&(_, ref name)| r.is_match(name)))
+            .unwrap_or(Vec::new())
+    } else {
+        cache.topics.filter_clone(|&(_, ref name)| name.contains(&search.string))
     };
 
     let mut metrics_map = HashMap::new();
@@ -333,16 +293,16 @@ pub fn topic_search(req: &mut Request) -> IronResult<Response> {
         result_data.push(json!((cluster_id, topic_name, partitions.len(), errors, b_rate, m_rate)));
     }
 
-    Ok(json_gzip_response(json!({"data": result_data})))
+    json!({"data": result_data}).to_string()
 }
 
 //
 // ********** INTERNALS **********
 //
 
-pub fn cache_brokers(req: &mut Request) -> IronResult<Response> {
-    let cache = req.extensions.get::<CacheType>().unwrap();
-
+#[get("/api/internals/cache/brokers?<timestamp>")]
+pub fn cache_brokers(cache: State<Cache>, timestamp: &str) -> String {
+    let _ = timestamp;
     let result_data = cache.brokers.lock_iter(|brokers_cache_entry| {
         brokers_cache_entry.map(|(cluster_id, brokers)| {
             ((cluster_id.clone(), brokers.iter().map(|b| b.id).collect::<Vec<_>>()))
@@ -350,12 +310,12 @@ pub fn cache_brokers(req: &mut Request) -> IronResult<Response> {
         .collect::<Vec<_>>()
     });
 
-    Ok(json_gzip_response(json!({"data": result_data})))
+    json!({"data": result_data}).to_string()
 }
 
-pub fn cache_metrics(req: &mut Request) -> IronResult<Response> {
-    let cache = req.extensions.get::<CacheType>().unwrap();
-
+#[get("/api/internals/cache/metrics?<timestamp>")]
+pub fn cache_metrics(cache: State<Cache>, timestamp: &str) -> String {
+    let _ = timestamp;
     let result_data = cache.metrics.lock_iter(|metrics_cache_entry| {
         metrics_cache_entry
             .map(|(&(ref cluster_id, ref broker_id), metrics)| {
@@ -363,5 +323,5 @@ pub fn cache_metrics(req: &mut Request) -> IronResult<Response> {
             }).collect::<Vec<_>>()
     });
 
-    Ok(json_gzip_response(json!({"data": result_data})))
+    json!({"data": result_data}).to_string()
 }

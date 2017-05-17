@@ -1,39 +1,34 @@
-use iron::prelude::{Request, Response};
-use router::Router;
-use iron::{IronResult, status};
-use maud::PreEscaped;
+use maud::{PreEscaped, Markup};
 
-use web_server::server::CacheType;
 use web_server::view::layout;
 use web_server::pages;
 use metrics::build_topic_metrics;
 use metadata::ClusterId;
+use cache::Cache;
+
+use rocket::State;
 
 
 fn topic_table(cluster_id: &ClusterId, topic_name: &str) -> PreEscaped<String> {
-    let api_url = format!("/api/cluster/{}/topic/{}/topology", cluster_id, topic_name);
+    let api_url = format!("/api/clusters/{}/topics/{}/topology", cluster_id, topic_name);
     layout::datatable_ajax("topology-ajax", &api_url, cluster_id.name(),
         html! { tr { th "Id" th "Leader" th "Replicas" th "ISR" th "Status" } }
     )
 }
 
 fn consumer_groups_table(cluster_id: &ClusterId, topic_name: &str) -> PreEscaped<String> {
-    let api_url = format!("/api/cluster/{}/topic/{}/groups", cluster_id, topic_name);
+    let api_url = format!("/api/clusters/{}/topics/{}/groups", cluster_id, topic_name);
     layout::datatable_ajax("groups-ajax", &api_url, cluster_id.name(),
            html! { tr { th "Group name" th "Status" th "Registered members" th "Stored topic offsets" } },
     )
 }
 
-// TODO: simplify?
-pub fn topic_page(req: &mut Request) -> IronResult<Response> {
-    let cache = req.extensions.get::<CacheType>().unwrap();
-    let cluster_id: ClusterId = req.extensions.get::<Router>().unwrap().find("cluster_id").unwrap().into();
-    let topic_name = req.extensions.get::<Router>().unwrap().find("topic_name").unwrap();
-
+#[get("/clusters/<cluster_id>/topics/<topic_name>")]
+pub fn topic_page(cluster_id: ClusterId, topic_name: &str, cache: State<Cache>) -> Markup {
     let partitions = match cache.topics.get(&(cluster_id.clone(), topic_name.to_owned())) {
         Some(partitions) => partitions,
         None => {
-            return pages::warning_page(req,
+            return pages::warning_page(
                 &format!("Topic: {}", cluster_id),
                 "The specified cluster doesn't exist.")
         }
@@ -64,8 +59,6 @@ pub fn topic_page(req: &mut Request) -> IronResult<Response> {
         (consumer_groups_table(&cluster_id, topic_name))
     };
 
-    let html = layout::page(req, &format!("Topic: {}", topic_name), content);
-
-    Ok(Response::with((status::Ok, html)))
+    layout::page(&format!("Topic: {}", topic_name), content)
 }
 

@@ -1,12 +1,8 @@
-use iron::prelude::{Request, Response};
-use iron::{IronResult, status};
-use maud::PreEscaped;
-use router::Router;
+use maud::{Markup, PreEscaped};
+use rocket::State;
 
-use web_server::pages;
-use web_server::server::{CacheType, ConfigArc};
 use web_server::view::layout;
-use metadata::{Broker, ClusterId};
+use cache::Cache;
 
 fn broker_table() -> PreEscaped<String> {
     layout::datatable_ajax("internals-cache-brokers-ajax", "/api/internals/cache/brokers", "",
@@ -39,21 +35,10 @@ fn cache_description_table(name: &str, key: &str, value: &str) -> PreEscaped<Str
     }
 }
 
-pub fn caches_page(req: &mut Request) -> IronResult<Response> {
-    let cache = req.extensions.get::<CacheType>().unwrap();
-
+#[get("/internals/caches")]
+pub fn caches_page() -> Markup {
     let content = html! {
         h3 style="margin-top: 0px" "Information"
-//        dl class="dl-horizontal" {
-//            dt "Cluster name: " dd (cluster_id.name())
-//            @if cluster_config.is_some() {
-//                dt "Bootstrap list: " dd (cluster_config.unwrap().broker_list.join(", "))
-//                dt "Zookeeper: " dd (cluster_config.unwrap().zookeeper)
-//            } @else {
-//                dt "Bootstrap list: " dd "Cluster configuration is missing"
-//                dt "Zookeeper: " dd "Cluster configuration is missing"
-//            }
-//        }
         h3 "Brokers"
         (cache_description_table("BrokerCache", "ClusterId", "Vec<Broker>"))
         div (broker_table())
@@ -61,7 +46,5 @@ pub fn caches_page(req: &mut Request) -> IronResult<Response> {
         (cache_description_table("MetricsCache", "(ClusterId, BrokerId)", "BrokerMetrics"))
         div (metrics_table())
     };
-    let html = layout::page(req, "Caches", content);
-
-    Ok(Response::with((status::Ok, html)))
+    layout::page("Caches", content)
 }

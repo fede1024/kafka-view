@@ -1,11 +1,6 @@
 use chrono::Local;
 use env_logger::LogBuilder;
-use iron::headers::ContentType;
-use iron::{Response, status};
-use iron_compress::GzipWriter;
 use log::{LogRecord, LogLevelFilter};
-use maud::Markup;
-use serde_json;
 
 use std::thread;
 
@@ -39,26 +34,6 @@ macro_rules! format_error_chain {
             error ! ("backtrace: {:?}", backtrace);
         }
     }}
-}
-
-pub fn gzip_ok_response(markup: Markup) -> Response {
-    let mut resp = Response::with((status::Ok, GzipWriter(markup.into_string().as_bytes())));
-    resp.headers.set(ContentType::html());
-    resp
-}
-
-pub fn json_response(json: serde_json::Value) -> Response {
-    let mut resp = Response::with((status::Ok, json.to_string()));
-    resp.headers.set(ContentType::json());
-    resp
-}
-
-pub fn json_gzip_response(json: serde_json::Value) -> Response {
-    let json_string = json.to_string();
-    let gzip_writer = GzipWriter(json_string.as_bytes());
-    let mut resp = Response::with((status::Ok, gzip_writer));
-    resp.headers.set(ContentType::json());
-    resp
 }
 
 macro_rules! time {

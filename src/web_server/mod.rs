@@ -1,5 +1,4 @@
 mod api;
-mod chain;
 mod pages;
 mod view;
 

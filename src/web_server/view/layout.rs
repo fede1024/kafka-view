@@ -1,6 +1,4 @@
 use maud::{self, PreEscaped};
-use web_server::server::RequestTimer;
-use iron::Request;
 
 
 pub fn search_form(action: &str, placeholder: &str, value: &str, regex: bool) -> PreEscaped<String> {
@@ -13,7 +11,7 @@ pub fn search_form(action: &str, placeholder: &str, value: &str, regex: bool) ->
                 div class="col-md-2" ""
                 div class="col-md-8" {
                     div class="input-group custom-search-form" {
-                        input class="form-control" type="text" name="search" style="font-size: 18pt; height: 30pt"
+                        input class="form-control" type="text" name="string" style="font-size: 18pt; height: 30pt"
                             placeholder=(placeholder) value=(value) {
                             span class="input-group-btn" {
                                 button class="btn btn-default" style="height: 30pt" type="submit" {
@@ -144,8 +142,8 @@ fn navbar_side() -> PreEscaped<String> {
                     // li a href="/" { i class="fa fa-dashboard fa-fw" {}  " Home" }
                     //li a href="/" style="font-size: 12pt" { i class="fa fa-info-circle fa-fw" {}  " Home" }
                     li a href="/clusters/" style="font-size: 12pt" { i class="fa fa-server fa-fw" {}  " Clusters" }
-                    li a href="/topics/" style="font-size: 12pt" { i class="fa fa-exchange fa-fw" {}  " Topics" }
-                    li a href="/consumers/" style="font-size: 12pt" { i class="fa fa-cubes fa-fw" {}  " Consumers" }
+                    li a href="/topics/" style="font-size: 12pt" { i class="fa fa-cubes fa-fw" {}  " Topics" }
+                    li a href="/consumers/" style="font-size: 12pt" { i class="fa fa-exchange fa-fw" {}  " Consumers" }
                     li {
                         a href="#" style="font-size: 12pt" {
                             i class="fa fa-gear fa-fw" {} " Internals"
@@ -202,7 +200,7 @@ fn body(page_title: &str, content: PreEscaped<String>) -> PreEscaped<String> {
                             "kafka-view " (option_env!("CARGO_PKG_VERSION").unwrap_or("")) }
                         }
                     div class="col-md-4" style="text-align: center;" {
-                        a href="https://www.rust-lang.org" "Rust 1.17.0-nightly"
+                        a href="https://www.rust-lang.org" "Rust 1.19.0-nightly"
                     }
                     div class="col-md-4" style="text-align: center;" {
                         a class="github-button" href="https://github.com/fede1024/kafka-view"
@@ -227,15 +225,12 @@ fn body(page_title: &str, content: PreEscaped<String>) -> PreEscaped<String> {
     }
 }
 
-pub fn page(req: &Request, page_title: &str, page_content: PreEscaped<String>) -> PreEscaped<String> {
-    let request_timer = req.extensions.get::<RequestTimer>();
-    let request_id = request_timer.map(|t| t.request_id).unwrap_or(-1);
+pub fn page(page_title: &str, page_content: PreEscaped<String>) -> PreEscaped<String> {
     html! {
         (maud::DOCTYPE)
         html {
             (html_head(page_title))
             body (body(page_title, page_content))
-            span id="request_id" style="display: none" (request_id)
         }
     }
 }

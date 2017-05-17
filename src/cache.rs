@@ -15,7 +15,6 @@ use std::collections::{HashMap, HashSet};
 use std::collections::hash_map;
 use std::hash::Hash;
 use std::sync::{Arc, RwLock};
-use std::thread;
 
 use error::*;
 use metadata::{Broker, BrokerId, ClusterId, Group, Partition, TopicName};
@@ -109,7 +108,7 @@ pub struct ReplicaReader {
 
 impl ReplicaReader {
     pub fn new(brokers: &str, topic_name: &str) -> Result<ReplicaReader> {
-        let mut consumer: ReplicaConsumer = ClientConfig::new()
+        let consumer: ReplicaConsumer = ClientConfig::new()
             .set("group.id", "kafka_web_replica_reader")  // TODO: make random
             .set("bootstrap.servers", brokers)
             .set("session.timeout.ms", "6000")
@@ -260,10 +259,6 @@ impl<K, V> ReplicatedMap<K, V> where K: Eq + Hash + Clone + Serialize + Deserial
         }
     }
 
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
     pub fn keys(&self) -> Vec<K> {
         match self.map.read() {
             Ok(ref cache) => (*cache).keys().cloned().collect::<Vec<_>>(),
@@ -281,6 +276,7 @@ impl<K, V> ReplicatedMap<K, V> where K: Eq + Hash + Clone + Serialize + Deserial
                 self.sync_value_update(key, value);
             },
             ReplicaCacheUpdate::Delete { key } => {
+                let _ = key;
                 bail!("Delete not implemented");
             }
         }
@@ -415,7 +411,6 @@ impl UpdateReceiver for Cache {
             "groups" => self.groups.receive_update(update),
             "internal_offsets" => self.internal_offsets.receive_update(update),
             _ => bail!("Unknown cache name: {}", cache_name),
-        };
-        Ok(())
+        }
     }
 }
