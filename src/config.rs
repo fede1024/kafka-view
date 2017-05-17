@@ -1,4 +1,4 @@
-extern crate serde_yaml;
+use serde_yaml;
 
 use metadata::ClusterId;
 use error::*;

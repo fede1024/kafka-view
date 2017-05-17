@@ -1,13 +1,7 @@
-use iron::prelude::{Request, Response};
-use iron::{IronResult, status};
 use maud::{Markup, PreEscaped};
-use router::Router;
 use rocket::State;
 
-use web_server::pages;
-use web_server::server::{CacheType, ConfigArc};
 use web_server::view::layout;
-use metadata::{Broker, ClusterId};
 use cache::Cache;
 
 fn broker_table() -> PreEscaped<String> {
@@ -42,7 +36,7 @@ fn cache_description_table(name: &str, key: &str, value: &str) -> PreEscaped<Str
 }
 
 #[get("/internals/caches")]
-pub fn caches_page(cache: State<Cache>) -> Markup {
+pub fn caches_page() -> Markup {
     let content = html! {
         h3 style="margin-top: 0px" "Information"
         h3 "Brokers"

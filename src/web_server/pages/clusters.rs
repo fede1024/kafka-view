@@ -1,9 +1,6 @@
-use iron::prelude::{Request, Response};
-use iron::{IronResult, status};
 use maud::{Markup, PreEscaped};
 use rocket::State;
 
-use web_server::server::CacheType;
 use web_server::view::layout;
 use cache::{Cache, BrokerCache, TopicCache};
 use metadata::ClusterId;

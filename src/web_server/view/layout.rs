@@ -1,6 +1,4 @@
-use maud::{self, PreEscaped, Markup};
-use web_server::server::RequestTimer;
-use iron::Request;
+use maud::{self, PreEscaped};
 
 
 pub fn search_form(action: &str, placeholder: &str, value: &str, regex: bool) -> PreEscaped<String> {
@@ -144,8 +142,8 @@ fn navbar_side() -> PreEscaped<String> {
                     // li a href="/" { i class="fa fa-dashboard fa-fw" {}  " Home" }
                     //li a href="/" style="font-size: 12pt" { i class="fa fa-info-circle fa-fw" {}  " Home" }
                     li a href="/clusters/" style="font-size: 12pt" { i class="fa fa-server fa-fw" {}  " Clusters" }
-                    li a href="/topics/" style="font-size: 12pt" { i class="fa fa-exchange fa-fw" {}  " Topics" }
-                    li a href="/consumers/" style="font-size: 12pt" { i class="fa fa-cubes fa-fw" {}  " Consumers" }
+                    li a href="/topics/" style="font-size: 12pt" { i class="fa fa-cubes fa-fw" {}  " Topics" }
+                    li a href="/consumers/" style="font-size: 12pt" { i class="fa fa-exchange fa-fw" {}  " Consumers" }
                     li {
                         a href="#" style="font-size: 12pt" {
                             i class="fa fa-gear fa-fw" {} " Internals"

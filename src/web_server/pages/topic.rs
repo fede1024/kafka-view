@@ -1,9 +1,5 @@
-use iron::prelude::{Request, Response};
-use router::Router;
-use iron::{IronResult, status};
 use maud::{PreEscaped, Markup};
 
-use web_server::server::CacheType;
 use web_server::view::layout;
 use web_server::pages;
 use metrics::build_topic_metrics;

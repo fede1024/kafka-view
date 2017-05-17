@@ -1,12 +1,8 @@
-use iron::prelude::{Request, Response};
-use iron::{IronResult, status};
 use maud::{PreEscaped, Markup};
-use router::Router;
 
 use web_server::pages;
-use web_server::server::{CacheType, ConfigArc};
 use web_server::view::layout;
-use metadata::{Broker, ClusterId};
+use metadata::ClusterId;
 
 use cache::Cache;
 use config::Config;

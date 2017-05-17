@@ -2,11 +2,11 @@ use byteorder::{BigEndian, ReadBytesExt};
 use futures::stream::Stream;
 use rdkafka::config::{ClientConfig, TopicConfig};
 use rdkafka::consumer::stream_consumer::StreamConsumer;
-use rdkafka::consumer::{Consumer, EmptyConsumerContext, CommitMode};
+use rdkafka::consumer::{Consumer, EmptyConsumerContext};
 use rdkafka::error::KafkaError;
 use rdkafka::topic_partition_list::TopicPartitionList;
 
-use cache::{Cache, InternalConsumerOffsetCache, OffsetsCache};
+use cache::{Cache, OffsetsCache};
 use config::{Config, ClusterConfig};
 use error::*;
 use metadata::{ClusterId, TopicName};
@@ -63,7 +63,7 @@ fn parse_message(key: &[u8], payload: &[u8]) -> Result<ConsumerUpdate> {
 }
 
 fn create_consumer(brokers: &str, group_id: &str, start_offsets: Option<Vec<i64>>) -> Result<StreamConsumer<EmptyConsumerContext>> {
-    let mut consumer = ClientConfig::new()
+    let consumer = ClientConfig::new()
         .set("group.id", &group_id)
         .set("bootstrap.servers", brokers)
         .set("enable.partition.eof", "false")

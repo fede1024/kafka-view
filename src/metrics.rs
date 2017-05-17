@@ -5,13 +5,12 @@ use serde_json;
 use regex::Regex;
 use scheduled_executor::{Handle, TaskGroup};
 
-use std::time::Duration;
 use std::collections::HashMap;
 
 use cache::{Cache, MetricsCache};
 use config::Config;
 use error::*;
-use metadata::{ClusterId, BrokerId, Broker, TopicName};
+use metadata::{ClusterId, Broker, TopicName};
 
 
 fn format_jolokia_path(hostname: &str, port: i32, filter: &str) -> String {

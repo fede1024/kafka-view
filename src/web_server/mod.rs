@@ -1,6 +1,5 @@
 mod api;
-mod chain;
-pub mod pages;  // TODO make private
+mod pages;
 mod view;
 
 pub mod server;

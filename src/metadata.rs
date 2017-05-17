@@ -2,13 +2,11 @@ use rdkafka::consumer::{BaseConsumer, EmptyConsumerContext};
 use rdkafka::config::ClientConfig;
 use rdkafka::error as rderror;
 
-use cache::{Cache, ReplicatedMap};
+use cache::Cache;
 use config::{ClusterConfig, Config};
 use error::*;
-use scheduled_executor::{Executor, Handle, TaskGroup};
+use scheduled_executor::{Handle, TaskGroup};
 
-use std::time::Duration;
-use std::borrow::Borrow;
 use std::fmt; use std::sync::{Arc, RwLock};
 use std::collections::HashMap;
 
@@ -214,7 +212,7 @@ impl MetadataFetchTaskGroup {
 
         // Fetch groups
         for group in fetch_groups(consumer.as_ref(), 30000)? {
-            self.cache.groups.insert((cluster_id.clone(), group.name.to_owned()), group);
+            self.cache.groups.insert((cluster_id.clone(), group.name.to_owned()), group)?;
         }
 
         Ok(())
