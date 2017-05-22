@@ -63,8 +63,12 @@ fn run_kafka_web(config_path: &str) -> Result<()> {
     let cache = Cache::new(replica_writer);
 
     // Load all the state from Kafka
+    let start_time = chrono::UTC::now();
     replica_reader.load_state(cache.alias())
         .chain_err(|| format!("State load failed (brokers: {}, topic: {})", replicator_bootstrap_servers, topic_name))?;
+    let elapsed_sec = chrono::UTC::now().signed_duration_since(start_time).num_milliseconds() as f32 / 1000f32;
+    info!("Processed {} messages in {:.3} seconds ({:.0} msg/s).",
+        replica_reader.processed_messages(), elapsed_sec, replica_reader.processed_messages() as f32 / elapsed_sec);
 
     let executor = Executor::new("executor")
         .chain_err(|| "Failed to start main executor")?;

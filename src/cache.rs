@@ -104,6 +104,7 @@ pub struct ReplicaReader {
     consumer: ReplicaConsumer,
     brokers: String,
     topic_name: String,
+    processed_messages: i64,
 }
 
 impl ReplicaReader {
@@ -130,7 +131,12 @@ impl ReplicaReader {
             consumer: consumer,
             brokers: brokers.to_owned(),
             topic_name: topic_name.to_owned(),
+            processed_messages: 0,
         })
+    }
+
+    pub fn processed_messages(&self) -> i64 {
+        self.processed_messages
     }
 
     pub fn load_state<R: UpdateReceiver>(&mut self, receiver: R) -> Result<()> {
@@ -178,6 +184,7 @@ impl ReplicaReader {
         for message in self.consumer.start().wait() {
             match message {
                 Ok(Ok(m)) => {
+                    self.processed_messages += 1;
                     match parse_message_key(&m).chain_err(|| "Failed to parse message key") {
                         Ok(wrapped_key) => { state.insert(wrapped_key, m); () },
                         Err(e) => format_error_chain!(e),

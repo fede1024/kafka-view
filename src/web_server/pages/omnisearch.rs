@@ -27,6 +27,39 @@ impl<'f> FromForm<'f> for OmnisearchFormParams {
     }
 }
 
+#[get("/omnisearch")]
+pub fn omni_search() -> Markup {
+    omni_search_p(OmnisearchFormParams{string: "".to_owned(), regex: false})
+}
+
+#[get("/omnisearch?<search>")]
+pub fn omni_search_p(search: OmnisearchFormParams) -> Markup {
+    let search_form = layout::search_form("/omnisearch", "Omnisearch", &search.string, search.regex);
+    let api_url = format!("/api/search/topic?string={}&regex={}", &search.string, search.regex);
+    let topics = layout::datatable_ajax("topic-search-ajax", &api_url, "",
+        html! { tr { th "Cluster name" th "Topic name" th "#Partitions" th "Status"
+             th data-toggle="tooltip" data-container="body" title="Average over the last 15 minutes" "Byte rate"
+             th data-toggle="tooltip" data-container="body" title="Average over the last 15 minutes" "Msg rate"
+        }}
+    );
+    let api_url = format!("/api/search/consumer?string={}&regex={}", &search.string, search.regex);
+    let consumers = layout::datatable_ajax("group-search-ajax", &api_url, "",
+        html! { tr { th "Cluster" th "Group name" th "Status" th "Registered members" th "Stored topic offsets" } }
+    );
+
+    layout::page("Omnisearch", html! {
+        (search_form)
+        @if search.string.len() > 0 {
+            h3 "Topics"
+            (topics)
+        }
+        @if search.string.len() > 0 {
+            h3 "Consumers"
+            (consumers)
+        }
+    })
+}
+
 #[get("/consumers")]
 pub fn consumer_search() -> Markup {
     consumer_search_p(OmnisearchFormParams{string: "".to_owned(), regex: false})

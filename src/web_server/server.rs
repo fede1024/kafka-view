@@ -91,6 +91,8 @@ pub fn run_server(cache: Cache, config: &Config) -> Result<()> {
             pages::internals::caches_page,
             pages::omnisearch::consumer_search,
             pages::omnisearch::consumer_search_p,
+            pages::omnisearch::omni_search,
+            pages::omnisearch::omni_search_p,
             pages::omnisearch::topic_search,
             pages::omnisearch::topic_search_p,
             pages::topic::topic_page,
