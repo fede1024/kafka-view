@@ -1,10 +1,11 @@
 use maud::{PreEscaped, Markup};
 
-use web_server::view::layout;
-use web_server::pages;
-use metrics::build_topic_metrics;
-use metadata::ClusterId;
 use cache::Cache;
+use config::Config;
+use metadata::ClusterId;
+use metrics::build_topic_metrics;
+use web_server::pages;
+use web_server::view::layout;
 
 use rocket::State;
 
@@ -23,8 +24,15 @@ fn consumer_groups_table(cluster_id: &ClusterId, topic_name: &str) -> PreEscaped
     )
 }
 
+fn graph_link(graph_url: &str, topic: &str) -> PreEscaped<String> {
+    let url = graph_url.replace("{%s}", topic);
+    html! {
+        a href=(url) "link"
+    }
+}
+
 #[get("/clusters/<cluster_id>/topics/<topic_name>")]
-pub fn topic_page(cluster_id: ClusterId, topic_name: &str, cache: State<Cache>) -> Markup {
+pub fn topic_page(cluster_id: ClusterId, topic_name: &str, cache: State<Cache>, config: State<Config>) -> Markup {
     let partitions = match cache.topics.get(&(cluster_id.clone(), topic_name.to_owned())) {
         Some(partitions) => partitions,
         None => {
@@ -34,6 +42,8 @@ pub fn topic_page(cluster_id: ClusterId, topic_name: &str, cache: State<Cache>) 
         }
     };
 
+    let graph_url = config.clusters.get(&cluster_id)
+        .and_then(|cluster_config| cluster_config.graph_url.as_ref());
     let brokers = cache.brokers.get(&cluster_id).expect("Broker should exist");
 
     // TODO: create function specific for single topic metrics
@@ -50,7 +60,10 @@ pub fn topic_page(cluster_id: ClusterId, topic_name: &str, cache: State<Cache>) 
                 dt "Traffic last 15 minutes"
                 dd (format!("{:.1}   KB/s {:.0} msg/s", metrics.unwrap().0 / 1000f64, metrics.unwrap().1))
             } @else {
-                dt "Traffic data" dd "Not available"
+                dt "Traffic last 15 minutes" dd "Not available"
+            }
+            @if graph_url.is_some() {
+                dt "Traffic chart" dd (graph_link(graph_url.unwrap(), topic_name))
             }
         }
         h3 "Topology"

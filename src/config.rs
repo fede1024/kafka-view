@@ -13,6 +13,7 @@ pub struct ClusterConfig {
     pub broker_list: Vec<String>,
     pub zookeeper: String,
     pub jolokia_port: Option<i32>,
+    pub graph_url: Option<String>,
 }
 
 impl ClusterConfig {
