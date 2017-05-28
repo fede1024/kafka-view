@@ -8,6 +8,7 @@ use web_server::api;
 use cache::Cache;
 use config::Config;
 use metadata::ClusterId;
+use live_consumer::{self, LiveConsumerStore};
 
 use std::path::{Path, PathBuf};
 use std;
@@ -81,6 +82,7 @@ pub fn run_server(cache: Cache, config: &Config) -> Result<()> {
     rocket::custom(rocket_config, false)
         .manage(cache)
         .manage(config.clone())
+        .manage(LiveConsumerStore::new())
         .mount("/", routes![
             index,
             files,
@@ -107,6 +109,7 @@ pub fn run_server(cache: Cache, config: &Config) -> Result<()> {
             api::topic_groups,
             api::topic_search,
             api::topic_topology,
+            live_consumer::test_live_consumer_api,
         ])
         .launch();
 

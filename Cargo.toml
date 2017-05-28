@@ -21,7 +21,8 @@ maud = { version = "0.16.2", features = ["rocket"] }
 maud_macros = "0.16.3"
 mount = "^0.3.0"
 rand = "0.3"
-rdkafka = "^0.10.0"
+# rdkafka = "^0.10.0"
+rdkafka = { path = "/home/fede/rust/rust-rdkafka"}
 regex = "0.1.80"
 rocket = "0.2.6"
 rocket_codegen = "0.2.6"

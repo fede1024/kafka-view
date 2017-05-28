@@ -70,6 +70,8 @@ pub fn topic_page(cluster_id: ClusterId, topic_name: &str, cache: State<Cache>, 
         (topic_table(&cluster_id, topic_name))
         h3 "Consumer groups"
         (consumer_groups_table(&cluster_id, topic_name))
+        h3 "Tailer"
+        (layout::panel())
     };
 
     layout::page(&format!("Topic: {}", topic_name), content)

@@ -64,6 +64,34 @@ pub fn datatable_ajax(id: &str, url: &str, param: &str,
     }
 }
 
+pub fn panel() -> PreEscaped<String> {
+    html! {
+        div class="panel panel-default" {
+            div class="panel-heading" {
+                i class="fa fa-bar-chart-o fa-fw" {} "Bar Chart Example"
+                div class="pull-right" {
+                    div class="btn-group" {
+                        button type="button" class="btn btn-default btn-xs dropdown-toggle" data-toggle="dropdown" {
+                            "Actions" span class="caret" {}
+                        }
+                        ul class="dropdown-menu pull-right" role="menu" {
+                            li a href="#" "Action"
+                            li a href="#" "Action"
+                            li a href="#" "Action"
+                            li a href="#" "Action"
+                            li class="divider" {}
+                            li a href="#" "Action"
+                        }
+                    }
+                }
+            }
+            div class="panel-body" {
+                div class="topic_tailer" {}
+            }
+        }
+    }
+}
+
 fn html_head(title: &str) -> PreEscaped<String> {
     html! {
         head profile="http://www.w3.org/2005/10/profile" {

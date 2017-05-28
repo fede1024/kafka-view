@@ -31,6 +31,7 @@ extern crate scheduled_executor;
 mod cache;
 mod config;
 mod error;
+mod live_consumer;
 mod metadata;
 mod metrics;
 mod web_server;

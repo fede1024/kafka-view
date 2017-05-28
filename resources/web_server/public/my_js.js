@@ -273,7 +273,51 @@ $(document).ready(function() {
     });
 });
 
+function truncate(string, max_len) {
+   if (string.length > max_len)
+      return string.substring(0,max_len) + '...';
+   else
+      return string;
+}
+
+function isScrolledToBottom(div) {
+    var div = div[0];
+    return div.scrollHeight - div.clientHeight <= div.scrollTop + 1;
+}
+
+function scroll_to_bottom(div) {
+    var div = div[0];
+    div.scrollTop = div.scrollHeight - div.clientHeight;
+}
+
+function worker() {
+  $.ajax({
+    url: '/api/test/scribe.uswest1-devc/scribe.devc.service_public_api_requests/1',
+    success: function(data) {
+      var div_tailer = $('div.topic_tailer');
+      var bottom = isScrolledToBottom(div_tailer);
+      messages = JSON.parse(data);
+      for (var i = 0; i < messages.length; i++) {
+        var message = messages[i];
+        var p = $("<p>", {class: "message"});
+        p.append(message[0] + ":" + message[1] + " " + truncate(message[2], 400));
+        div_tailer.append(p);
+      }
+      if (bottom)
+          scroll_to_bottom(div_tailer);
+    },
+    error: function(data) {
+      console.log("error");
+    },
+    complete: function() {
+      // Schedule the next request when the current one's complete
+      setTimeout(worker, 5000);
+    }
+  });
+}
+
 $(document).ready(function(){
     $('[data-toggle="tooltip"]').tooltip();
     $(window).resize();
+    worker();
 });
