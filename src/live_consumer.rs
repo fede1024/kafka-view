@@ -130,7 +130,7 @@ pub fn test_live_consumer_api(
     };
 
     let mut output = Vec::new();
-    for message in consumer.poll(100, Duration::from_secs(1)) {
+    for message in consumer.poll(100, Duration::from_secs(3)) {
         let payload = match message.payload_view::<str>() {
             None => "",
             Some(Ok(s)) => s,

@@ -64,7 +64,7 @@ pub fn datatable_ajax(id: &str, url: &str, param: &str,
     }
 }
 
-pub fn panel() -> PreEscaped<String> {
+pub fn panel(body: PreEscaped<String>) -> PreEscaped<String> {
     html! {
         div class="panel panel-default" {
             div class="panel-heading" {
@@ -85,9 +85,7 @@ pub fn panel() -> PreEscaped<String> {
                     }
                 }
             }
-            div class="panel-body" {
-                div class="topic_tailer" {}
-            }
+            div class="panel-body" { (body) }
         }
     }
 }
