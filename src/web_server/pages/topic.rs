@@ -1,4 +1,5 @@
 use maud::{PreEscaped, Markup};
+use rand::random;
 
 use cache::Cache;
 use config::Config;
@@ -31,7 +32,7 @@ fn graph_link(graph_url: &str, topic: &str) -> PreEscaped<String> {
     }
 }
 
-fn topic_tailer_panel(cluster_id: &ClusterId, topic: &str, tailer_id: i32) -> PreEscaped<String> {
+fn topic_tailer_panel(cluster_id: &ClusterId, topic: &str, tailer_id: u64) -> PreEscaped<String> {
     let panel_body = html! {
         div class="topic_tailer" data-cluster=(cluster_id) data-topic=(topic) data-tailer=(tailer_id) {
             "Tailer is loading..."
@@ -80,7 +81,7 @@ pub fn topic_page(cluster_id: ClusterId, topic_name: &str, cache: State<Cache>, 
         h3 "Consumer groups"
         (consumer_groups_table(&cluster_id, topic_name))
         h3 "Tailer"
-        (topic_tailer_panel(&cluster_id, topic_name, 0))
+        (topic_tailer_panel(&cluster_id, topic_name, random::<u64>()))
     };
 
     layout::page(&format!("Topic: {}", topic_name), content)

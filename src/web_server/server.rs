@@ -1,6 +1,7 @@
 use rocket::request::FromParam;
 use rocket::response::{self, Redirect, Responder, NamedFile};
 use rocket;
+use scheduled_executor::CoreExecutor;
 
 use error::*;
 use web_server::pages;
@@ -67,7 +68,7 @@ impl<'a> Responder<'a> for CachedFile {
     }
 }
 
-pub fn run_server(cache: Cache, config: &Config) -> Result<()> {
+pub fn run_server(executor: &CoreExecutor, cache: Cache, config: &Config) -> Result<()> {
     let version = option_env!("CARGO_PKG_VERSION").unwrap_or("?");
     info!("Starting kafka-view v{}, listening on {}:{}.", version, config.listen_host, config.listen_port);
 
@@ -82,7 +83,7 @@ pub fn run_server(cache: Cache, config: &Config) -> Result<()> {
     rocket::custom(rocket_config, false)
         .manage(cache)
         .manage(config.clone())
-        .manage(LiveConsumerStore::new())
+        .manage(LiveConsumerStore::new(executor.clone()))
         .mount("/", routes![
             index,
             files,

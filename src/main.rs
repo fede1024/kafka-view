@@ -1,4 +1,4 @@
-#![feature(alloc_system, custom_derive, plugin, conservative_impl_trait)]
+#![feature(alloc_system, custom_derive, plugin, conservative_impl_trait, retain_hash_collection)]
 #![plugin(rocket_codegen)]
 #![plugin(maud_macros)]
 
@@ -38,7 +38,7 @@ mod web_server;
 mod offsets;
 
 use clap::{App, Arg, ArgMatches};
-use scheduled_executor::{thread_pool, Executor, TaskGroup};
+use scheduled_executor::{thread_pool, CoreExecutor, TaskGroup};
 use std::time::Duration;
 
 use cache::{Cache, ReplicaReader, ReplicaWriter};
@@ -71,7 +71,7 @@ fn run_kafka_web(config_path: &str) -> Result<()> {
     info!("Processed {} messages in {:.3} seconds ({:.0} msg/s).",
         replica_reader.processed_messages(), elapsed_sec, replica_reader.processed_messages() as f32 / elapsed_sec);
 
-    let executor = Executor::new("executor")
+    let executor = CoreExecutor::new()
         .chain_err(|| "Failed to start main executor")?;
     let pool = thread_pool(4, "data-fetch-");
 
@@ -90,7 +90,7 @@ fn run_kafka_web(config_path: &str) -> Result<()> {
         }
     }
 
-    web_server::server::run_server(cache.alias(), &config)
+    web_server::server::run_server(&executor, cache.alias(), &config)
         .chain_err(|| "Server initialization failed")?;
 
     Ok(())

@@ -5,6 +5,7 @@ use rdkafka::statistics::Statistics;
 use futures::{Future, Stream};
 use futures::stream::Wait;
 use rocket::State;
+use scheduled_executor::CoreExecutor;
 
 use cache::Cache;
 use config::{ClusterConfig, Config};
@@ -16,19 +17,18 @@ use std::cmp::min;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
+use std::thread;
 
-//lazy_static! {
-//    static ref LIVE_CONSUMERS: LiveConsumerStore = LiveConsumerStore::new();
-//}
 
-struct LiveConsumer {
-    id: i32,
+
+struct LiveConsumerInner {
+    id: u64,
     consumer: BaseConsumer<EmptyConsumerContext>,
     last_poll: Instant,
 }
 
-impl LiveConsumer {
-    fn new(id: i32, cluster_config: &ClusterConfig, topic_name: &str) -> Result<LiveConsumer> {
+impl LiveConsumerInner {
+    fn new(id: u64, cluster_config: &ClusterConfig, topic_name: &str) -> Result<LiveConsumerInner> {
         let mut consumer = ClientConfig::new()
             .set("bootstrap.servers", &cluster_config.bootstrap_servers())
             .set("group.id", &format!("kafka_view_live_consumer_{}", id))
@@ -44,18 +44,14 @@ impl LiveConsumer {
         consumer.subscribe(&vec![topic_name])
             .expect("Can't subscribe to specified topics");
 
-        let live_consumer = LiveConsumer {
+        Ok(LiveConsumerInner {
             id: id,
             consumer: consumer,
             last_poll: Instant::now(),
-        };
-
-        info!("Creating new consumer!!");
-
-        Ok(live_consumer)
+        })
     }
 
-    fn poll(&self, max_msg: usize, timeout: Duration) -> Vec<Message> {
+    fn poll(&mut self, max_msg: usize, timeout: Duration) -> Vec<Message> {
         let start_time = Instant::now();
         let mut buffer = Vec::new();
 
@@ -69,40 +65,101 @@ impl LiveConsumer {
             };
         }
 
+        self.last_poll = Instant::now();
+
         debug!("{} messages received in {:?}", buffer.len(), Instant::elapsed(&start_time));
         buffer
     }
 }
 
+impl Drop for LiveConsumerInner {
+    fn drop(&mut self) {
+        debug!("Dropping consumer {}", self.id);
+    }
+}
+
+struct LiveConsumer {
+    id: u64,
+    inner: Arc<RwLock<LiveConsumerInner>>
+}
+
+impl Clone for LiveConsumer {
+    fn clone(&self) -> Self {
+        LiveConsumer {
+            id: self.id,
+            inner: Arc::clone(&self.inner)
+        }
+    }
+}
+
+impl LiveConsumer {
+    fn new(id: u64, cluster_config: &ClusterConfig, topic_name: &str) -> Result<LiveConsumer> {
+        let inner = LiveConsumerInner::new(id, cluster_config, topic_name)
+            .chain_err(|| "Error while creating LiveConsumerInner")?;
+
+        let live_consumer = LiveConsumer {
+            id: id,
+            inner: Arc::new(RwLock::new(inner)),
+        };
+
+        Ok(live_consumer)
+    }
+
+    fn poll(&self, max_msg: usize, timeout: Duration) -> Vec<Message> {
+        let mut inner = self.inner.write().unwrap();
+        (*inner).poll(max_msg, timeout)
+    }
+
+    fn last_poll_time(&self) -> Instant {
+        let inner = self.inner.read().unwrap();
+        (*inner).last_poll
+    }
+}
+
+
+type LiveConsumerMap = HashMap<u64, LiveConsumer>;
+
+fn remove_idle_consumers(consumers: &mut LiveConsumerMap) {
+    consumers.retain(|_, ref consumer| consumer.last_poll_time().elapsed() < Duration::from_secs(20));
+}
 
 pub struct LiveConsumerStore {
-    consumers: Arc<RwLock<HashMap<i32, Arc<LiveConsumer>>>>
+    consumers: Arc<RwLock<LiveConsumerMap>>,
+    executor: CoreExecutor,
 }
 
 impl LiveConsumerStore {
-    pub fn new() -> LiveConsumerStore {
+    pub fn new(executor: CoreExecutor) -> LiveConsumerStore {
+        let consumers = Arc::new(RwLock::new(HashMap::new()));
+        let consumers_clone = Arc::clone(&consumers);
+        executor.schedule_fixed_interval(
+            Duration::from_secs(10),
+            move |_handle| {
+                let mut consumers = consumers_clone.write().unwrap();
+                remove_idle_consumers(&mut *consumers);
+            }
+        );
         LiveConsumerStore {
-            consumers: Arc::new(RwLock::new(HashMap::new()))
+            consumers: consumers,
+            executor: executor,
         }
     }
 
-    fn get_consumer(&self, id: i32) -> Option<Arc<LiveConsumer>> {
+    fn get_consumer(&self, id: u64) -> Option<LiveConsumer> {
         let consumers = self.consumers.read().expect("Poison error");
         (*consumers).get(&id).cloned()
     }
 
-    fn add_consumer(&self, id: i32, cluster_config: &ClusterConfig, topic_name: &str) -> Result<Arc<LiveConsumer>> {
+    fn add_consumer(&self, id: u64, cluster_config: &ClusterConfig, topic_name: &str) -> Result<LiveConsumer> {
         let live_consumer = LiveConsumer::new(id, cluster_config, topic_name)
             .chain_err(|| "Failed to add live consumer")?;
 
-        let consumer_arc = Arc::new(live_consumer);
-
         match self.consumers.write() {
-            Ok(mut consumers) => (*consumers).insert(id, Arc::clone(&consumer_arc)),
+            Ok(mut consumers) => (*consumers).insert(id, live_consumer.clone()),
             Err(_) => panic!("Poison error while writing consumer to cache")
         };
 
-        Ok(consumer_arc)
+        Ok(live_consumer)
     }
 
 }
@@ -111,7 +168,7 @@ impl LiveConsumerStore {
 pub fn test_live_consumer_api(
     cluster_id: ClusterId,
     topic: &str,
-    id: i32,
+    id: u64,
     cache: State<Cache>,
     config: State<Config>,
     live_consumers_store: State<LiveConsumerStore>,
@@ -131,6 +188,7 @@ pub fn test_live_consumer_api(
 
     let mut output = Vec::new();
     for message in consumer.poll(100, Duration::from_secs(3)) {
+        // TODO: to utf8 lossy
         let payload = match message.payload_view::<str>() {
             None => "",
             Some(Ok(s)) => s,
