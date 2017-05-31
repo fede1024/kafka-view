@@ -33,12 +33,15 @@ fn graph_link(graph_url: &str, topic: &str) -> PreEscaped<String> {
 }
 
 fn topic_tailer_panel(cluster_id: &ClusterId, topic: &str, tailer_id: u64) -> PreEscaped<String> {
+    let panel_head = html! {
+        i class="fa fa-align-left fa-fw" {} "Messages"
+    };
     let panel_body = html! {
         div class="topic_tailer" data-cluster=(cluster_id) data-topic=(topic) data-tailer=(tailer_id) {
-            "Tailer is loading..."
+            "Tailing recent messages..."
         }
     };
-    layout::panel(panel_body)
+    layout::panel(panel_head, panel_body)
 }
 
 #[get("/clusters/<cluster_id>/topics/<topic_name>")]

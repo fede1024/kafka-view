@@ -64,23 +64,23 @@ pub fn datatable_ajax(id: &str, url: &str, param: &str,
     }
 }
 
-pub fn panel(body: PreEscaped<String>) -> PreEscaped<String> {
+pub fn panel(heading: PreEscaped<String>, body: PreEscaped<String>) -> PreEscaped<String> {
     html! {
         div class="panel panel-default" {
             div class="panel-heading" {
-                i class="fa fa-bar-chart-o fa-fw" {} "Bar Chart Example"
+                (heading)
                 div class="pull-right" {
                     div class="btn-group" {
                         button type="button" class="btn btn-default btn-xs dropdown-toggle" data-toggle="dropdown" {
                             "Actions" span class="caret" {}
                         }
                         ul class="dropdown-menu pull-right" role="menu" {
-                            li a href="#" "Action"
-                            li a href="#" "Action"
-                            li a href="#" "Action"
-                            li a href="#" "Action"
-                            li class="divider" {}
-                            li a href="#" "Action"
+                            li a href="#" "Start"
+                            li a href="#" "Stop"
+                            // li a href="#" "Action"
+                            // li a href="#" "Action"
+                            // li class="divider" {}
+                            // li a href="#" "Action"
                         }
                     }
                 }

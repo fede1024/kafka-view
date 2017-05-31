@@ -41,6 +41,7 @@ impl LiveConsumerInner {
             .create::<BaseConsumer<_>>()
             .chain_err(|| "Failed to create rdkafka consumer")?;
 
+        // TODO: start from the past
         consumer.subscribe(&vec![topic_name])
             .expect("Can't subscribe to specified topics");
 
@@ -54,6 +55,7 @@ impl LiveConsumerInner {
     fn poll(&mut self, max_msg: usize, timeout: Duration) -> Vec<Message> {
         let start_time = Instant::now();
         let mut buffer = Vec::new();
+        self.last_poll = Instant::now();
 
         while Instant::elapsed(&start_time) < timeout && buffer.len() < max_msg {
             match self.consumer.poll(100) {
@@ -64,8 +66,6 @@ impl LiveConsumerInner {
                 },
             };
         }
-
-        self.last_poll = Instant::now();
 
         debug!("{} messages received in {:?}", buffer.len(), Instant::elapsed(&start_time));
         buffer
@@ -188,15 +188,9 @@ pub fn test_live_consumer_api(
 
     let mut output = Vec::new();
     for message in consumer.poll(100, Duration::from_secs(3)) {
-        // TODO: to utf8 lossy
-        let payload = match message.payload_view::<str>() {
-            None => "",
-            Some(Ok(s)) => s,
-            Some(Err(e)) => {
-                warn!("Error while deserializing message payload: {:?}", e);
-                ""
-            },
-        };
+        let payload = message.payload()
+            .map(|bytes| String::from_utf8_lossy(bytes).to_string())
+            .unwrap_or("".to_owned());
         output.push(json!{(message.partition(), message.offset(), payload)});
     }
 
