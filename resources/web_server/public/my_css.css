@@ -19,6 +19,22 @@ h3 {
     border-bottom: 1px solid #eee;
 }
 
+.message {
+    border-bottom: 1px solid #eee;
+    border-top: 1px solid #eee;
+    padding-top: 3px;
+    padding-bottom: 3px;
+    margin-top: 0px;
+    margin-bottom: 0px;
+}
+
+div.topic_tailer {
+    width: 100%;
+    min-height: 200px;
+    max-height: 500px;
+    overflow: auto;
+}
+
 table.dataTable tbody th.dt-body-right,
 table.dataTable tbody td.dt-body-right {
   text-align: right;

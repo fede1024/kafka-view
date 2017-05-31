@@ -273,6 +273,67 @@ $(document).ready(function() {
     });
 });
 
+function truncate(string, max_len) {
+   if (string.length > max_len)
+      return string.substring(0,max_len) + '...';
+   else
+      return string;
+}
+
+function isScrolledToBottom(div) {
+    var div = div[0];
+    return div.scrollHeight - div.clientHeight <= div.scrollTop + 1;
+}
+
+function scroll_to_bottom(div) {
+    var div = div[0];
+    div.scrollTop = div.scrollHeight - div.clientHeight;
+}
+
+var max_msg_count = 1000;
+var max_msg_length = 1024;
+var poll_interval = 1000;
+
+function background_tailer(cluster_id, topic_name, tailer_id) {
+  var url = '/api/test/' + cluster_id + '/' + topic_name + '/' + tailer_id;
+  $.ajax({
+    url: url,
+    success: function(data) {
+      var div_tailer = $('div.topic_tailer');
+      var bottom = isScrolledToBottom(div_tailer);
+      messages = JSON.parse(data);
+      for (var i = 0; i < messages.length; i++) {
+        var message = messages[i];
+        var p = $("<p>", {class: "message"});
+        p.append(truncate(message[2], max_msg_length));
+        div_tailer.append(p);
+      }
+      if (bottom)
+          scroll_to_bottom(div_tailer);
+      var message_count = div_tailer.children().length;
+      if (message_count > max_msg_count)
+          div_tailer.children().slice(0, message_count - max_msg_count).remove();
+    },
+    error: function(data) {
+      console.log("error");
+    },
+    complete: function() {
+      // Schedule the next request when the current one's complete
+      setTimeout(function(){background_tailer(cluster_id, topic_name, tailer_id)}, poll_interval);
+    }
+  });
+}
+
+// Load topic tailers
+$(document).ready(function() {
+    $('.topic_tailer').each(function(index) {
+        var cluster_id = $(this).attr("data-cluster");
+        var topic_name = $(this).attr("data-topic");
+        var tailer_id = $(this).attr("data-tailer");
+        background_tailer(cluster_id, topic_name, tailer_id);
+    });
+});
+
 $(document).ready(function(){
     $('[data-toggle="tooltip"]').tooltip();
     $(window).resize();

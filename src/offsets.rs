@@ -1,10 +1,10 @@
 use byteorder::{BigEndian, ReadBytesExt};
-use futures::stream::Stream;
+use futures::Stream;
 use rdkafka::config::{ClientConfig, TopicConfig};
 use rdkafka::consumer::stream_consumer::StreamConsumer;
 use rdkafka::consumer::{Consumer, EmptyConsumerContext};
 use rdkafka::error::KafkaError;
-use rdkafka::topic_partition_list::TopicPartitionList;
+use rdkafka::{TopicPartitionList, Offset};
 
 use cache::{Cache, OffsetsCache};
 use config::{Config, ClusterConfig};
@@ -68,6 +68,8 @@ fn create_consumer(brokers: &str, group_id: &str, start_offsets: Option<Vec<i64>
         .set("bootstrap.servers", brokers)
         .set("enable.partition.eof", "false")
         .set("session.timeout.ms", "30000")
+        .set("queued.max.messages.kbytes", "1000") // Reduce memory usage
+        .set("fetch.message.max.bytes", "102400")
         .set_default_topic_config(TopicConfig::new()
             .set("auto.offset.reset", "smallest")
             .finalize())
@@ -76,9 +78,10 @@ fn create_consumer(brokers: &str, group_id: &str, start_offsets: Option<Vec<i64>
 
     match start_offsets {
         Some(pos) => {
-            let res = pos.iter().enumerate().map(|(n, &o)| (n as i32, o)).collect::<Vec<_>>();
             let mut tp_list = TopicPartitionList::new();
-            tp_list.add_topic_with_partitions_and_offsets("__consumer_offsets", &res);
+            for (partition, &offset) in pos.iter().enumerate() {
+                tp_list.add_partition_offset("__consumer_offsets", partition as i32, Offset::Offset(offset));
+            }
             debug!("Previous offsets found, assigning offsets explicitly: {:?}", tp_list);
             consumer.assign(&tp_list)
                 .chain_err(|| "Failure during consumer assignment")?;
@@ -116,14 +119,10 @@ fn update_global_cache(cluster_id: &ClusterId, local_cache: &HashMap<(String, St
 }
 
 fn commit_offset_position_to_array(tp_list: TopicPartitionList) -> Vec<i64> {
-    let ref partitions = tp_list.topics.get("__consumer_offsets").unwrap().as_ref().unwrap();
-    let mut offsets = vec![0; partitions.len()];
-    for p in partitions.iter() {
-        offsets[p.id as usize] = if p.offset < 0 {
-            -2 // Beginning
-        } else {
-            p.offset
-        }
+    let tp_elements = tp_list.elements_for_topic("__consumer_offsets");
+    let mut offsets = vec![0; tp_elements.len()];
+    for tp in tp_elements.iter() {
+        offsets[tp.partition() as usize] = tp.offset().to_raw();
     }
     offsets
 }
@@ -182,9 +181,8 @@ fn consume_offset_topic(cluster_id: ClusterId, mut consumer: StreamConsumer<Empt
             update_global_cache(&cluster_id, &local_cache, &cache.offsets);
             consumer.position()
                 .map(|pos| {
-                    debug!("Consumer position: {:?}", pos);
                     let vec = commit_offset_position_to_array(pos);
-                    debug!("Offset vector: {:?}", vec);
+                    trace!("Store consumer position: {:?}", vec);
                     cache.internal_offsets.insert(cluster_id.clone(), vec);
                 });
             local_cache = HashMap::with_capacity(local_cache.len());

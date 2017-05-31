@@ -1,6 +1,7 @@
 use rocket::request::FromParam;
 use rocket::response::{self, Redirect, Responder, NamedFile};
 use rocket;
+use scheduled_executor::CoreExecutor;
 
 use error::*;
 use web_server::pages;
@@ -8,6 +9,7 @@ use web_server::api;
 use cache::Cache;
 use config::Config;
 use metadata::ClusterId;
+use live_consumer::{self, LiveConsumerStore};
 
 use std::path::{Path, PathBuf};
 use std;
@@ -66,7 +68,7 @@ impl<'a> Responder<'a> for CachedFile {
     }
 }
 
-pub fn run_server(cache: Cache, config: &Config) -> Result<()> {
+pub fn run_server(executor: &CoreExecutor, cache: Cache, config: &Config) -> Result<()> {
     let version = option_env!("CARGO_PKG_VERSION").unwrap_or("?");
     info!("Starting kafka-view v{}, listening on {}:{}.", version, config.listen_host, config.listen_port);
 
@@ -81,6 +83,7 @@ pub fn run_server(cache: Cache, config: &Config) -> Result<()> {
     rocket::custom(rocket_config, false)
         .manage(cache)
         .manage(config.clone())
+        .manage(LiveConsumerStore::new(executor.clone()))
         .mount("/", routes![
             index,
             files,
@@ -107,6 +110,7 @@ pub fn run_server(cache: Cache, config: &Config) -> Result<()> {
             api::topic_groups,
             api::topic_search,
             api::topic_topology,
+            live_consumer::test_live_consumer_api,
         ])
         .launch();
 
