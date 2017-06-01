@@ -50,7 +50,7 @@ pub struct CachedFile {
 
 impl CachedFile {
     pub fn from(file: NamedFile) -> CachedFile {
-        CachedFile::with_ttl(7200, file)
+        CachedFile::with_ttl(1800, file)
     }
 
     pub fn with_ttl(ttl: usize, file: NamedFile) -> CachedFile {
@@ -92,6 +92,7 @@ pub fn run_server(executor: &CoreExecutor, cache: Cache, config: &Config) -> Res
             pages::clusters::clusters_page,
             pages::group::group_page,
             pages::internals::caches_page,
+            pages::internals::live_consumers_page,
             pages::omnisearch::consumer_search,
             pages::omnisearch::consumer_search_p,
             pages::omnisearch::omni_search,
@@ -102,6 +103,7 @@ pub fn run_server(executor: &CoreExecutor, cache: Cache, config: &Config) -> Res
             api::brokers,
             api::cache_brokers,
             api::cache_metrics,
+            api::live_consumers,
             api::cluster_groups,
             api::cluster_topics,
             api::consumer_search,

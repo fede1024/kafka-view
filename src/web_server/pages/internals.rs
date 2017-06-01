@@ -48,3 +48,19 @@ pub fn caches_page() -> Markup {
     };
     layout::page("Caches", content)
 }
+
+
+fn live_consumers_table() -> PreEscaped<String> {
+    layout::datatable_ajax("internals-live-consumers-ajax", "/api/internals/live_consumers", "",
+       html! { tr { th "Id" th "Cluster id" th "Topic name" th "Last poll" } }
+    )
+}
+
+#[get("/internals/live_consumers")]
+pub fn live_consumers_page() -> Markup {
+    let content = html! {
+        h3 style="margin-top: 0px" "Active instances"
+        div (live_consumers_table())
+    };
+    layout::page("Live consumers", content)
+}

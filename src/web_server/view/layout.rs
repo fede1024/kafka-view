@@ -181,6 +181,9 @@ fn navbar_side() -> PreEscaped<String> {
                             li a href="/internals/caches" {
                                 i class="fa fa-microchip fa-fw" {}  " Caches"
                             }
+                            li a href="/internals/live_consumers" {
+                                i class="fa fa-microchip fa-fw" {}  " Live consumers"
+                            }
                             // li {
                             //     a href="#" { "Third Level" span class="fa arrow" {} }
                             //     ul class="nav nav-third-level" {

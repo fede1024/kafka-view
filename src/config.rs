@@ -10,6 +10,7 @@ use std::fs::File;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ClusterConfig {
+    pub cluster_id: Option<ClusterId>, // This will always be available after load
     pub broker_list: Vec<String>,
     pub zookeeper: String,
     pub jolokia_port: Option<i32>,
@@ -52,8 +53,12 @@ pub fn read_config(path: &str) -> Result<Config> {
     f.read_to_string(&mut s)
         .chain_err(|| "Unable to read configuration file")?;
 
-    let config: Config = serde_yaml::from_str(&s)
+    let mut config: Config = serde_yaml::from_str(&s)
         .chain_err(|| "Unable to parse configuration file")?;
+
+    for (cluster_id, mut cluster) in &mut config.clusters {
+        cluster.cluster_id = Some(cluster_id.clone());
+    }
 
     Ok(config)
 }

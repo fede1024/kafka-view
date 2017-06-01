@@ -271,6 +271,19 @@ $(document).ready(function() {
             table.ajax.reload();
         }, 20000 );
     });
+    $('#datatable-internals-live-consumers-ajax').each(function(index) {
+        var table = $(this).DataTable({
+            "ajax": $(this).attr("data-url"),
+            "lengthMenu": [ [10, 50, -1], [10, 50, "All"] ],
+            "pageLength": 10,
+            "processing": true,
+            "deferRender": true,
+            "stateSave": true
+        });
+        setInterval( function () {
+            table.ajax.reload();
+        }, 20000 );
+    });
 });
 
 function truncate(string, max_len) {

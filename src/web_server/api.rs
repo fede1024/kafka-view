@@ -6,6 +6,7 @@ use rocket::State;
 
 use cache::Cache;
 use error::*;
+use live_consumer::LiveConsumerStore;
 use metadata::{CONSUMERS, ClusterId, TopicName};
 use metrics::build_topic_metrics;
 use offsets::OffsetStore;
@@ -323,5 +324,15 @@ pub fn cache_metrics(cache: State<Cache>, timestamp: &str) -> String {
             }).collect::<Vec<_>>()
     });
 
+    json!({"data": result_data}).to_string()
+}
+
+#[get("/api/internals/live_consumers?<timestamp>")]
+pub fn live_consumers(live_consumers: State<LiveConsumerStore>, timestamp: &str) -> String {
+    let _ = timestamp;
+    let result_data = live_consumers.consumers().iter()
+        .map(|consumer| ((consumer.id(), consumer.cluster_id().to_owned(), consumer.topic().to_owned(),
+                          consumer.last_poll().elapsed().as_secs())))
+        .collect::<Vec<_>>();
     json!({"data": result_data}).to_string()
 }
