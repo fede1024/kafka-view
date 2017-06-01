@@ -16,7 +16,7 @@ dependencies = [
  "maud_macros 0.16.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "mount 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.3.15 (registry+https://github.com/rust-lang/crates.io-index)",
- "rdkafka 0.10.0",
+ "rdkafka 0.10.0 (git+https://github.com/fede1024/rust-rdkafka.git)",
  "regex 0.1.80 (registry+https://github.com/rust-lang/crates.io-index)",
  "rocket 0.2.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "rocket_codegen 0.2.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -565,13 +565,14 @@ dependencies = [
 [[package]]
 name = "rdkafka"
 version = "0.10.0"
+source = "git+https://github.com/fede1024/rust-rdkafka.git#9f725f5bb82516aa07f054b2bb84072405af4ef5"
 dependencies = [
  "env_logger 0.3.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "errno 0.1.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.1.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "libc 0.2.21 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.3.7 (registry+https://github.com/rust-lang/crates.io-index)",
- "rdkafka-sys 0.9.5-0",
+ "rdkafka-sys 0.9.5-0 (git+https://github.com/fede1024/rust-rdkafka.git)",
  "serde 0.9.13 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_derive 0.9.13 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 0.9.10 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -580,6 +581,7 @@ dependencies = [
 [[package]]
 name = "rdkafka-sys"
 version = "0.9.5-0"
+source = "git+https://github.com/fede1024/rust-rdkafka.git#9f725f5bb82516aa07f054b2bb84072405af4ef5"
 dependencies = [
  "libz-sys 1.0.13 (registry+https://github.com/rust-lang/crates.io-index)",
  "lz4-sys 1.0.1+1.7.3 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1048,6 +1050,8 @@ dependencies = [
 "checksum plugin 0.2.6 (registry+https://github.com/rust-lang/crates.io-index)" = "1a6a0dc3910bc8db877ffed8e457763b317cf880df4ae19109b9f77d277cf6e0"
 "checksum quote 0.3.15 (registry+https://github.com/rust-lang/crates.io-index)" = "7a6e920b65c65f10b2ae65c831a81a073a89edd28c7cce89475bff467ab4167a"
 "checksum rand 0.3.15 (registry+https://github.com/rust-lang/crates.io-index)" = "022e0636ec2519ddae48154b028864bdce4eaf7d35226ab8e65c611be97b189d"
+"checksum rdkafka 0.10.0 (git+https://github.com/fede1024/rust-rdkafka.git)" = "<none>"
+"checksum rdkafka-sys 0.9.5-0 (git+https://github.com/fede1024/rust-rdkafka.git)" = "<none>"
 "checksum redox_syscall 0.1.17 (registry+https://github.com/rust-lang/crates.io-index)" = "29dbdfd4b9df8ab31dec47c6087b7b13cbf4a776f335e4de8efba8288dda075b"
 "checksum regex 0.1.80 (registry+https://github.com/rust-lang/crates.io-index)" = "4fd4ace6a8cf7860714a2c2280d6c1f7e6a413486c13298bbc86fd3da019402f"
 "checksum regex-syntax 0.3.9 (registry+https://github.com/rust-lang/crates.io-index)" = "f9ec002c35e86791825ed294b50008eea9ddfc8def4420124fbc6b08db834957"
