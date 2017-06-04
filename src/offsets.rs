@@ -68,8 +68,7 @@ fn create_consumer(brokers: &str, group_id: &str, start_offsets: Option<Vec<i64>
         .set("bootstrap.servers", brokers)
         .set("enable.partition.eof", "false")
         .set("session.timeout.ms", "30000")
-        .set("queued.max.messages.kbytes", "1000") // Reduce memory usage
-        .set("fetch.message.max.bytes", "102400")
+        .set("fetch.message.max.bytes", "102400") // Reduce memory usage
         .set_default_topic_config(TopicConfig::new()
             .set("auto.offset.reset", "smallest")
             .finalize())

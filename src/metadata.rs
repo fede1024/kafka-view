@@ -192,6 +192,7 @@ impl MetadataFetchTaskGroup {
     fn fetch_data(&self, consumer: Arc<MetadataConsumer>, cluster_id: &ClusterId) -> Result<()> {
         let metadata = consumer.fetch_metadata(None, 120000)
             .chain_err(|| format!("Failed to fetch metadata from {}", cluster_id))?;
+        // Brokers
         let mut brokers = Vec::new();
         for broker in metadata.brokers() {
             brokers.push(Broker::new(broker.id(), broker.host().to_owned(), broker.port()));
@@ -199,6 +200,7 @@ impl MetadataFetchTaskGroup {
         self.cache.brokers.insert(cluster_id.to_owned(), brokers)
             .chain_err(|| "Failed to insert broker information in cache")?;
 
+        // Topics
         for topic in metadata.topics() {
             let mut partitions = Vec::with_capacity(topic.partitions().len());
             for p in topic.partitions() {
@@ -206,11 +208,12 @@ impl MetadataFetchTaskGroup {
                                                p.error().map(|e| rderror::resp_err_description(e))));
             }
             partitions.sort_by(|a, b| a.id.cmp(&b.id));
+            // TODO: do not update if it's already there?
             self.cache.topics.insert((cluster_id.clone(), topic.name().to_owned()), partitions)
                 .chain_err(|| "Failed to insert broker information in cache")?;
         }
 
-        // Fetch groups
+        // Groups
         for group in fetch_groups(consumer.as_ref(), 30000)? {
             self.cache.groups.insert((cluster_id.clone(), group.name.to_owned()), group)?;
         }

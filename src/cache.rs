@@ -14,7 +14,7 @@ use std::borrow::Borrow;
 use std::collections::{HashMap, HashSet};
 use std::collections::hash_map;
 use std::hash::Hash;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, RwLock, RwLockReadGuard};
 
 use error::*;
 use metadata::{Broker, BrokerId, ClusterId, Group, Partition, TopicName};
@@ -114,7 +114,8 @@ impl ReplicaReader {
             .set("bootstrap.servers", brokers)
             .set("session.timeout.ms", "6000")
             .set("enable.auto.commit", "false")
-            //.set("api.version.request", "true")
+            .set("fetch.message.max.bytes", "102400") // Reduce memory usage
+            .set("api.version.request", "true")
             .set_default_topic_config(
                 TopicConfig::new()
                 .set("auto.offset.reset", "smallest")
@@ -199,6 +200,7 @@ impl ReplicaReader {
                 break;
             }
         }
+        info!("Total unique items in caches: {}", state.len());
         Ok(state)
     }
 }
@@ -240,11 +242,25 @@ fn parse_message_key(message: &Message) -> Result<WrappedKey> {
 // ********** REPLICATEDMAP **********
 //
 
+#[derive(Clone)]
+struct ValueContainer<V>
+        where V: Clone + Serialize + Deserialize {
+    value: V,
+}
+
+impl<V> ValueContainer<V>
+        where V: Clone + Serialize + Deserialize {
+
+    fn new(value: V) -> ValueContainer<V> {
+        ValueContainer { value }
+    }
+}
+
 pub struct ReplicatedMap<K, V>
         where K: Eq + Hash + Clone + Serialize + Deserialize,
               V: Clone + Serialize + Deserialize {
     name: String,
-    map: Arc<RwLock<HashMap<K, V>>>,
+    map: Arc<RwLock<HashMap<K, ValueContainer<V>>>>,
     replica_writer: Arc<ReplicaWriter>,
 }
 
@@ -292,33 +308,46 @@ impl<K, V> ReplicatedMap<K, V> where K: Eq + Hash + Clone + Serialize + Deserial
 
     pub fn sync_value_update(&self, key: K, value: V) {
         match self.map.write() {
-            Ok(mut cache) => (*cache).insert(key, value),
+            Ok(mut cache) => (*cache).insert(key, ValueContainer::new(value)),
             Err(_) => panic!("Poison error"),
         };
     }
 
-    pub fn insert(&self, key: K, value: V) -> Result<()> {
-        self.replica_writer.write_update(&self.name, &key, &value)
+    pub fn insert(&self, key: K, new_value: V) -> Result<()> {
+        self.replica_writer.write_update(&self.name, &key, &new_value)
             .chain_err(|| "Failed to write cache update")?;
-        self.sync_value_update(key, value);
+        self.sync_value_update(key, new_value);
         Ok(())
     }
+
+//    pub fn insert_if_updated<J>(&self, key: K, new_value: J) -> Result<()>
+//    where J: Clone + PartialEq + Serialize + Deserialize {
+//        if let Some(current_value) = self.get(&key) {
+//            if current_value == new_value {
+//                return Ok(());
+//            }
+//        }
+//        self.insert(key, new_value)
+//    }
 
     pub fn get<Q: ?Sized>(&self, key: &Q) -> Option<V>
         where K: Borrow<Q>,
               Q: Hash + Eq
     {
         match self.map.read() {
-            Ok(cache) => { return (*cache).get(key).map(|v| v.clone()) },
+            Ok(cache) => { return (*cache).get(key).map(|v| v.value.clone()) },
             Err(_) => panic!("Poison error"),
         };
     }
 
     // TODO: add doc
     pub fn lock_iter<F, R>(&self, f: F) -> R
-            where F: Fn(hash_map::Iter<K, V>) -> R {
+            where for <'a> F: Fn(ReplicatedMapIter<'a, K, V>) -> R {
         match self.map.read() {
-            Ok(cache) => f(cache.iter()),
+            Ok(cache) => {
+                let iter = ReplicatedMapIter::new(cache.iter());
+                f(iter)
+            },
             Err(_) => panic!("Poison error"),
         }
     }
@@ -353,6 +382,31 @@ impl<K, V> ReplicatedMap<K, V> where K: Eq + Hash + Clone + Serialize + Deserial
                 .map(|(k, _)| k.clone())
                 .collect::<Vec<K>>()
         })
+    }
+}
+
+struct ReplicatedMapIter<'a, K, V>
+        where K: Eq + Hash + Clone + Serialize + Deserialize + 'a,
+              V: Clone + Serialize + Deserialize + 'a {
+    inner: hash_map::Iter<'a, K, ValueContainer<V>>
+}
+
+impl<'a, K, V> ReplicatedMapIter<'a, K, V>
+    where K: Eq + Hash + Clone + Serialize + Deserialize + 'a,
+          V: Clone + Serialize + Deserialize + 'a {
+
+    fn new(inner: hash_map::Iter<'a, K, ValueContainer<V>>) -> ReplicatedMapIter<'a, K, V> {
+        ReplicatedMapIter { inner: inner }
+    }
+}
+
+impl<'a, K, V> Iterator for ReplicatedMapIter<'a, K, V>
+    where K: Eq + Hash + Clone + Serialize + Deserialize + 'a,
+          V: Clone + Serialize + Deserialize + 'a {
+    type Item = (&'a K, &'a V);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.next()
     }
 }
 

@@ -38,10 +38,8 @@ impl LiveConsumer {
             .set("group.id", &format!("kafka_view_live_consumer_{}", id))
             .set("enable.partition.eof", "false")
             .set("api.version.request", "false")
-            .set("queued.min.messages", "5000")
             .set("enable.auto.commit", "false")
-            .set("queued.max.messages.kbytes", "1000")
-            .set("fetch.message.max.bytes", "102400")
+            .set("fetch.message.max.bytes", "102400") // Reduce memory usage
             .create::<BaseConsumer<_>>()
             .chain_err(|| "Failed to create rdkafka consumer")?;
 
