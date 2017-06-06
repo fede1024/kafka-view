@@ -99,7 +99,7 @@ pub fn build_topic_metrics(cluster_id: &ClusterId, brokers: &Vec<Broker>, topic_
     result
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(PartialEq, Serialize, Deserialize, Debug, Clone)]
 pub struct BrokerMetrics {
     pub topics: HashMap<TopicName, (f64, f64)>,
 }

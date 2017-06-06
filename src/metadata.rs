@@ -96,7 +96,7 @@ impl fmt::Display for ClusterId {
 // ********** METADATA **********
 //
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(PartialEq, Serialize, Deserialize, Debug, Clone)]
 pub struct Partition {
     pub id: i32,
     pub leader: BrokerId,
@@ -106,7 +106,9 @@ pub struct Partition {
 }
 
 impl Partition {
-    fn new(id: i32, leader: BrokerId, replicas: Vec<BrokerId>, isr: Vec<BrokerId>, error: Option<String>) -> Partition {
+    fn new(id: i32, leader: BrokerId, mut replicas: Vec<BrokerId>, mut isr: Vec<BrokerId>, error: Option<String>) -> Partition {
+        replicas.sort();
+        isr.sort();
         Partition {
             id: id,
             leader: leader,
@@ -117,7 +119,7 @@ impl Partition {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(PartialEq, Serialize, Deserialize, Debug, Clone)]
 pub struct Broker {
     pub id: BrokerId,
     pub hostname: String,
@@ -140,14 +142,14 @@ impl Broker {
 //
 
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(PartialEq, Serialize, Deserialize, Debug, Clone)]
 pub struct GroupMember {
     pub id: String,
     pub client_id: String,
     pub client_host: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(PartialEq, Serialize, Deserialize, Debug, Clone)]
 pub struct Group {
     pub name: String,
     pub state: String,
@@ -192,6 +194,7 @@ impl MetadataFetchTaskGroup {
     fn fetch_data(&self, consumer: Arc<MetadataConsumer>, cluster_id: &ClusterId) -> Result<()> {
         let metadata = consumer.fetch_metadata(None, 120000)
             .chain_err(|| format!("Failed to fetch metadata from {}", cluster_id))?;
+
         // Brokers
         let mut brokers = Vec::new();
         for broker in metadata.brokers() {

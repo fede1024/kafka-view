@@ -18,7 +18,6 @@ extern crate env_logger;
 extern crate futures;
 extern crate futures_cpupool;
 extern crate maud;
-extern crate mount;
 extern crate rand;
 extern crate rdkafka;
 extern crate regex;
@@ -89,6 +88,14 @@ fn run_kafka_web(config_path: &str) -> Result<()> {
             format_error_chain!(e);
         }
     }
+
+    let cache_clone = cache.alias();
+    executor.schedule_fixed_rate(
+        Duration::from_secs(config.metadata_refresh),
+        move |_| {
+            cache_clone.topics.remove_old(Duration::from_secs(70));
+        }
+    );
 
     web_server::server::run_server(&executor, cache.alias(), &config)
         .chain_err(|| "Server initialization failed")?;
