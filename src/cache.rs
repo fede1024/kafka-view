@@ -125,7 +125,8 @@ impl ReplicaReader {
             .set("bootstrap.servers", brokers)
             .set("session.timeout.ms", "6000")
             .set("enable.auto.commit", "false")
-            .set("fetch.message.max.bytes", "102400") // Reduce memory usage
+            .set("queued.max.messages.kbytes", "102400") // Reduce memory usage
+            .set("fetch.message.max.bytes", "102400")
             .set("api.version.request", "true")
             .set_default_topic_config(
                 TopicConfig::new()

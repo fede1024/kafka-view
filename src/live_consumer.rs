@@ -39,7 +39,8 @@ impl LiveConsumer {
             .set("enable.partition.eof", "false")
             .set("api.version.request", "false")
             .set("enable.auto.commit", "false")
-            .set("fetch.message.max.bytes", "102400") // Reduce memory usage
+            .set("queued.max.messages.kbytes", "100") // Reduce memory usage
+            .set("fetch.message.max.bytes", "102400")
             .create::<BaseConsumer<_>>()
             .chain_err(|| "Failed to create rdkafka consumer")?;
 
@@ -205,7 +206,13 @@ pub fn test_live_consumer_api(
         let payload = message.payload()
             .map(|bytes| String::from_utf8_lossy(bytes).to_string())
             .unwrap_or("".to_owned());
-        output.push(json!{(message.partition(), message.offset(), payload)});
+        // TODO: allocate less
+        let truncated = if payload.len() > 1024 {
+            format!("{}...", &payload[..1024])  // TODO: fix handling of utf8
+        } else {
+            payload.clone()
+        };
+        output.push(json!{(message.partition(), message.offset(), truncated)});
     }
 
     Ok(json!(output).to_string())
