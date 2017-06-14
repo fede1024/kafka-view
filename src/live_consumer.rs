@@ -27,7 +27,7 @@ struct LiveConsumer {
     cluster_id: ClusterId,
     topic: String,
     last_poll: RwLock<Instant>,
-    consumer: Mutex<BaseConsumer<EmptyConsumerContext>>,
+    consumer: BaseConsumer<EmptyConsumerContext>,
     active: AtomicBool,
 }
 
@@ -48,7 +48,7 @@ impl LiveConsumer {
         Ok(LiveConsumer {
             id: id,
             cluster_id: cluster_config.cluster_id.clone().unwrap(),
-            consumer: Mutex::new(consumer),
+            consumer: consumer,
             active: AtomicBool::new(false),
             last_poll: RwLock::new(Instant::now()),
             topic: topic.to_owned(),
@@ -59,8 +59,8 @@ impl LiveConsumer {
         // TODO: start from the past
         debug!("Activating live consumer for {}", self.topic);
 
-        let consumer = self.consumer.lock().unwrap();
-        consumer.subscribe(vec![self.topic.as_str()].as_slice())
+        // TODO: use assign instead
+        self.consumer.subscribe(vec![self.topic.as_str()].as_slice())
             .chain_err(|| "Can't subscribe to specified topics")?;
         self.active.store(true, Ordering::Relaxed);
         Ok(())
@@ -90,10 +90,9 @@ impl LiveConsumer {
         let start_time = Instant::now();
         let mut buffer = Vec::new();
         *self.last_poll.write().unwrap() = Instant::now();
-        let mut consumer = self.consumer.lock().unwrap();
 
         while Instant::elapsed(&start_time) < timeout && buffer.len() < max_msg {
-            match (*consumer).poll(100) {
+            match self.consumer.poll(100) {
                 Ok(None) => {},
                 Ok(Some(m)) => buffer.push(m),
                 Err(e) => {

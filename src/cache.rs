@@ -193,7 +193,9 @@ impl ReplicaReader {
             return Ok(state);  // Topic is empty and autocreated
         }
 
-        for message in self.consumer.start().wait() {
+        let message_stream = self.consumer.start();
+
+        for message in message_stream.wait() {
             match message {
                 Ok(Ok(m)) => {
                     self.processed_messages += 1;
@@ -207,10 +209,10 @@ impl ReplicaReader {
                 Err(_) => error!("Stream receive error"),
             };
             if eof_set.len() == topic_metadata.partitions().len() {
-                self.consumer.stop();
                 break;
             }
         }
+        self.consumer.stop();
         info!("Total unique items in caches: {}", state.len());
         Ok(state)
     }
