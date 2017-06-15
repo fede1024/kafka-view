@@ -99,14 +99,8 @@ impl ReplicaWriter {
 // ********* REPLICA READER **********
 //
 
-#[derive(Debug)]
-pub enum ReplicaCacheUpdate<'a> {
-    Set { key: &'a[u8], payload: &'a[u8] },
-    Delete { key: &'a[u8] }
-}
-
 pub trait UpdateReceiver: Send + 'static {
-    fn receive_update(&self, name: &str, update: ReplicaCacheUpdate) -> Result<()>;
+    fn receive_update(&self, name: &str, key: &[u8], payload: Option<&[u8]>) -> Result<()>;
 }
 
 type ReplicaConsumer = StreamConsumer<EmptyConsumerContext>;
@@ -125,9 +119,9 @@ impl ReplicaReader {
             .set("bootstrap.servers", brokers)
             .set("session.timeout.ms", "6000")
             .set("enable.auto.commit", "false")
-            .set("queued.max.messages.kbytes", "102400") // Reduce memory usage
-            .set("fetch.message.max.bytes", "102400")
-            .set("api.version.request", "true")
+            .set("queued.max.messages.kbytes", "1024") // Reduce memory usage
+            //.set("fetch.message.max.bytes", "102400")
+            //.set("api.version.request", "true")
             .set_default_topic_config(
                 TopicConfig::new()
                 .set("auto.offset.reset", "smallest")
@@ -157,19 +151,26 @@ impl ReplicaReader {
         match self.last_message_per_key() {
             Err(e) => format_error_chain!(e),
             Ok(state) => {
-                for (w_key, message) in state {
-                    let update = match message.payload() {
-                        Some(payload) => ReplicaCacheUpdate::Set {
-                            key: w_key.serialized_key(),
-                            payload: payload
-                        },
-                        None => ReplicaCacheUpdate::Delete {
-                            key: w_key.serialized_key()
-                        },
+                for (w_key, payload) in state {
+                    let err = match payload {
+                        Some(p) => receiver.receive_update(w_key.cache_name(), w_key.serialized_key(), Some(&p)),
+                        None => receiver.receive_update(w_key.cache_name(), w_key.serialized_key(), None),
                     };
-                    if let Err(e) = receiver.receive_update(w_key.cache_name(), update) {
+                    if let Err(e) = err {
                         format_error_chain!(e);
                     }
+//                    let update = match payload {
+//                        Some(payload) => ReplicaCacheUpdate::Set {
+//                            key: w_key.serialized_key(),
+//                            payload: payload.as_slice()
+//                        },
+//                        None => ReplicaCacheUpdate::Delete {
+//                            key: w_key.serialized_key()
+//                        },
+//                    };
+//                    if let Err(e) = receiver.receive_update(w_key.cache_name(), update) {
+//                        format_error_chain!(e);
+//                    }
                 }
             }
         }
@@ -177,9 +178,9 @@ impl ReplicaReader {
         Ok(())
     }
 
-    fn last_message_per_key(&mut self) -> Result<HashMap<WrappedKey, Message>> {
+    fn last_message_per_key(&mut self) -> Result<HashMap<WrappedKey, Option<Vec<u8>>>> {
         let mut eof_set = HashSet::new();
-        let mut state: HashMap<WrappedKey, Message> = HashMap::new();
+        let mut state: HashMap<WrappedKey, Option<Vec<u8>>> = HashMap::new();
 
         let topic_name = &self.topic_name;
         let metadata = self.consumer.fetch_metadata(Some(topic_name), 30000)
@@ -201,7 +202,10 @@ impl ReplicaReader {
                 Ok(Ok(m)) => {
                     self.processed_messages += 1;
                     match parse_message_key(&m).chain_err(|| "Failed to parse message key") {
-                        Ok(wrapped_key) => { state.insert(wrapped_key, m); () },
+                        Ok(wrapped_key) => {
+                            state.insert(wrapped_key, m.payload().map(|p| p.to_vec()));
+                            ()
+                        },
                         Err(e) => format_error_chain!(e),
                     };
                 },
@@ -296,16 +300,16 @@ impl<K, V> ReplicatedMap<K, V>
         }
     }
 
-    pub fn receive_update(&self, update: ReplicaCacheUpdate) -> Result<()> {
-        match update {
-            ReplicaCacheUpdate::Set { key, payload } => {
+    pub fn receive_update(&self, key: &[u8], payload: Option<&[u8]>) -> Result<()> {
+        match payload {
+            Some(payload) => {
                 let key = serde_cbor::from_slice::<K>(&key)
                     .chain_err(|| "Failed to parse key")?;
                 let value = serde_cbor::from_slice::<V>(payload)
                     .chain_err(|| "Failed to parse payload")?;
                 self.local_update(key, value);
             },
-            ReplicaCacheUpdate::Delete { key } => {
+            None => {
                 let key = serde_cbor::from_slice::<K>(&key)
                     .chain_err(|| "Failed to parse key")?;
                 self.local_remove(&key);
@@ -486,14 +490,14 @@ impl Cache {
 }
 
 impl UpdateReceiver for Cache {
-    fn receive_update(&self, cache_name: &str, update: ReplicaCacheUpdate) -> Result<()> {
+    fn receive_update(&self, cache_name: &str, key: &[u8], payload: Option<&[u8]>) -> Result<()> {
         match cache_name.as_ref() {
-            "metrics" => self.metrics.receive_update(update),
-            "offsets" => self.offsets.receive_update(update),
-            "brokers" => self.brokers.receive_update(update),
-            "topics" => self.topics.receive_update(update),
-            "groups" => self.groups.receive_update(update),
-            "internal_offsets" => self.internal_offsets.receive_update(update),
+            "metrics" => self.metrics.receive_update(key, payload),
+            "offsets" => self.offsets.receive_update(key, payload),
+            "brokers" => self.brokers.receive_update(key, payload),
+            "topics" => self.topics.receive_update(key, payload),
+            "groups" => self.groups.receive_update(key, payload),
+            "internal_offsets" => self.internal_offsets.receive_update(key, payload),
             _ => bail!("Unknown cache name: {}", cache_name),
         }
     }
