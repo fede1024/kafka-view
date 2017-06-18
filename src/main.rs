@@ -37,7 +37,7 @@ mod web_server;
 mod offsets;
 
 use clap::{App, Arg, ArgMatches};
-use scheduled_executor::{thread_pool, CoreExecutor, TaskGroup};
+use scheduled_executor::{ThreadPoolExecutor, TaskGroup, TaskGroupScheduler};
 use std::time::Duration;
 
 use cache::{Cache, ReplicaReader, ReplicaWriter};
@@ -70,17 +70,16 @@ fn run_kafka_web(config_path: &str) -> Result<()> {
     info!("Processed {} messages in {:.3} seconds ({:.0} msg/s).",
         replica_reader.processed_messages(), elapsed_sec, replica_reader.processed_messages() as f32 / elapsed_sec);
 
-    let executor = CoreExecutor::new()
-        .chain_err(|| "Failed to start main executor")?;
-    let pool = thread_pool(4, "data-fetch-");
+    let executor = ThreadPoolExecutor::new(4, "pool-")
+        .chain_err(|| "Failed to start thread pool executor")?;
 
     // Metadata fetch
     let metadata_task_group = MetadataFetchTaskGroup::new(&cache, &config);
-    metadata_task_group.schedule(Duration::from_secs(config.metadata_refresh), &executor, Some(pool.clone()));
+    executor.schedule(metadata_task_group, Duration::from_secs(config.metadata_refresh));
 
     // Metrics fetch
     let metrics_task_group = MetricsFetchTaskGroup::new(&cache, &config);
-    metrics_task_group.schedule(Duration::from_secs(config.metrics_refresh), &executor, Some(pool.clone()));
+    executor.schedule(metrics_task_group, Duration::from_secs(config.metrics_refresh));
 
     // Consumer offsets
     for (cluster_id, cluster_config) in &config.clusters {

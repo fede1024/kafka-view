@@ -603,7 +603,7 @@ dependencies = [
 [[package]]
 name = "scheduled-executor"
 version = "0.1.0"
-source = "git+https://github.com/fede1024/rust_scheduled_executor.git#c91b52897e2f175534ab68cc19c042ea126806e1"
+source = "git+https://github.com/fede1024/rust_scheduled_executor.git#a83bafcbed4c6233c91d16eade33928ea87d9751"
 dependencies = [
  "futures 0.1.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures-cpupool 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",

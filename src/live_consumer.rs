@@ -6,7 +6,7 @@ use rdkafka::statistics::Statistics;
 use futures::{Future, Stream};
 use futures::stream::Wait;
 use rocket::State;
-use scheduled_executor::CoreExecutor;
+use scheduled_executor::ThreadPoolExecutor;
 
 use cache::Cache;
 use config::{ClusterConfig, Config};
@@ -122,14 +122,14 @@ fn remove_idle_consumers(consumers: &mut LiveConsumerMap) {
 
 pub struct LiveConsumerStore {
     consumers: Arc<RwLock<LiveConsumerMap>>,
-    executor: CoreExecutor,
+    executor: ThreadPoolExecutor,
 }
 
 impl LiveConsumerStore {
-    pub fn new(executor: CoreExecutor) -> LiveConsumerStore {
+    pub fn new(executor: ThreadPoolExecutor) -> LiveConsumerStore {
         let consumers = Arc::new(RwLock::new(HashMap::new()));
         let consumers_clone = Arc::clone(&consumers);
-        executor.schedule_fixed_interval(
+        executor.schedule_fixed_rate(
             Duration::from_secs(10),
             move |_handle| {
                 let mut consumers = consumers_clone.write().unwrap();
