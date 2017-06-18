@@ -1,10 +1,10 @@
 use byteorder::{BigEndian, ReadBytesExt};
 use futures::Stream;
+use rdkafka::{Message, TopicPartitionList, Offset};
 use rdkafka::config::{ClientConfig, TopicConfig};
 use rdkafka::consumer::stream_consumer::StreamConsumer;
 use rdkafka::consumer::{Consumer, EmptyConsumerContext};
 use rdkafka::error::KafkaError;
-use rdkafka::{TopicPartitionList, Offset};
 
 use cache::{Cache, OffsetsCache};
 use config::{Config, ClusterConfig};

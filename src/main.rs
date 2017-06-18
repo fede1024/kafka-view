@@ -89,11 +89,33 @@ fn run_kafka_web(config_path: &str) -> Result<()> {
         }
     }
 
+    // CACHE EXPIRATION
     let cache_clone = cache.alias();
+    let metadata_expiration = config.metadata_refresh * 3;
     executor.schedule_fixed_rate(
         Duration::from_secs(config.metadata_refresh),
         move |_| {
-            cache_clone.topics.remove_old(Duration::from_secs(70));
+            cache_clone.topics.remove_old(Duration::from_secs(metadata_expiration));
+            cache_clone.brokers.remove_old(Duration::from_secs(metadata_expiration));
+            cache_clone.groups.remove_old(Duration::from_secs(metadata_expiration));
+        }
+    );
+
+    let cache_clone = cache.alias();
+    let metrics_expiration = config.metrics_refresh * 3;
+    executor.schedule_fixed_rate(
+        Duration::from_secs(config.metrics_refresh),
+        move |_| {
+            cache_clone.metrics.remove_old(Duration::from_secs(metrics_expiration));
+        }
+    );
+
+    let cache_clone = cache.alias();
+    let offsets_store_duration = config.offsets_store_duration;
+    executor.schedule_fixed_rate(
+        Duration::from_secs(120),
+        move |_| {
+            cache_clone.metrics.remove_old(Duration::from_secs(offsets_store_duration));
         }
     );
 

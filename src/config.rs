@@ -35,6 +35,7 @@ pub struct Config {
     pub listen_host: String,
     pub metadata_refresh: u64,
     pub metrics_refresh: u64,
+    pub offsets_store_duration: u64,
     pub consumer_offsets_group_id: String,
     pub clusters: HashMap<ClusterId, ClusterConfig>,
     pub caching: CachingConfig,

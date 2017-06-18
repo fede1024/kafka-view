@@ -13,7 +13,8 @@ extern crate serde_transcode;
 
 use clap::{App, Arg};
 use futures::stream::Stream;
-use rdkafka::consumer::{Consumer, CommitMode};
+use rdkafka::Message;
+use rdkafka::consumer::Consumer;
 use rdkafka::consumer::stream_consumer::StreamConsumer;
 use rdkafka::config::{ClientConfig, TopicConfig};
 use rdkafka::util::get_rdkafka_version;
@@ -49,7 +50,7 @@ fn parse_key(cbor: &[u8]) -> (String, String) {
 }
 
 fn consume_and_print(brokers: &str, topics: &Vec<&str>, filter: Option<&str>) {
-    let mut consumer = ClientConfig::new()
+    let consumer = ClientConfig::new()
         .set("group.id", "topic_reader_group5")
         .set("bootstrap.servers", brokers)
         .set("enable.partition.eof", "true")
@@ -87,18 +88,22 @@ fn consume_and_print(brokers: &str, topics: &Vec<&str>, filter: Option<&str>) {
                     },
                 };
                 let (cache_name, cache_key) = parse_key(key);
-                if filter.is_some() && filter.unwrap() !=  cache_name {
+                if filter.is_some() && filter.unwrap() != cache_name {
                     // consumer.commit_message(&m, CommitMode::Async);
                     continue
                 }
-                println!("\n#### {}:{}, o:{}, s:{:.3}KB", topics[0], m.partition(), m.offset(),
-                         (m.payload_len() as f64 / 1000f64));
-                println!("{}: {}", cache_name, cache_key);
-                let payload_dec = cbor_to_json_str(payload);
-                if payload_dec.len() > 600 {
-                    println!("{}...", &payload_dec[..600]);
+                println!("\n#### {}:{}, o:{}, s:{:.3}KB, t: {:?}", topics[0], m.partition(), m.offset(),
+                         (m.payload_len() as f64 / 1000f64), m.timestamp());
+                if payload.len() > 0 {
+                    println!("UPDATE {}: {}", cache_name, cache_key);
+                    let payload_dec = cbor_to_json_str(payload);
+                    if payload_dec.len() > 600 {
+                        println!("{}...", &payload_dec[..600]);
+                    } else {
+                        println!("{}", payload_dec);
+                    }
                 } else {
-                    println!("{}", payload_dec);
+                    println!("DELETE {}: {}", cache_name, cache_key);
                 }
                 // consumer.commit_message(&m, CommitMode::Async);
             },

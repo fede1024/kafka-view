@@ -1,4 +1,5 @@
 use rdkafka::{Context, Message};
+use rdkafka::message::BorrowedMessage;
 use rdkafka::consumer::{BaseConsumer, Consumer, EmptyConsumerContext};
 use rdkafka::config::ClientConfig;
 use rdkafka::statistics::Statistics;
@@ -87,7 +88,7 @@ impl LiveConsumer {
         &self.topic
     }
 
-    fn poll(&self, max_msg: usize, timeout: Duration) -> Vec<Message> {
+    fn poll(&self, max_msg: usize, timeout: Duration) -> Vec<BorrowedMessage> {
         let start_time = Instant::now();
         let mut buffer = Vec::new();
         *self.last_poll.write().unwrap() = Instant::now();

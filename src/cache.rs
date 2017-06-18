@@ -5,7 +5,8 @@ use rdkafka::consumer::stream_consumer::StreamConsumer;
 use rdkafka::consumer::{Consumer, EmptyConsumerContext};
 use rdkafka::producer::FutureProducer;
 use rdkafka::error::KafkaError;
-use rdkafka::message::Message;
+use rdkafka::message::{Message, BorrowedMessage, OwnedMessage};
+use rdkafka::util::{millis_to_epoch, duration_to_millis};
 use serde::de::Deserialize;
 use serde::ser::Serialize;
 use serde_cbor;
@@ -15,7 +16,7 @@ use std::collections::{HashMap, HashSet};
 use std::collections::hash_map;
 use std::hash::Hash;
 use std::sync::{Arc, RwLock, RwLockReadGuard};
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 
 use error::*;
 use metadata::{Broker, BrokerId, ClusterId, Group, Partition, TopicName};
@@ -55,6 +56,7 @@ impl ReplicaWriter {
             .set("bootstrap.servers", brokers)
             .set("compression.codec", "gzip")
             .set("message.max.bytes", "10000000")
+            .set("api.version.request", "true")
             .create::<FutureProducer<_>>()
             .expect("Producer creation error");
 
@@ -77,8 +79,9 @@ impl ReplicaWriter {
         // trace!("Serialized value size: {}", serialized_value.len());
         trace!("Serialized update size: key={:.3}KB value={:.3}KB",
             (serialized_key.len() as f64 / 1000f64), (serialized_value.len() as f64 / 1000f64));
+        let ts = millis_to_epoch(SystemTime::now());
         let _f = self.producer.send_copy(self.topic_name.as_str(), None, Some(&serialized_value),
-                                         Some(&serialized_key), None)
+                                         Some(&serialized_key), Some(ts))
             .chain_err(|| "Failed to produce message")?;
         // _f.wait();  // Uncomment to make production synchronous
         Ok(())
@@ -88,8 +91,9 @@ impl ReplicaWriter {
             where K: Serialize + Deserialize + Clone {
         let serialized_key = serde_cbor::to_vec(&WrappedKey::new(name.to_owned(), key))
             .chain_err(|| "Failed to serialize key")?;
+        let ts = millis_to_epoch(SystemTime::now());
         let _f = self.producer.send_copy::<Vec<u8>, Vec<u8>>(self.topic_name.as_str(), None, None,
-                                                             Some(&serialized_key), None)
+                                                             Some(&serialized_key), Some(ts))
             .chain_err(|| "Failed to produce message")?;
         Ok(())
     }
@@ -101,7 +105,7 @@ impl ReplicaWriter {
 
 #[derive(Debug)]
 pub enum ReplicaCacheUpdate<'a> {
-    Set { key: &'a[u8], payload: &'a[u8] },
+    Set { key: &'a[u8], payload: &'a[u8], timestamp: u64 },
     Delete { key: &'a[u8] }
 }
 
@@ -125,8 +129,8 @@ impl ReplicaReader {
             .set("bootstrap.servers", brokers)
             .set("session.timeout.ms", "6000")
             .set("enable.auto.commit", "false")
-            .set("queued.max.messages.kbytes", "102400") // Reduce memory usage
-            .set("fetch.message.max.bytes", "102400")
+            .set("queued.min.messages", "10000") // Reduce memory usage
+            //.set("fetch.message.max.bytes", "102400")
             .set("api.version.request", "true")
             .set_default_topic_config(
                 TopicConfig::new()
@@ -161,7 +165,8 @@ impl ReplicaReader {
                     let update = match message.payload() {
                         Some(payload) => ReplicaCacheUpdate::Set {
                             key: w_key.serialized_key(),
-                            payload: payload
+                            payload: payload,
+                            timestamp: message.timestamp().to_millis().unwrap_or(0) as u64, // TODO: Add error
                         },
                         None => ReplicaCacheUpdate::Delete {
                             key: w_key.serialized_key()
@@ -177,9 +182,10 @@ impl ReplicaReader {
         Ok(())
     }
 
-    fn last_message_per_key(&mut self) -> Result<HashMap<WrappedKey, Message>> {
+    fn last_message_per_key(&mut self) -> Result<HashMap<WrappedKey, OwnedMessage>> {
         let mut eof_set = HashSet::new();
-        let mut state: HashMap<WrappedKey, Message> = HashMap::new();
+        let mut borrowed_state = HashMap::new();
+        let mut state = HashMap::new();
 
         let topic_name = &self.topic_name;
         let metadata = self.consumer.fetch_metadata(Some(topic_name), 30000)
@@ -201,7 +207,7 @@ impl ReplicaReader {
                 Ok(Ok(m)) => {
                     self.processed_messages += 1;
                     match parse_message_key(&m).chain_err(|| "Failed to parse message key") {
-                        Ok(wrapped_key) => { state.insert(wrapped_key, m); () },
+                        Ok(wrapped_key) => { borrowed_state.insert(wrapped_key, m); () },
                         Err(e) => format_error_chain!(e),
                     };
                 },
@@ -209,9 +215,18 @@ impl ReplicaReader {
                 Ok(Err(e)) => error!("Error while reading from Kafka: {}", e),
                 Err(_) => error!("Stream receive error"),
             };
+            if borrowed_state.len() >= 10000 {
+                for (key, message) in borrowed_state.into_iter() {
+                    state.insert(key, message.detach());
+                }
+                borrowed_state = HashMap::new();
+            }
             if eof_set.len() == topic_metadata.partitions().len() {
                 break;
             }
+        }
+        for (key, message) in borrowed_state.into_iter() {
+            state.insert(key, message.detach());
         }
         self.consumer.stop();
         info!("Total unique items in caches: {}", state.len());
@@ -219,7 +234,7 @@ impl ReplicaReader {
     }
 }
 
-fn parse_message_key(message: &Message) -> Result<WrappedKey> {
+fn parse_message_key(message: &BorrowedMessage) -> Result<WrappedKey> {
     let key_bytes = match message.key() {
         Some(k) => k,
         None => bail!("Empty key found"),
@@ -249,15 +264,21 @@ fn parse_message_key(message: &Message) -> Result<WrappedKey> {
 #[derive(Clone)]
 struct ValueContainer<V> {
     value: V,
-    updated: Instant,
+    updated: u64,  // millis since epoch
 }
 
 impl<V> ValueContainer<V> {
-
     fn new(value: V) -> ValueContainer<V> {
         ValueContainer {
             value: value,
-            updated: Instant::now(),
+            updated: millis_to_epoch(SystemTime::now()) as u64,
+        }
+    }
+
+    fn new_with_timestamp(value: V, timestamp: u64) -> ValueContainer<V> {
+        ValueContainer {
+            value: value,
+            updated: timestamp,
         }
     }
 }
@@ -296,14 +317,14 @@ impl<K, V> ReplicatedMap<K, V>
         }
     }
 
-    pub fn receive_update(&self, update: ReplicaCacheUpdate) -> Result<()> {
+    fn receive_update(&self, update: ReplicaCacheUpdate) -> Result<()> {
         match update {
-            ReplicaCacheUpdate::Set { key, payload } => {
+            ReplicaCacheUpdate::Set { key, payload, timestamp } => {
                 let key = serde_cbor::from_slice::<K>(&key)
                     .chain_err(|| "Failed to parse key")?;
                 let value = serde_cbor::from_slice::<V>(payload)
                     .chain_err(|| "Failed to parse payload")?;
-                self.local_update(key, value);
+                self.local_update(key, value, Some(timestamp));
             },
             ReplicaCacheUpdate::Delete { key } => {
                 let key = serde_cbor::from_slice::<K>(&key)
@@ -314,14 +335,19 @@ impl<K, V> ReplicatedMap<K, V>
         Ok(())
     }
 
-    pub fn local_update(&self, key: K, value: V) {
+    fn local_update(&self, key: K, value: V, timestamp: Option<u64>) {
+        let value = if let Some(ts) = timestamp {
+            ValueContainer::new_with_timestamp(value, ts)
+        } else {
+            ValueContainer::new(value)
+        };
         match self.map.write() {
-            Ok(mut cache) => (*cache).insert(key, ValueContainer::new(value)),
+            Ok(mut cache) => (*cache).insert(key, value),
             Err(_) => panic!("Poison error"),
         };
     }
 
-    pub fn local_remove(&self, key: &K) {
+    fn local_remove(&self, key: &K) {
         match self.map.write() {
             Ok(mut cache) => (*cache).remove(key),
             Err(_) => panic!("Poison error"),
@@ -334,7 +360,7 @@ impl<K, V> ReplicatedMap<K, V>
             self.replica_writer.write_update(&self.name, &key, &new_value)
                 .chain_err(|| "Failed to write cache update")?;
         }
-        self.local_update(key, new_value);
+        self.local_update(key, new_value, None);
         Ok(())
     }
 
@@ -343,17 +369,20 @@ impl<K, V> ReplicatedMap<K, V>
         self.local_remove(key);
     }
 
-    pub fn remove_old(&self, max_age: Duration) {
+    pub fn remove_old(&self, max_age: Duration) -> Vec<K> {
         let to_remove = {
             let cache = self.map.read().unwrap();
+            let max_ms = duration_to_millis(max_age) as i64;
+            let current_ms = millis_to_epoch(SystemTime::now());
             cache.iter()
-                .filter(|&(k, v)| v.updated.elapsed() >= max_age)
+                .filter(|&(k, v)| (current_ms as i64) - (v.updated as i64) > max_ms)
                 .map(|(k, _)| k.clone())
                 .collect::<Vec<_>>()
         };
-        for k in to_remove {
-            self.remove(&k);
+        for k in &to_remove {
+            self.remove(k);
         }
+        to_remove
     }
 
     pub fn get<Q: ?Sized>(&self, key: &Q) -> Option<V>
