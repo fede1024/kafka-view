@@ -131,6 +131,7 @@ impl LiveConsumerStore {
         let consumers_clone = Arc::clone(&consumers);
         executor.schedule_fixed_rate(
             Duration::from_secs(10),
+            Duration::from_secs(10),
             move |_handle| {
                 let mut consumers = consumers_clone.write().unwrap();
                 remove_idle_consumers(&mut *consumers);

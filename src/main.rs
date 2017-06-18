@@ -37,7 +37,7 @@ mod web_server;
 mod offsets;
 
 use clap::{App, Arg, ArgMatches};
-use scheduled_executor::{ThreadPoolExecutor, TaskGroup, TaskGroupScheduler};
+use scheduled_executor::{ThreadPoolExecutor, TaskGroupScheduler};
 use std::time::Duration;
 
 use cache::{Cache, ReplicaReader, ReplicaWriter};
@@ -74,12 +74,18 @@ fn run_kafka_web(config_path: &str) -> Result<()> {
         .chain_err(|| "Failed to start thread pool executor")?;
 
     // Metadata fetch
-    let metadata_task_group = MetadataFetchTaskGroup::new(&cache, &config);
-    executor.schedule(metadata_task_group, Duration::from_secs(config.metadata_refresh));
+    executor.schedule(
+        MetadataFetchTaskGroup::new(&cache, &config),
+        Duration::from_secs(0),
+        Duration::from_secs(config.metadata_refresh)
+    );
 
     // Metrics fetch
-    let metrics_task_group = MetricsFetchTaskGroup::new(&cache, &config);
-    executor.schedule(metrics_task_group, Duration::from_secs(config.metrics_refresh));
+    executor.schedule(
+        MetricsFetchTaskGroup::new(&cache, &config),
+        Duration::from_secs(0),
+        Duration::from_secs(config.metrics_refresh)
+    );
 
     // Consumer offsets
     for (cluster_id, cluster_config) in &config.clusters {
@@ -92,6 +98,7 @@ fn run_kafka_web(config_path: &str) -> Result<()> {
     let cache_clone = cache.alias();
     let metadata_expiration = config.metadata_refresh * 3;
     executor.schedule_fixed_rate(
+        Duration::from_secs(config.metadata_refresh * 2),
         Duration::from_secs(config.metadata_refresh),
         move |_| {
             cache_clone.topics.remove_old(Duration::from_secs(metadata_expiration));
@@ -103,6 +110,7 @@ fn run_kafka_web(config_path: &str) -> Result<()> {
     let cache_clone = cache.alias();
     let metrics_expiration = config.metrics_refresh * 3;
     executor.schedule_fixed_rate(
+        Duration::from_secs(config.metrics_refresh * 2),
         Duration::from_secs(config.metrics_refresh),
         move |_| {
             cache_clone.metrics.remove_old(Duration::from_secs(metrics_expiration));
@@ -112,6 +120,7 @@ fn run_kafka_web(config_path: &str) -> Result<()> {
     let cache_clone = cache.alias();
     let offsets_store_duration = config.offsets_store_duration;
     executor.schedule_fixed_rate(
+        Duration::from_secs(10),
         Duration::from_secs(120),
         move |_| {
             cache_clone.metrics.remove_old(Duration::from_secs(offsets_store_duration));
