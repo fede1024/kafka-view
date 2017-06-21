@@ -187,8 +187,8 @@ pub fn group_offsets(cluster_id: ClusterId, group_name: &str, cache: State<Cache
                 _ => (-1, -1),
             };
             let (lag_shown, perc_shown) = match (high - low, high - curr_offset) {
-                (_, lag) if lag < 0 => ("Out of retention".to_owned(), "".to_owned()),
-                (0, lag) => (lag.to_string(), "0.0%".to_owned()),
+                (0, lag) => ("Empty topic".to_owned(), "0.0%".to_owned()),
+                (size, lag) if lag > size => ("Out of retention".to_owned(), "".to_owned()),
                 (size, lag) => (lag.to_string(), format!("{:.1}%", (lag as f64) / (size as f64) * 100.0))
             };
             result_data.push(json!((topic.clone(), partition_id, high-low, low, high, curr_offset, lag_shown, perc_shown)));
