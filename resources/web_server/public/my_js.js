@@ -106,7 +106,7 @@ $(document).ready(function() {
             "stateSave": true,
             "createdRow": function(row, data, index) {
                 var cluster_id = $(this).attr("data-param");
-                broker_to_url(cluster_id, $(row).children()[0]);
+                // broker_to_url(cluster_id, $(row).children()[0]);
                 bytes_to_human($(row).children()[2], "/s");
                 big_num_to_human($(row).children()[3], "msg/s");
             }
@@ -163,7 +163,7 @@ $(document).ready(function() {
             stateSave: true,
             "createdRow": function(row, data, index) {
                 var cluster_id = $(this).attr("data-param");
-                broker_to_url(cluster_id, $(row).children()[1]);
+                // broker_to_url(cluster_id, $(row).children()[1]);
                 error_to_graphic($(row).children()[4]);
             }
         });

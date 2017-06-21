@@ -4,9 +4,6 @@ version = "0.1.0"
 authors = ["Federico Giraud <giraud.federico@gmail.com>"]
 
 [dependencies]
-# rdkafka = { git = "https://github.com/fede1024/rust-rdkafka.git"}
-# rdkafka = { path = "/home/fede/rust/rust-rdkafka"}
-# scheduled-executor = { path = "/home/fede/rust/scheduled-executor"}
 byteorder = "1"
 chrono = { version = "^0.3.0", features = ["serde"] }
 clap = "2.18.0"
@@ -20,13 +17,14 @@ log = "^0.3.0"
 maud = { version = "0.16.2", features = ["rocket"] }
 maud_macros = "0.16.3"
 rand = "0.3"
-# rdkafka = "^0.10.0"
+rdkafka = "^0.11.0"
 # rdkafka = { path = "/home/fede/rust/rust-rdkafka"}
-rdkafka = { git = "https://github.com/fede1024/rust-rdkafka.git"}
+# rdkafka = { git = "https://github.com/fede1024/rust-rdkafka.git"}
 regex = "0.1.80"
 rocket = "0.2.6"
 rocket_codegen = "0.2.6"
 scheduled-executor = { git = "https://github.com/fede1024/rust_scheduled_executor.git"}
+# scheduled-executor = { path = "/home/fede/rust/scheduled-executor"}
 serde = "^0.9.8"
 serde-transcode = "^0.2.1"
 serde_cbor = "^0.5.2"

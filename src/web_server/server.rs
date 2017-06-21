@@ -89,6 +89,7 @@ pub fn run_server(executor: &ThreadPoolExecutor, cache: Cache, config: &Config) 
             files,
             files_v,
             pages::cluster::cluster_page,
+            pages::cluster::broker_page,
             pages::clusters::clusters_page,
             pages::group::group_page,
             pages::internals::caches_page,

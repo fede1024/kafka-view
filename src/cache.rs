@@ -54,7 +54,7 @@ impl ReplicaWriter {
     pub fn new(brokers: &str, topic_name: &str) -> Result<ReplicaWriter> {
         let producer = ClientConfig::new()
             .set("bootstrap.servers", brokers)
-            .set("compression.codec", "gzip")
+            //.set("compression.codec", "gzip")
             .set("message.max.bytes", "10000000")
             .set("api.version.request", "true")
             .create::<FutureProducer<_>>()
@@ -166,7 +166,8 @@ impl ReplicaReader {
                         Some(payload) => ReplicaCacheUpdate::Set {
                             key: w_key.serialized_key(),
                             payload: payload,
-                            timestamp: message.timestamp().to_millis().unwrap_or(0) as u64, // TODO: Add error
+                            timestamp: message.timestamp().to_millis()
+                                .unwrap_or(millis_to_epoch(SystemTime::now())) as u64,
                         },
                         None => ReplicaCacheUpdate::Delete {
                             key: w_key.serialized_key()

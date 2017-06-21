@@ -68,7 +68,10 @@ fn create_consumer(brokers: &str, group_id: &str, start_offsets: Option<Vec<i64>
         .set("bootstrap.servers", brokers)
         .set("enable.partition.eof", "false")
         .set("session.timeout.ms", "30000")
-        .set("fetch.message.max.bytes", "102400") // Reduce memory usage
+        .set("api.version.request", "true")
+        //.set("fetch.message.max.bytes", "1024000") // Reduce memory usage
+        .set("queued.min.messages", "10000") // Reduce memory usage
+        .set("message.max.bytes", "10485760")
         .set_default_topic_config(TopicConfig::new()
             .set("auto.offset.reset", "smallest")
             .finalize())
@@ -168,7 +171,7 @@ fn consume_offset_topic(cluster_id: ClusterId, mut consumer: StreamConsumer<Empt
                 };
             },
             Ok(Err(KafkaError::NoMessageReceived)) => {
-               continue;  // Jump to the end of the loop
+               // Jump to the end of the loop
             },
             Ok(Err(e)) => {
                 warn!("Kafka error: {} {:?}", cluster_id, e);

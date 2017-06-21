@@ -7,8 +7,10 @@ use config::{ClusterConfig, Config};
 use error::*;
 use scheduled_executor::{Handle, TaskGroup};
 
-use std::fmt; use std::sync::{Arc, RwLock};
 use std::collections::HashMap;
+use std::error::Error;
+use std::fmt;
+use std::sync::{Arc, RwLock};
 
 
 pub type MetadataConsumer = BaseConsumer<EmptyConsumerContext>;
@@ -207,8 +209,10 @@ impl MetadataFetchTaskGroup {
         for topic in metadata.topics() {
             let mut partitions = Vec::with_capacity(topic.partitions().len());
             for p in topic.partitions() {
-                partitions.push(Partition::new(p.id(), p.leader(), p.replicas().to_owned(), p.isr().to_owned(),
-                                               p.error().map(|e| rderror::resp_err_description(e))));
+                let err_descr = p.error().map(|e| rderror::RDKafkaError::from(e).description().to_owned());
+                let partition = Partition::new(p.id(), p.leader(), p.replicas().to_owned(),
+                                               p.isr().to_owned(), err_descr);
+                partitions.push(partition);
             }
             partitions.sort_by(|a, b| a.id.cmp(&b.id));
             // TODO: do not update if it's already there?
