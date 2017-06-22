@@ -10,6 +10,7 @@ use rdkafka::util::{millis_to_epoch, duration_to_millis};
 use serde::de::Deserialize;
 use serde::ser::Serialize;
 use serde_cbor;
+use rand::random;
 
 use std::borrow::Borrow;
 use std::collections::{HashMap, HashSet};
@@ -125,7 +126,7 @@ pub struct ReplicaReader {
 impl ReplicaReader {
     pub fn new(brokers: &str, topic_name: &str) -> Result<ReplicaReader> {
         let consumer: ReplicaConsumer = ClientConfig::new()
-            .set("group.id", "kafka_web_replica_reader")  // TODO: make random
+            .set("group.id", &format!("kafka_web_cache_reader_{}", random::<i64>()))
             .set("bootstrap.servers", brokers)
             .set("session.timeout.ms", "6000")
             .set("enable.auto.commit", "false")
