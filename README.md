@@ -1,9 +1,15 @@
 kafka-view
 ==========
 
-Kafka-view is an experimental web interface for Kafka written in Rust. Kafka-view creates and maintains a materialized view of the internal state of Kafka including cluster metadata, traffic metrics, group membership, consumer offsets etc. It uses the [rdkafka](https://github.com/fede1024/rust-rdkafka) Kafka client library for Rust.
+Kafka-view is an experimental web interface for Kafka written in Rust.
+Kafka-view creates and maintains a materialized view of the internal state of
+Kafka including cluster metadata, traffic metrics, group membership, consumer
+offsets etc. It uses the [rdkafka](https://github.com/fede1024/rust-rdkafka)
+Kafka client library for Rust.
 
-Kafka-view supports multiple clusters and implements a fast search functionality to quickly find a topic or consumer group by name or by regex, across all clusters.
+Kafka-view supports multiple clusters and implements a fast search
+functionality to quickly find a topic or consumer group by name or by regex,
+across all clusters.
 
 ### Current features
 * Available data:
@@ -11,15 +17,27 @@ Kafka-view supports multiple clusters and implements a fast search functionality
   * Topic metadata: leader, replicas, ISR, topic health.
   * Group membership: show active consumer groups and members, easily find all the consumers for a given cluster or topic.
   * Consumer offsets: show the current consumer offsets, the high watermark and the difference between the two.
+  * Consume topic content directly from the web UI.
 * Search:
+  * Omnisearch: search for broker, topics and consumers in a single query.
   * Search topics in all clusters by name or regex.
   * Search consumers in all clusters by name or regex.
   * Sort by any field (traffic, consumer lag, etc)
 
-### Coming features
-* More metrics (topic size, traffic charts).
-* Consume topic content directly from the web UI.
-* Omnisearch: search for broker, topics and consumers in a single query.
+## Screenshots
+
+### Multiple cluster support
+
+![clusters](/screenshots/clusters.png?raw=true "Clusters")
+
+### Cluster level information
+
+![combined](/screenshots/combined.png?raw=true "Cluster page")
+
+### Consumer group information
+
+![consumer](/screenshots/consumer.png?raw=true "Consumer group")
+
 
 At the moment kafka-view is designed to be read-only. Functionality such as adding topics, changing consumer offsets etc. are not supported and won't be supported in the near future.
 
