@@ -16,8 +16,8 @@ use std::borrow::Borrow;
 use std::collections::{HashMap, HashSet};
 use std::collections::hash_map;
 use std::hash::Hash;
-use std::sync::{Arc, RwLock, RwLockReadGuard};
-use std::time::{Duration, Instant, SystemTime};
+use std::sync::{Arc, RwLock};
+use std::time::{Duration, SystemTime};
 
 use error::*;
 use metadata::{Broker, BrokerId, ClusterId, Group, Partition, TopicName};
@@ -199,7 +199,7 @@ impl ReplicaReader {
         }
         let ref topic_metadata = metadata.topics()[0];
         if topic_metadata.partitions().len() == 0 {
-            return Ok(state);  // Topic is empty and autocreated
+            return Ok(state);  // Topic is empty and auto created
         }
 
         let message_stream = self.consumer.start();
@@ -260,7 +260,7 @@ fn parse_message_key(message: &BorrowedMessage) -> Result<WrappedKey> {
 
 
 //
-// ********** REPLICATEDMAP **********
+// ********** REPLICATED MAP **********
 //
 
 #[derive(Clone)]
@@ -366,9 +366,11 @@ impl<K, V> ReplicatedMap<K, V>
         Ok(())
     }
 
-    pub fn remove(&self, key: &K) {
-        self.replica_writer.write_remove(&self.name, key);
+    pub fn remove(&self, key: &K) -> Result<()> {
+        self.replica_writer.write_remove(&self.name, key)
+            .chain_err(|| "Failed to write cache delete")?;
         self.local_remove(key);
+        Ok(())
     }
 
     pub fn remove_old(&self, max_age: Duration) -> Vec<K> {
@@ -377,12 +379,14 @@ impl<K, V> ReplicatedMap<K, V>
             let max_ms = duration_to_millis(max_age) as i64;
             let current_ms = millis_to_epoch(SystemTime::now());
             cache.iter()
-                .filter(|&(k, v)| (current_ms as i64) - (v.updated as i64) > max_ms)
+                .filter(|&(_, v)| (current_ms as i64) - (v.updated as i64) > max_ms)
                 .map(|(k, _)| k.clone())
                 .collect::<Vec<_>>()
         };
         for k in &to_remove {
-            self.remove(k);
+            if let Err(e) = self.remove(k) {
+                format_error_chain!(e);
+            }
         }
         to_remove
     }
@@ -394,7 +398,7 @@ impl<K, V> ReplicatedMap<K, V>
         match self.map.read() {
             Ok(cache) => { return (*cache).get(key).map(|v| v.value.clone()) },
             Err(_) => panic!("Poison error"),
-        };
+        }
     }
 
     // TODO: add doc
@@ -423,14 +427,14 @@ impl<K, V> ReplicatedMap<K, V>
         })
     }
 
-    pub fn filter_clone_v<F>(&self, f: F) -> Vec<V>
-            where F: Fn(&K) -> bool {
-        self.lock_iter(|iter| {
-            iter.filter(|&(k, _)| f(k))
-                .map(|(_, v)| v.clone())
-                .collect::<Vec<V>>()
-        })
-    }
+//    pub fn filter_clone_v<F>(&self, f: F) -> Vec<V>
+//            where F: Fn(&K) -> bool {
+//        self.lock_iter(|iter| {
+//            iter.filter(|&(k, _)| f(k))
+//                .map(|(_, v)| v.clone())
+//                .collect::<Vec<V>>()
+//        })
+//    }
 
     pub fn filter_clone_k<F>(&self, f: F) -> Vec<K>
             where F: Fn(&K) -> bool {
@@ -442,7 +446,7 @@ impl<K, V> ReplicatedMap<K, V>
     }
 }
 
-struct ReplicatedMapIter<'a, K, V>
+pub struct ReplicatedMapIter<'a, K, V>
         where K: 'a, V: 'a {
     inner: hash_map::Iter<'a, K, ValueContainer<V>>
 }

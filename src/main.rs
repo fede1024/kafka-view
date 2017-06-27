@@ -70,7 +70,7 @@ fn run_kafka_web(config_path: &str) -> Result<()> {
     info!("Processed {} messages in {:.3} seconds ({:.0} msg/s).",
         replica_reader.processed_messages(), elapsed_sec, replica_reader.processed_messages() as f32 / elapsed_sec);
 
-    let executor = ThreadPoolExecutor::new(4, "pool-")
+    let executor = ThreadPoolExecutor::new(4)
         .chain_err(|| "Failed to start thread pool executor")?;
 
     // Metadata fetch

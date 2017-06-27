@@ -1,29 +1,21 @@
-use rdkafka::{Context, Message};
+use rdkafka::Message;
 use rdkafka::message::BorrowedMessage;
-use rdkafka::consumer::{BaseConsumer, Consumer, EmptyConsumerContext};
+use rdkafka::consumer::{BaseConsumer, EmptyConsumerContext};
 use rdkafka::config::ClientConfig;
-use rdkafka::statistics::Statistics;
-use futures::{Future, Stream};
-use futures::stream::Wait;
 use rocket::State;
 use scheduled_executor::ThreadPoolExecutor;
 
-use cache::Cache;
 use config::{ClusterConfig, Config};
 use metadata::ClusterId;
 use error::*;
-use scheduled_executor::{Handle, TaskGroup};
 
-use std::cmp::min;
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock, Mutex};
+use std::sync::{Arc, RwLock};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
-use std::thread;
 
 
-
-struct LiveConsumer {
+pub struct LiveConsumer {
     id: u64,
     cluster_id: ClusterId,
     topic: String,
@@ -34,7 +26,7 @@ struct LiveConsumer {
 
 impl LiveConsumer {
     fn new(id: u64, cluster_config: &ClusterConfig, topic: &str) -> Result<LiveConsumer> {
-        let mut consumer = ClientConfig::new()
+        let consumer = ClientConfig::new()
             .set("bootstrap.servers", &cluster_config.bootstrap_servers())
             .set("group.id", &format!("kafka_view_live_consumer_{}", id))
             .set("enable.partition.eof", "false")
@@ -122,7 +114,7 @@ fn remove_idle_consumers(consumers: &mut LiveConsumerMap) {
 
 pub struct LiveConsumerStore {
     consumers: Arc<RwLock<LiveConsumerMap>>,
-    executor: ThreadPoolExecutor,
+    _executor: ThreadPoolExecutor,
 }
 
 impl LiveConsumerStore {
@@ -139,16 +131,16 @@ impl LiveConsumerStore {
         );
         LiveConsumerStore {
             consumers: consumers,
-            executor: executor,
+            _executor: executor,
         }
     }
 
-    pub fn get_consumer(&self, id: u64) -> Option<Arc<LiveConsumer>> {
+    fn get_consumer(&self, id: u64) -> Option<Arc<LiveConsumer>> {
         let consumers = self.consumers.read().expect("Poison error");
         (*consumers).get(&id).cloned()
     }
 
-    pub fn add_consumer(&self, id: u64, cluster_config: &ClusterConfig, topic: &str) -> Result<Arc<LiveConsumer>> {
+    fn add_consumer(&self, id: u64, cluster_config: &ClusterConfig, topic: &str) -> Result<Arc<LiveConsumer>> {
         let live_consumer = LiveConsumer::new(id, cluster_config, topic)
             .chain_err(|| "Failed to create live consumer")?;
 
@@ -181,7 +173,6 @@ pub fn test_live_consumer_api(
     cluster_id: ClusterId,
     topic: &str,
     id: u64,
-    cache: State<Cache>,
     config: State<Config>,
     live_consumers_store: State<LiveConsumerStore>,
 ) -> Result<String> {
@@ -192,7 +183,7 @@ pub fn test_live_consumer_api(
     }
     let cluster_config = cluster_config.unwrap();
 
-    let mut consumer = match live_consumers_store.get_consumer(id) {
+    let consumer = match live_consumers_store.get_consumer(id) {
         Some(consumer) => consumer,
         None => live_consumers_store.add_consumer(id, cluster_config, topic)
             .chain_err(|| format!("Error while creating live consumer for {} {}", cluster_id, topic))?,

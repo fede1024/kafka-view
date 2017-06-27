@@ -36,8 +36,9 @@ fn files(file: PathBuf) -> Option<CachedFile> {
         .ok()
 }
 
-#[get("/public/<file..>?<_version>")]
-fn files_v(file: PathBuf, _version: &str) -> Option<CachedFile> {
+#[get("/public/<file..>?<version>")]
+fn files_v(file: PathBuf, version: &str) -> Option<CachedFile> {
+    let _ = version;  // just ignore version
     NamedFile::open(Path::new("resources/web_server/public/").join(file))
         .map(CachedFile::from)
         .ok()
@@ -96,8 +97,8 @@ pub fn run_server(executor: &ThreadPoolExecutor, cache: Cache, config: &Config) 
             pages::internals::live_consumers_page,
             pages::omnisearch::consumer_search,
             pages::omnisearch::consumer_search_p,
-            pages::omnisearch::omni_search,
-            pages::omnisearch::omni_search_p,
+            pages::omnisearch::omnisearch,
+            pages::omnisearch::omnisearch_p,
             pages::omnisearch::topic_search,
             pages::omnisearch::topic_search_p,
             pages::topic::topic_page,

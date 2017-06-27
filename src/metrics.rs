@@ -3,7 +3,7 @@ use serde_json::Value;
 use chrono::{DateTime, UTC};
 use serde_json;
 use regex::Regex;
-use scheduled_executor::{Handle, TaskGroup};
+use scheduled_executor::TaskGroup;
 
 use std::collections::HashMap;
 
@@ -169,7 +169,7 @@ impl TaskGroup for MetricsFetchTaskGroup {
         })
     }
 
-    fn execute(&self, task_id: (ClusterId, Broker, i32), _: Option<Handle>) {
+    fn execute(&self, task_id: (ClusterId, Broker, i32)) {
         debug!("Starting fetch for {}: {}", task_id.0, task_id.1.id);
         if let Err(e) = self.fetch_metrics(&task_id.0, &task_id.1, task_id.2) {
             format_error_chain!(e);

@@ -3,7 +3,6 @@ use rocket::request::{FromForm, FormItems};
 use rocket::http::uri::URI;
 
 use web_server::view::layout;
-use web_server::pages;
 
 #[derive(Debug)]
 pub struct OmnisearchFormParams {
@@ -28,12 +27,12 @@ impl<'f> FromForm<'f> for OmnisearchFormParams {
 }
 
 #[get("/omnisearch")]
-pub fn omni_search() -> Markup {
-    omni_search_p(OmnisearchFormParams{string: "".to_owned(), regex: false})
+pub fn omnisearch() -> Markup {
+    omnisearch_p(OmnisearchFormParams{string: "".to_owned(), regex: false})
 }
 
 #[get("/omnisearch?<search>")]
-pub fn omni_search_p(search: OmnisearchFormParams) -> Markup {
+pub fn omnisearch_p(search: OmnisearchFormParams) -> Markup {
     let search_form = layout::search_form("/omnisearch", "Omnisearch", &search.string, search.regex);
     let api_url = format!("/api/search/topic?string={}&regex={}", &search.string, search.regex);
     let topics = layout::datatable_ajax("topic-search-ajax", &api_url, "",

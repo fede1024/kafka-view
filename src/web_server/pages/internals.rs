@@ -1,8 +1,6 @@
 use maud::{Markup, PreEscaped};
-use rocket::State;
 
 use web_server::view::layout;
-use cache::Cache;
 
 fn broker_table() -> PreEscaped<String> {
     layout::datatable_ajax("internals-cache-brokers-ajax", "/api/internals/cache/brokers", "",

@@ -5,7 +5,7 @@ use rdkafka::error as rderror;
 use cache::Cache;
 use config::{ClusterConfig, Config};
 use error::*;
-use scheduled_executor::{Handle, TaskGroup};
+use scheduled_executor::TaskGroup;
 
 use std::collections::HashMap;
 use std::error::Error;
@@ -236,7 +236,7 @@ impl TaskGroup for MetadataFetchTaskGroup {
         self.config.clusters.keys().cloned().collect::<Vec<_>>()
     }
 
-    fn execute(&self, cluster_id: ClusterId, _handle: Option<Handle>) {
+    fn execute(&self, cluster_id: ClusterId) {
         match CONSUMERS.get_or_init(&cluster_id, self.config.cluster(&cluster_id).unwrap()) {
             Ok(consumer) => {
                 if let Err(e) = self.fetch_data(consumer, &cluster_id) {

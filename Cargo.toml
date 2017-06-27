@@ -23,7 +23,8 @@ rdkafka = "^0.11.0"
 regex = "0.1.80"
 rocket = "0.2.6"
 rocket_codegen = "0.2.6"
-scheduled-executor = { git = "https://github.com/fede1024/rust_scheduled_executor.git"}
+scheduled-executor = "^0.3.0"
+# scheduled-executor = { git = "https://github.com/fede1024/rust_scheduled_executor.git"}
 # scheduled-executor = { path = "/home/fede/rust/scheduled-executor"}
 serde = "^0.9.8"
 serde-transcode = "^0.2.1"

@@ -2,7 +2,7 @@ use maud::{Markup, PreEscaped};
 
 use web_server::pages;
 use web_server::view::layout;
-use metadata::{Broker, ClusterId};
+use metadata::ClusterId;
 use cache::Cache;
 
 use rocket::State;

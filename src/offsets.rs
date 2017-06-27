@@ -28,11 +28,11 @@ enum ConsumerUpdate {
 }
 
 fn read_str<'a>(rdr: &'a mut Cursor<&[u8]>) -> Result<&'a str> {
-    let strlen = (rdr.read_i16::<BigEndian>()).chain_err(|| "Failed to parse string len")? as usize;
+    let len = (rdr.read_i16::<BigEndian>()).chain_err(|| "Failed to parse string len")? as usize;
     let pos = rdr.position() as usize;
-    let slice = str::from_utf8(&rdr.get_ref()[pos..(pos+strlen)])
+    let slice = str::from_utf8(&rdr.get_ref()[pos..(pos+len)])
         .chain_err(|| "String is not valid UTF-8")?;
-    rdr.consume(strlen);
+    rdr.consume(len);
     Ok(slice)
 }
 
@@ -112,11 +112,12 @@ fn update_global_cache(cluster_id: &ClusterId, local_cache: &HashMap<(String, St
                         existing_offsets.get(i).cloned().unwrap_or(-1));
                     insert_at(&mut existing_offsets, i, new_offset, -1);
                 }
-                cache.insert((cluster_id.to_owned(), group.to_owned(), topic.to_owned()), existing_offsets);
+                let _ = cache.insert((cluster_id.to_owned(), group.to_owned(), topic.to_owned()), existing_offsets);
                 continue;
             }
         }
-        cache.insert((cluster_id.to_owned(), group.to_owned(), topic.to_owned()), offsets.clone());
+        // TODO: log errors
+        let _ = cache.insert((cluster_id.to_owned(), group.to_owned(), topic.to_owned()), offsets.clone());
     }
 }
 
@@ -129,7 +130,7 @@ fn commit_offset_position_to_array(tp_list: TopicPartitionList) -> Vec<i64> {
     offsets
 }
 
-fn consume_offset_topic(cluster_id: ClusterId, mut consumer: StreamConsumer<EmptyConsumerContext>,
+fn consume_offset_topic(cluster_id: ClusterId, consumer: StreamConsumer<EmptyConsumerContext>,
                         cache: &Cache) -> Result<()> {
     let mut local_cache = HashMap::new();
     let mut last_dump = Instant::now();
@@ -158,7 +159,6 @@ fn consume_offset_topic(cluster_id: ClusterId, mut consumer: StreamConsumer<Empt
                         &[]
                     },
                 };
-                parse_message(key, payload);
                 match parse_message(key, payload) {
                     Ok(update) => match update {
                         ConsumerUpdate::SetCommit {group, topic, partition, offset} => {
@@ -181,12 +181,16 @@ fn consume_offset_topic(cluster_id: ClusterId, mut consumer: StreamConsumer<Empt
         if (Instant::now() - last_dump) > Duration::from_secs(10) {
             trace!("Dumping local offset cache ({}: {} updates)", cluster_id, local_cache.len());
             update_global_cache(&cluster_id, &local_cache, &cache.offsets);
-            consumer.position()
+            let res = consumer.position()
                 .map(|pos| {
                     let vec = commit_offset_position_to_array(pos);
                     trace!("Store consumer position: {:?}", vec);
-                    cache.internal_offsets.insert(cluster_id.clone(), vec);
-                });
+                    cache.internal_offsets.insert(cluster_id.clone(), vec)
+                })
+                .chain_err(|| "Failed to store consumer offset position")?;
+            if let Err(e) = res {
+                format_error_chain!(e);
+            }
             local_cache = HashMap::with_capacity(local_cache.len());
             last_dump = Instant::now();
         }
@@ -203,20 +207,26 @@ pub fn run_offset_consumer(cluster_id: &ClusterId, cluster_config: &ClusterConfi
 
     let cluster_id_clone = cluster_id.clone();
     let cache_alias = cache.alias();
-    thread::Builder::new()
+    let _ = thread::Builder::new()
         .name("offset-consumer".to_owned())
         .spawn(move || {
-            consume_offset_topic(cluster_id_clone, consumer, &cache_alias);
-        });
+            if let Err(e) = consume_offset_topic(cluster_id_clone, consumer, &cache_alias) {
+                format_error_chain!(e);
+            }
+        })
+        .chain_err(|| "Failed to start offset consumer thread")?;
 
     Ok(())
 }
 
 
 pub trait OffsetStore {
-    fn offsets_by_cluster(&self, &ClusterId) -> Vec<((ClusterId, String, TopicName), Vec<i64>)>;
-    fn offsets_by_cluster_topic(&self, &ClusterId, &TopicName) -> Vec<((ClusterId, String, TopicName), Vec<i64>)>;
-    fn offsets_by_cluster_group(&self, &ClusterId, &String) -> Vec<((ClusterId, String, TopicName), Vec<i64>)>;
+    fn offsets_by_cluster(&self, cluster_id: &ClusterId)
+        -> Vec<((ClusterId, String, TopicName), Vec<i64>)>;
+    fn offsets_by_cluster_topic(&self, cluster_id: &ClusterId, topic_name: &TopicName)
+        -> Vec<((ClusterId, String, TopicName), Vec<i64>)>;
+    fn offsets_by_cluster_group(&self, cluster_id: &ClusterId, group_name: &String)
+        -> Vec<((ClusterId, String, TopicName), Vec<i64>)>;
 }
 
 impl OffsetStore for Cache {
