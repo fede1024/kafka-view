@@ -307,8 +307,14 @@ var max_msg_count = 1000;
 var max_msg_length = 1024;
 var poll_interval = 1000;
 
+var tailer_active = true;
+
 function background_tailer(cluster_id, topic_name, tailer_id) {
-  var url = '/api/test/' + cluster_id + '/' + topic_name + '/' + tailer_id;
+  if (!tailer_active) {
+    setTimeout(function(){background_tailer(cluster_id, topic_name, tailer_id)}, poll_interval);
+    return
+  }
+  var url = '/api/tailer/' + cluster_id + '/' + topic_name + '/' + tailer_id;
   $.ajax({
     url: url,
     success: function(data) {
@@ -345,6 +351,16 @@ $(document).ready(function() {
         var tailer_id = $(this).attr("data-tailer");
         background_tailer(cluster_id, topic_name, tailer_id);
     });
+    $('#start_tailer_button').click(function(event) {
+        event.preventDefault();
+        $('#tailer_button_label').html("Topic tailer: active")
+        tailer_active = true;
+    })
+    $('#stop_tailer_button').click(function(event) {
+        event.preventDefault();
+        $('#tailer_button_label').html("Topic tailer: stopped")
+        tailer_active = false;
+    })
 });
 
 $(document).ready(function(){

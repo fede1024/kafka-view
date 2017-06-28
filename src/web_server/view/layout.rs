@@ -71,12 +71,13 @@ pub fn panel(heading: PreEscaped<String>, body: PreEscaped<String>) -> PreEscape
                 (heading)
                 div class="pull-right" {
                     div class="btn-group" {
-                        button type="button" class="btn btn-default btn-xs dropdown-toggle" data-toggle="dropdown" {
-                            "Actions" span class="caret" {}
+                        button id="tailer_button_label" type="button"
+                            class="btn btn-default btn-xs dropdown-toggle" data-toggle="dropdown" {
+                            "Topic tailer: active" span class="caret" {}
                         }
                         ul class="dropdown-menu pull-right" role="menu" {
-                            li a href="#" "Start"
-                            li a href="#" "Stop"
+                            li id="start_tailer_button" a href="#" "Start"
+                            li id="stop_tailer_button" a href="#" "Stop"
                             // li a href="#" "Action"
                             // li a href="#" "Action"
                             // li class="divider" {}

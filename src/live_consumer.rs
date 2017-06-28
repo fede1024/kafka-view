@@ -168,7 +168,7 @@ impl LiveConsumerStore {
 
 // TODO: check log in case of error
 
-#[get("/api/test/<cluster_id>/<topic>/<id>")]
+#[get("/api/tailer/<cluster_id>/<topic>/<id>")]
 pub fn test_live_consumer_api(
     cluster_id: ClusterId,
     topic: &str,
