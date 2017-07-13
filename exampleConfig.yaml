@@ -1,36 +1,56 @@
+# This is the kafka-view configuration file.
 ---
-  # Listen host and port
+  # Listen host and port for the HTTP server
   listen_host: 0.0.0.0
   listen_port: 8080
-  # Refresh rate for metadata and group membership information
+
+  # Refresh interval for metadata and group membership in seconds.
+  #   Kafka-view will periodically read the metadata of the cluster,
+  #   including topics and consumer groups. This parameter specifies
+  #   how often each cluster is refreshed.
   metadata_refresh: 60
-  # Refresh rate for metrics
-  metrics_refresh: 600
-  # Where the cache will be stored
+
+  # Refresh interval for metrics in seconds.
+  #   This parameter will regulate how often kafka-view will read the
+  #   metrics from the Kafka cluster. Remember that to have metrics, you
+  #   must run Jolokia on your cluster.
+  metrics_refresh: 60
+
+  # Where the cache will be stored.
+  #   Kafka-view will use this cluster and topic to store the cache.
+  #   If auto-topic-creation is disabled in the cluster, the topic should be
+  #   created manually before running kafka-view. The topic should also be
+  #   configured with cleanup.policy=compact.
   caching:
-    cluster: local_cluster     # which cluster
-    topic: replicator_topic    # which topic
+    cluster: local_cluster     # which cluster will be used
+    topic: replicator_topic    # which topic in the cluster will be used
+
+  # How long the consumer offsets will be stored for, in seconds.
+  offsets_store_duration: 259200
+
   consumer_offsets_group_id: kafka_view_consumer
 
   clusters:
-    cluster_type0.cluster_name0:
-      broker_list:
+    # Each cluster is identified by a name, and has a list of parameters,
+    # such as list of kafka brokers, zookeeper path and metric port.
+    cluster_id_0:
+      broker_list:  # List of broker nodes
         - host1:9092
         - host2:9092
         - host3:9092
-      zookeeper: zkhost1:2181
-      jolokia_port: 8778
-    cluster_type0.cluster_name1:
+      zookeeper: zkhost1:2181  # format: "node:port,node:port/chroot"
+      jolokia_port: 8778       # optional jolokia port for metrics
+    cluster_id_1:
       broker_list:
         - host4:9092
         - host5:9092
         - host6:9092
       zookeeper: zkhost2:2181
       jolokia_port: 8778
-    flat_cluster_name:
+    cluster_id_2:
       broker_list:
         - host7:9092
         - host8:9092
         - host9:9092
       zookeeper: zkhost3:2181
-      # jolokia_port: 8778  disabled
+      # jolokia_port: 8778   metrics are disabled

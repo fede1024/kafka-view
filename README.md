@@ -5,7 +5,7 @@ Kafka-view is an experimental web interface for Kafka written in Rust.
 Kafka-view creates and maintains a materialized view of the internal state of
 Kafka including cluster metadata, traffic metrics, group membership, consumer
 offsets etc. It uses the [rdkafka](https://github.com/fede1024/rust-rdkafka)
-Kafka client library for Rust.
+Kafka client library for Rust, and [rocket](https://rocket.rs/).
 
 Click [here](https://github.com/fede1024/kafka-view#screenshots) for screenshots.
 
@@ -32,6 +32,55 @@ across all clusters.
 At the moment kafka-view is designed to be read-only. Functionality such as
 adding topics, changing consumer offsets etc. are not supported.
 
+## Configuring and running kafka-view
+
+### Configuration
+
+First, create a new configuration starting from the [example configuration file].
+The new configuration should contain the list of clusters you want to monitor,
+and a special topic in one of the clusters that kafka-view will use for caching.
+
+The caching topic should be configured to use compaction. Example setup:
+
+```bash
+# Create topic
+kafka-topics.sh --zookeeper <zk> --create --topic <cache_topic_name> --partitions 3 --replication-factor 2
+# Enable compaction
+kafka-topics.sh --zookeeper <zk> --alter --topic <cache_topic_name> --config cleanup.policy=compact
+# Compact every 10MB per partition
+kafka-topics.sh --zookeeper <zk> --alter --topic <cache_topic_name> --config segment.bytes=10485760
+```
+
+[example configuration file]: https://github.com/fede1024/kafka-view/blob/master/exampleConfig.yaml
+
+### Building and running
+
+To compile and run:
+```bash
+rustup override set $(cat rust-toolchain)
+cargo run --release -- --conf config.yaml
+```
+
+### Metrics
+
+Kafka exports metrics via JMX, which can be accessed via HTTP through [jolokia]. The suggested way
+to run jolokia on your server is using the [JVM agent]. Example:
+
+```bash
+KAFKA_OPTS="-javaagent:jolokia-jvm-1.3.7-agent.jar=port=8778" ./bin/kafka-server-start.sh config/server.properties
+```
+
+To verify that it's correctly running:
+
+```bash
+curl http://localhost:8778/jolokia/read/java.lang:type=Memory/HeapMemoryUsage/used
+```
+
+Once your cluster is running with Jolokia, just add the jolokia port to the kafka-view configuration
+and it will start reading metrics from the cluster.
+
+[jolokia]: https://jolokia.org
+[JVM agent]: https://jolokia.org/agent/jvm.html
 
 ## Implementation
 
