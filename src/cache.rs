@@ -82,8 +82,7 @@ impl ReplicaWriter {
             (serialized_key.len() as f64 / 1000f64), (serialized_value.len() as f64 / 1000f64));
         let ts = millis_to_epoch(SystemTime::now());
         let _f = self.producer.send_copy(self.topic_name.as_str(), None, Some(&serialized_value),
-                                         Some(&serialized_key), Some(ts))
-            .chain_err(|| "Failed to produce message")?;
+                                         Some(&serialized_key), Some(ts));
         // _f.wait();  // Uncomment to make production synchronous
         Ok(())
     }
@@ -94,8 +93,7 @@ impl ReplicaWriter {
             .chain_err(|| "Failed to serialize key")?;
         let ts = millis_to_epoch(SystemTime::now());
         let _f = self.producer.send_copy::<Vec<u8>, Vec<u8>>(self.topic_name.as_str(), None, None,
-                                                             Some(&serialized_key), Some(ts))
-            .chain_err(|| "Failed to produce message")?;
+                                                             Some(&serialized_key), Some(ts));
         Ok(())
     }
 }

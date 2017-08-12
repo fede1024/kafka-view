@@ -5,16 +5,17 @@ extern crate futures;
 extern crate rdkafka;
 extern crate byteorder;
 
+use byteorder::{BigEndian, ReadBytesExt};
 use clap::{App, Arg};
 use futures::stream::Stream;
-use rdkafka::consumer::{Consumer, CommitMode};
-use rdkafka::consumer::stream_consumer::StreamConsumer;
 use rdkafka::config::{ClientConfig, TopicConfig};
+use rdkafka::consumer::Consumer;
+use rdkafka::consumer::stream_consumer::StreamConsumer;
+use rdkafka::message::Message;
 use rdkafka::util::get_rdkafka_version;
-use std::str;
 
+use std::str;
 use std::io::{self, Cursor, BufRead};
-use byteorder::{BigEndian, ReadBytesExt};
 
 
 #[derive(Debug)]
@@ -44,21 +45,21 @@ enum ConsumerUpdate {
 }
 
 fn read_str<'a>(rdr: &'a mut Cursor<&[u8]>) -> Result<&'a str, ParserError> {
-    let strlen = try!(rdr.read_i16::<BigEndian>()) as usize;
+    let strlen = rdr.read_i16::<BigEndian>()? as usize;
     let pos = rdr.position() as usize;
-    let slice = try!(str::from_utf8(&rdr.get_ref()[pos..(pos+strlen)]));
+    let slice = str::from_utf8(&rdr.get_ref()[pos..(pos + strlen)])?;
     rdr.consume(strlen);
     Ok(slice)
 }
 
 fn parse_group_offset(key_rdr: &mut Cursor<&[u8]>,
                       payload_rdr: &mut Cursor<&[u8]>) -> Result<ConsumerUpdate, ParserError> {
-    let group = try!(read_str(key_rdr)).to_owned();
-    let topic = try!(read_str(key_rdr)).to_owned();
-    let partition = try!(key_rdr.read_i32::<BigEndian>());
+    let group = read_str(key_rdr)?.to_owned();
+    let topic = read_str(key_rdr)?.to_owned();
+    let partition = key_rdr.read_i32::<BigEndian>()?;
     if payload_rdr.get_ref().len() != 0 {
-        try!(payload_rdr.read_i16::<BigEndian>());
-        let offset = try!(payload_rdr.read_i64::<BigEndian>());
+        payload_rdr.read_i16::<BigEndian>()?;
+        let offset = payload_rdr.read_i64::<BigEndian>()?;
         Ok(ConsumerUpdate::SetCommit { group: group, topic: topic, partition: partition, offset: offset })
     } else {
         Ok(ConsumerUpdate::DeleteCommit { group: group, topic: topic, partition: partition })
@@ -68,16 +69,16 @@ fn parse_group_offset(key_rdr: &mut Cursor<&[u8]>,
 fn parse_message(key: &[u8], payload: &[u8]) -> Result<ConsumerUpdate, ParserError> {
     let mut key_rdr = Cursor::new(key);
     let mut payload_rdr = Cursor::new(payload);
-    let key_version = try!(key_rdr.read_i16::<BigEndian>());
+    let key_version = key_rdr.read_i16::<BigEndian>()?;
     match key_version {
-        0 | 1 => Ok(try!(parse_group_offset(&mut key_rdr, &mut payload_rdr))),
+        0 | 1 => Ok(parse_group_offset(&mut key_rdr, &mut payload_rdr)?),
         2 => Ok(ConsumerUpdate::Metadata),
         _ => Err(ParserError::Format),
     }
 }
 
 fn consume_and_print(brokers: &str) {
-    let mut consumer = ClientConfig::new()
+    let consumer = ClientConfig::new()
         .set("group.id", "consumer_reader_group")
         .set("bootstrap.servers", brokers)
         .set("enable.partition.eof", "false")
