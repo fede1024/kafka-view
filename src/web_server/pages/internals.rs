@@ -1,5 +1,7 @@
 use maud::{Markup, PreEscaped};
+use rocket::State;
 
+use cache::Cache;
 use web_server::view::layout;
 
 fn broker_table() -> PreEscaped<String> {
@@ -14,7 +16,7 @@ fn metrics_table() -> PreEscaped<String> {
     )
 }
 
-fn cache_description_table(name: &str, key: &str, value: &str) -> PreEscaped<String> {
+fn cache_description_table(name: &str, key: &str, value: &str, count: usize) -> PreEscaped<String> {
     html! {
         table style="margin-top: 10px; margin-bottom: 10px" {
             tr {
@@ -29,19 +31,23 @@ fn cache_description_table(name: &str, key: &str, value: &str) -> PreEscaped<Str
                 td style="font-weight: bold" "Value:"
                 td style="font-family: monospace; padding-left: 20px" (value)
             }
+            tr {
+                td style="font-weight: bold" "Items count:"
+                td style="font-family: monospace; padding-left: 20px" (count)
+            }
         }
     }
 }
 
 #[get("/internals/caches")]
-pub fn caches_page() -> Markup {
+pub fn caches_page(cache: State<Cache>) -> Markup {
     let content = html! {
         h3 style="margin-top: 0px" "Information"
         h3 "Brokers"
-        (cache_description_table("BrokerCache", "ClusterId", "Vec<Broker>"))
+        (cache_description_table("BrokerCache", "ClusterId", "Vec<Broker>", cache.brokers.keys().len()))
         div (broker_table())
         h3 "Metrics"
-        (cache_description_table("MetricsCache", "(ClusterId, BrokerId)", "BrokerMetrics"))
+        (cache_description_table("MetricsCache", "(ClusterId, BrokerId)", "BrokerMetrics", cache.metrics.keys().len()))
         div (metrics_table())
     };
     layout::page("Caches", content)

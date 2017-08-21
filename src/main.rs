@@ -123,7 +123,7 @@ fn run_kafka_web(config_path: &str) -> Result<()> {
         Duration::from_secs(10),
         Duration::from_secs(120),
         move |_| {
-            cache_clone.metrics.remove_old(Duration::from_secs(offsets_store_duration));
+            cache_clone.offsets.remove_old(Duration::from_secs(offsets_store_duration));
         }
     );
 
