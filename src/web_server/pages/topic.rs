@@ -4,7 +4,6 @@ use rand::random;
 use cache::Cache;
 use config::Config;
 use metadata::ClusterId;
-use metrics::build_topic_metrics;
 use web_server::pages;
 use web_server::view::layout;
 

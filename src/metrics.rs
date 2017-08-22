@@ -83,34 +83,60 @@ fn log_elapsed_time(task_name: &str, start: DateTime<UTC>) {
     debug!("{} completed in: {:.3}ms", task_name, UTC::now().signed_duration_since(start).num_microseconds().unwrap() as f64 / 1000f64);
 }
 
-// TODO: make faster?
-pub fn build_topic_metrics(cluster_id: &ClusterId, brokers: &Vec<Broker>, topic_count: usize,
-                           metrics: &MetricsCache) -> HashMap<TopicName, (f64, f64)> {
-    let mut result = HashMap::with_capacity(topic_count);
-    for broker in brokers.iter() {
-        if let Some(broker_metrics) = metrics.get(&(cluster_id.clone(), broker.id)) {
-            for (topic_name, rate) in broker_metrics.topics {
-                // Keep an eye on RFC 1769
-                let mut entry_ref = result.entry(topic_name.to_owned()).or_insert((0f64, 0f64));
-                *entry_ref = (entry_ref.0 + rate.0, entry_ref.1 + rate.1);
-            }
+#[derive(PartialEq, Serialize, Deserialize, Debug, Clone)]
+pub struct TopicBrokerMetrics {
+    pub m_rate_15: f64,
+    pub b_rate_15: f64,
+}
+
+impl Default for TopicBrokerMetrics {
+    fn default() -> Self {
+        TopicBrokerMetrics {
+            m_rate_15: 0f64,
+            b_rate_15: 0f64,
         }
     }
-    result
 }
 
 #[derive(PartialEq, Serialize, Deserialize, Debug, Clone)]
-pub struct BrokerMetrics {
-    pub topics: HashMap<TopicName, (f64, f64)>,
+pub struct PartitionMetrics {
+    pub size_bytes: f64,
 }
 
-impl BrokerMetrics {
-    fn new() -> BrokerMetrics {
-        BrokerMetrics { topics: HashMap::new() }
+impl Default for PartitionMetrics {
+    fn default() -> PartitionMetrics {
+        PartitionMetrics { size_bytes: 0f64 }
+    }
+}
+
+#[derive(PartialEq, Serialize, Deserialize, Debug, Clone)]
+pub struct TopicMetrics {
+    pub brokers: HashMap<i32, TopicBrokerMetrics>,
+    pub partitions: Vec<PartitionMetrics>
+}
+
+impl TopicMetrics {
+    pub fn new() -> TopicMetrics {
+        TopicMetrics {
+            brokers: HashMap::new(),
+            partitions: Vec::new(),
+        }
     }
 
-    fn set(&mut self, topic: &str, fifteen_minute_byte_rate: f64, fifteen_minute_msg_rate: f64) {
-        self.topics.insert(topic.to_owned(), (fifteen_minute_byte_rate, fifteen_minute_msg_rate));
+    pub fn topic_metrics_total(&self, topic: &TopicName) -> TopicBrokerMetrics {
+        return self.brokers.iter()
+            .fold(TopicBrokerMetrics::default(),
+                  |acc, (_, broker_metrics)| {
+                      acc.m_rate_15 += broker_metrics.m_rate_15;
+                      acc.b_rate_15 += broker_metrics.b_rate_15;
+                      acc
+            });
+    }
+}
+
+impl Default for TopicMetrics {
+    fn default() -> Self {
+        TopicMetrics::new()
     }
 }
 
@@ -137,13 +163,13 @@ impl MetricsFetchTaskGroup {
             .chain_err(|| format!("Failed to fetch message rate metrics from {}", broker.hostname))?;
         let msg_rate_metrics = parse_broker_rate_metrics(&msg_rate_json)
             .chain_err(|| "Failed to parse message rate broker metrics")?;
-        let mut metrics = BrokerMetrics::new();
-        for (topic, byte_rate) in byte_rate_metrics {
-            let msg_rate = msg_rate_metrics.get(&topic).unwrap_or(&-1f64).clone();
-            metrics.set(&topic, byte_rate, msg_rate);
+        for (topic, b_rate_15) in byte_rate_metrics {
+            let mut topic_metrics = self.cache.metrics.get(&(cluster_id.clone(), topic.clone()))
+                .unwrap_or_default();
+            let m_rate_15 = msg_rate_metrics.get(&topic).unwrap_or(&-0f64).clone();
+            topic_metrics.brokers.insert(broker.id, TopicBrokerMetrics { m_rate_15, b_rate_15});
+            self.cache.metrics.insert((cluster_id.clone(), topic.clone()), topic_metrics);
         }
-        self.cache.metrics.insert((cluster_id.clone(), broker.id), metrics)
-            .chain_err(|| "Failed to update metrics cache")?;
         log_elapsed_time("metrics fetch", start);
         Ok(())
     }

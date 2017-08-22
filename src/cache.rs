@@ -21,7 +21,7 @@ use std::time::{Duration, SystemTime};
 
 use error::*;
 use metadata::{Broker, BrokerId, ClusterId, Group, Partition, TopicName};
-use metrics::BrokerMetrics;
+use metrics::TopicMetrics;
 
 
 #[derive(Serialize, Deserialize, Debug, Hash, Eq, PartialEq)]
@@ -245,17 +245,6 @@ fn parse_message_key(message: &BorrowedMessage) -> Result<WrappedKey> {
     Ok(wrapped_key)
 }
 
-// pub trait ReplicatedCache {
-//     type Key: Serialize + Deserialize;
-//     type Value: Serialize + Deserialize;
-//
-//     fn new(SharedReplicaWriter, &str) -> Self;
-//     fn name(&self) -> &str;
-//     fn insert(&self, Self::Key, Self::Value) -> Result<Arc<Self::Value>>;
-//     fn get(&self, &Self::Key) -> Option<Arc<Self::Value>>;
-//     fn keys(&self) -> Vec<Self::Key>;
-// }
-
 
 //
 // ********** REPLICATED MAP **********
@@ -472,7 +461,7 @@ impl<'a, K, V> Iterator for ReplicatedMapIter<'a, K, V> {
 //
 
 /// Metrics for a specific broker. TODO: put topic in the key.
-pub type MetricsCache = ReplicatedMap<(ClusterId, BrokerId), BrokerMetrics>;
+pub type MetricsCache = ReplicatedMap<(ClusterId, TopicName), TopicMetrics>;
 
 /// Offsets
 pub type OffsetsCache = ReplicatedMap<(ClusterId, String, TopicName), Vec<i64>>;
