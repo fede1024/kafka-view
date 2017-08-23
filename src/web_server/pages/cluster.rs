@@ -87,10 +87,9 @@ pub fn broker_page(cluster_id: ClusterId, broker_id: BrokerId, cache: State<Cach
     }
 
     let broker = broker.unwrap();
-    let (msg_rate, byte_rate) = cache.metrics.get(&(cluster_id.to_owned(), broker_id))
-        .and_then(|b_metrics| { b_metrics.topics.get("__TOTAL__").cloned() })
-        .unwrap_or((-1f64, -1f64)); // TODO null instead?
-
+    let metrics = cache.metrics.get(&(cluster_id.to_owned(), "__TOTAL__".to_owned()))
+        .unwrap_or_default()
+        .aggregate_broker_metrics();
     let content = html! {
         h3 style="margin-top: 0px" "Information"
         dl class="dl-horizontal" {
@@ -98,7 +97,7 @@ pub fn broker_page(cluster_id: ClusterId, broker_id: BrokerId, cache: State<Cach
             dt "Bootstrap list: " dd (cluster_config.unwrap().broker_list.join(", "))
             dt "Zookeeper: " dd (cluster_config.unwrap().zookeeper)
             dt "Hostname" dd (broker.hostname)
-            dt "Traffic" dd (format!("{} msg/s, {} B/s", msg_rate, byte_rate))  // TODO: human readable
+            dt "Traffic" dd (format!("{:.1} KB/s  {:.0} msg/s", metrics.b_rate_15 / 1000f64, metrics.m_rate_15))
         }
     };
     layout::page(&format!("Broker: {}", cluster_id), content)

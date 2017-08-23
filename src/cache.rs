@@ -20,7 +20,7 @@ use std::sync::{Arc, RwLock};
 use std::time::{Duration, SystemTime};
 
 use error::*;
-use metadata::{Broker, BrokerId, ClusterId, Group, Partition, TopicName};
+use metadata::{Broker, ClusterId, Group, Partition, TopicName};
 use metrics::TopicMetrics;
 
 

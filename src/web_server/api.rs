@@ -8,7 +8,6 @@ use cache::Cache;
 use error::*;
 use live_consumer::LiveConsumerStore;
 use metadata::{CONSUMERS, ClusterId, TopicName};
-use metrics::build_topic_metrics;
 use offsets::OffsetStore;
 use web_server::pages::omnisearch::OmnisearchFormParams;
 
@@ -26,17 +25,15 @@ pub fn cluster_topics(cluster_id: ClusterId, cache: State<Cache>, timestamp: &st
         return json!({"data": []}).to_string();
     }
 
-    let brokers = brokers.unwrap();
     let topics = cache.topics.filter_clone(|&(ref c, _)| c == &cluster_id);
-    let topic_metrics = build_topic_metrics(&cluster_id, &brokers, topics.len(), &cache.metrics);
 
     let mut result_data = Vec::with_capacity(topics.len());
     for &((_, ref topic_name), ref partitions) in topics.iter() {
-        let def = (-1f64, -1f64);
-        let rate = topic_metrics.get(topic_name).unwrap_or(&def);
+        let metrics = cache.metrics.get(&(cluster_id.clone(), topic_name.to_owned()))
+            .unwrap_or_default()
+            .aggregate_broker_metrics();
         let errors = partitions.iter().find(|p| p.error.is_some());
-        // let err_str = format!("{:?}", errors);
-        result_data.push(json!((topic_name, partitions.len(), &errors, rate.0.round(), rate.1.round())));
+        result_data.push(json!((topic_name, partitions.len(), &errors, metrics.b_rate_15.round(), metrics.m_rate_15.round())));
     }
 
     //Ok(json_gzip_response(json!({"data": result_data})))
@@ -56,12 +53,15 @@ pub fn brokers(cluster_id: ClusterId, cache: State<Cache>, timestamp: &str) -> S
     }
 
     let brokers = brokers.unwrap();
+    let broker_metrics = cache.metrics.get(&(cluster_id.to_owned(), "__TOTAL__".to_owned()))
+        .unwrap_or_default();
     let mut result_data = Vec::with_capacity(brokers.len());
     for broker in brokers {
-        let rate = cache.metrics.get(&(cluster_id.to_owned(), broker.id))
-            .and_then(|b_metrics| { b_metrics.topics.get("__TOTAL__").cloned() })
-            .unwrap_or((-1f64, -1f64)); // TODO null instead?
-        result_data.push(json!((broker.id, broker.hostname, rate.0.round(), rate.1.round())));
+        let metric = broker_metrics.brokers
+            .get(&broker.id)
+            .cloned()
+            .unwrap_or_default();
+        result_data.push(json!((broker.id, broker.hostname, metric.b_rate_15.round(), metric.m_rate_15.round())));
     }
 
     json!({"data": result_data}).to_string()
@@ -279,19 +279,13 @@ pub fn topic_search(search: OmnisearchFormParams, cache: State<Cache>) -> String
         cache.topics.filter_clone(|&(_, ref name)| name.contains(&search.string))
     };
 
-    let mut metrics_map = HashMap::new();
     let mut result_data = Vec::new();
     for ((cluster_id, topic_name), partitions) in topics {
-        let cluster_metrics = metrics_map.entry(cluster_id.clone())
-            .or_insert_with(|| {
-                cache.brokers.get(&cluster_id)
-                    .map(|brokers| build_topic_metrics(&cluster_id, &brokers, 100, &cache.metrics))
-            });
-        let (b_rate, m_rate) = cluster_metrics.as_ref()
-            .and_then(|c_metrics| c_metrics.get(&topic_name).cloned())
-            .unwrap_or((-1f64, -1f64));
+        let metrics = cache.metrics.get(&(cluster_id.clone(), topic_name.clone()))
+            .unwrap_or_default()
+            .aggregate_broker_metrics();
         let errors = partitions.iter().find(|p| p.error.is_some());
-        result_data.push(json!((cluster_id, topic_name, partitions.len(), errors, b_rate, m_rate)));
+        result_data.push(json!((cluster_id, topic_name, partitions.len(), errors, metrics.b_rate_15, metrics.m_rate_15)));
     }
 
     json!({"data": result_data}).to_string()
@@ -320,7 +314,7 @@ pub fn cache_metrics(cache: State<Cache>, timestamp: &str) -> String {
     let result_data = cache.metrics.lock_iter(|metrics_cache_entry| {
         metrics_cache_entry
             .map(|(&(ref cluster_id, ref broker_id), metrics)| {
-                ((cluster_id.clone(), broker_id.clone(), metrics.topics.len()))
+                ((cluster_id.clone(), broker_id.clone(), metrics.brokers.len()))
             }).collect::<Vec<_>>()
     });
 

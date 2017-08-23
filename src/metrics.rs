@@ -7,7 +7,7 @@ use scheduled_executor::TaskGroup;
 
 use std::collections::HashMap;
 
-use cache::{Cache, MetricsCache};
+use cache::Cache;
 use config::Config;
 use error::*;
 use metadata::{ClusterId, Broker, TopicName};
@@ -123,10 +123,10 @@ impl TopicMetrics {
         }
     }
 
-    pub fn topic_metrics_total(&self, topic: &TopicName) -> TopicBrokerMetrics {
+    pub fn aggregate_broker_metrics(&self) -> TopicBrokerMetrics {
         return self.brokers.iter()
             .fold(TopicBrokerMetrics::default(),
-                  |acc, (_, broker_metrics)| {
+                  |mut acc, (_, broker_metrics)| {
                       acc.m_rate_15 += broker_metrics.m_rate_15;
                       acc.b_rate_15 += broker_metrics.b_rate_15;
                       acc

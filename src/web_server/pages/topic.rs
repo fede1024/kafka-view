@@ -56,11 +56,11 @@ pub fn topic_page(cluster_id: ClusterId, topic_name: &str, cache: State<Cache>, 
 
     let graph_url = config.clusters.get(&cluster_id)
         .and_then(|cluster_config| cluster_config.graph_url.as_ref());
-    let brokers = cache.brokers.get(&cluster_id).expect("Broker should exist");
+    let _ = cache.brokers.get(&cluster_id).expect("Cluster should exist");  // TODO: handle better
 
-    // TODO: create function specific for single topic metrics
-    let metrics = build_topic_metrics(&cluster_id, &brokers, 100, &cache.metrics)
-        .get(topic_name).cloned();
+    let metrics = cache.metrics.get(&(cluster_id.clone(), topic_name.to_owned()))
+        .unwrap_or_default()
+        .aggregate_broker_metrics();
     let content = html! {
         h3 style="margin-top: 0px" "General information"
         dl class="dl-horizontal" {
@@ -68,12 +68,8 @@ pub fn topic_page(cluster_id: ClusterId, topic_name: &str, cache: State<Cache>, 
             dt "Topic name " dd (topic_name)
             dt "Number of partitions " dd (partitions.len())
             dt "Number of replicas " dd (partitions[0].replicas.len())
-            @if metrics.is_some() {
-                dt "Traffic last 15 minutes"
-                dd (format!("{:.1}   KB/s {:.0} msg/s", metrics.unwrap().0 / 1000f64, metrics.unwrap().1))
-            } @else {
-                dt "Traffic last 15 minutes" dd "Not available"
-            }
+            dt "Traffic last 15 minutes"
+            dd (format!("{:.1}   KB/s {:.0} msg/s", metrics.b_rate_15 / 1000f64, metrics.m_rate_15))
             @if graph_url.is_some() {
                 dt "Traffic chart" dd (graph_link(graph_url.unwrap(), topic_name))
             }
