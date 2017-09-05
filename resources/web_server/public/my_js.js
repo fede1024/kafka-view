@@ -164,7 +164,8 @@ $(document).ready(function() {
             "createdRow": function(row, data, index) {
                 var cluster_id = $(this).attr("data-param");
                 // broker_to_url(cluster_id, $(row).children()[1]);
-                error_to_graphic($(row).children()[4]);
+                bytes_to_human($(row).children()[1], "");
+                error_to_graphic($(row).children()[5]);
             }
         });
     });

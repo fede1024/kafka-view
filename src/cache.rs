@@ -460,14 +460,20 @@ impl<'a, K, V> Iterator for ReplicatedMapIter<'a, K, V> {
 // ********** CACHE **********
 //
 
-/// Metrics for a specific broker. TODO: put topic in the key.
+/// Metrics for a specific topic
 pub type MetricsCache = ReplicatedMap<(ClusterId, TopicName), TopicMetrics>;
 
-/// Offsets
-pub type OffsetsCache = ReplicatedMap<(ClusterId, String, TopicName), Vec<i64>>;
+/// Broker information
 pub type BrokerCache = ReplicatedMap<ClusterId, Vec<Broker>>;
+
+/// Topic and partition information
 pub type TopicCache = ReplicatedMap<(ClusterId, TopicName), Vec<Partition>>;
+
+/// Groups
 pub type GroupCache = ReplicatedMap<(ClusterId, String), Group>;
+
+/// Consumer group offsets per topic
+pub type OffsetsCache = ReplicatedMap<(ClusterId, String, TopicName), Vec<i64>>;
 
 /// Offsets for the internal consumers of the __consumer_offsets topic
 pub type InternalConsumerOffsetCache = ReplicatedMap<ClusterId, Vec<i64>>;

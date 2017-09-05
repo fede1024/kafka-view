@@ -237,11 +237,17 @@ pub fn topic_topology(cluster_id: ClusterId, topic_name: &str, cache: State<Cach
         return json!({"data": []}).to_string();
     }
 
+    let topic_metrics = cache.metrics.get(&(cluster_id.clone(), topic_name.to_owned()))
+        .unwrap_or_default();
     let partitions = partitions.unwrap();
 
     let mut result_data = Vec::with_capacity(partitions.len());
     for p in partitions {
-        result_data.push(json!((p.id, p.leader, p.replicas, p.isr, p.error)));
+        let partition_metrics = topic_metrics.brokers.get(&p.leader)
+            .and_then(|broker_metrics| broker_metrics.partitions.get(p.id as usize))
+            .cloned()
+            .unwrap_or_default();
+        result_data.push(json!((p.id, partition_metrics.size_bytes, p.leader, p.replicas, p.isr, p.error)));
     }
 
     json!({"data": result_data}).to_string()

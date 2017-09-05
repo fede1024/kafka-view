@@ -6,12 +6,71 @@ use regex::Regex;
 use scheduled_executor::TaskGroup;
 
 use std::collections::HashMap;
+use std::f64;
 
 use cache::Cache;
 use config::Config;
 use error::*;
 use metadata::{ClusterId, Broker, TopicName};
+use utils::insert_at;
 
+
+#[derive(PartialEq, Serialize, Deserialize, Debug, Copy, Clone)]
+pub struct PartitionMetrics {
+    pub size_bytes: f64,
+}
+
+impl Default for PartitionMetrics {
+    fn default() -> PartitionMetrics {
+        PartitionMetrics { size_bytes: f64::NAN }
+    }
+}
+
+#[derive(PartialEq, Serialize, Deserialize, Debug, Clone)]
+pub struct TopicBrokerMetrics {
+    pub m_rate_15: f64,
+    pub b_rate_15: f64,
+    pub partitions: Vec<PartitionMetrics>
+}
+
+impl Default for TopicBrokerMetrics {
+    fn default() -> Self {
+        TopicBrokerMetrics {
+            m_rate_15: f64::NAN,
+            b_rate_15: f64::NAN,
+            partitions: Vec::new(),
+        }
+    }
+}
+
+#[derive(PartialEq, Serialize, Deserialize, Debug, Clone)]
+pub struct TopicMetrics {
+    pub brokers: HashMap<i32, TopicBrokerMetrics>,
+}
+
+impl TopicMetrics {
+    pub fn new() -> TopicMetrics {
+        TopicMetrics {
+            brokers: HashMap::new(),
+        }
+    }
+
+    pub fn aggregate_broker_metrics(&self) -> TopicBrokerMetrics {
+        return self.brokers.iter()
+            .fold(TopicBrokerMetrics::default(),
+                  |mut acc, (_, broker_metrics)| {
+                      acc.m_rate_15 += broker_metrics.m_rate_15;
+                      acc.b_rate_15 += broker_metrics.b_rate_15;
+                      acc
+                  });
+    }
+}
+
+impl Default for TopicMetrics {
+    fn default() -> Self {
+        TopicMetrics::new()
+    }
+}
 
 fn format_jolokia_path(hostname: &str, port: i32, filter: &str) -> String {
     format!("http://{}:{}/jolokia/read/{}?ignoreErrors=true&includeStackTrace=false&maxCollectionSize=0",
@@ -35,6 +94,9 @@ fn fetch_metrics_json(hostname: &str, port: i32, filter: &str) -> Result<Value> 
     let string = String::from_utf8(buf)
         .chain_err(|| "Failed to parse buffer as UTF-8")?;
     let value = serde_json::from_str(&string).chain_err(|| "Failed to parse JSON")?;
+    // let value = String::from_utf8(buf)
+    //     .and_then(|string| serde_json::from_str(&string))
+    //     .chain_err(|| "Failed to parse JSON")?;
     Ok(value)
 }
 
@@ -68,7 +130,44 @@ fn parse_broker_rate_metrics(jolokia_json_response: &Value) -> Result<HashMap<To
         match *value {
             Value::Object(ref obj) => {
                 match obj.get("FifteenMinuteRate") {
-                    Some(&Value::Number(ref rate)) => metrics.insert(topic.to_owned(), rate.as_f64().unwrap_or(0f64)),
+                    Some(&Value::Number(ref rate)) => metrics.insert(topic.to_owned(), rate.as_f64().unwrap_or(f64::NAN)),
+                    None => bail!("Can't find key in metric"),
+                    _ => bail!("Unexpected metric type"),
+                };
+            },
+            _ => {},
+        }
+    }
+    Ok(metrics)
+}
+
+fn parse_partition_size_metrics(jolokia_json_response: &Value) -> Result<HashMap<TopicName, Vec<PartitionMetrics>>> {
+    let value_map = jolokia_response_get_value(jolokia_json_response)
+        .chain_err(|| "Failed to extract 'value' from jolokia response.")?;
+    let topic_re = Regex::new(r"topic=([^,]+),").unwrap();
+    let partition_re = Regex::new(r"partition=([^,]+),").unwrap();
+
+    let mut metrics = HashMap::new();
+    for (mbean_name, value) in value_map.iter() {
+        let topic = topic_re.captures(mbean_name)
+            .and_then(|cap| cap.at(1));
+        let partition = partition_re.captures(mbean_name)
+            .and_then(|cap| cap.at(1))
+            .and_then(|p_str| p_str.parse::<u32>().ok());
+        if topic.is_none() || partition.is_none() {
+            bail!("Can't parse topic and partition metadata from metric name");
+        }
+        match *value {
+            Value::Object(ref obj) => {
+                match obj.get("Value") {
+                    Some(&Value::Number(ref size)) => {
+                        let partition_metrics = PartitionMetrics { size_bytes: size.as_f64().unwrap_or(f64::NAN) };
+                        insert_at(
+                            metrics.entry(topic.unwrap().to_owned()).or_insert_with(|| Vec::new()),
+                            partition.unwrap() as usize,
+                            partition_metrics,
+                            PartitionMetrics::default());
+                    },
                     None => bail!("Can't find key in metric"),
                     _ => bail!("Unexpected metric type"),
                 };
@@ -83,62 +182,6 @@ fn log_elapsed_time(task_name: &str, start: DateTime<UTC>) {
     debug!("{} completed in: {:.3}ms", task_name, UTC::now().signed_duration_since(start).num_microseconds().unwrap() as f64 / 1000f64);
 }
 
-#[derive(PartialEq, Serialize, Deserialize, Debug, Clone)]
-pub struct TopicBrokerMetrics {
-    pub m_rate_15: f64,
-    pub b_rate_15: f64,
-}
-
-impl Default for TopicBrokerMetrics {
-    fn default() -> Self {
-        TopicBrokerMetrics {
-            m_rate_15: 0f64,
-            b_rate_15: 0f64,
-        }
-    }
-}
-
-#[derive(PartialEq, Serialize, Deserialize, Debug, Clone)]
-pub struct PartitionMetrics {
-    pub size_bytes: f64,
-}
-
-impl Default for PartitionMetrics {
-    fn default() -> PartitionMetrics {
-        PartitionMetrics { size_bytes: 0f64 }
-    }
-}
-
-#[derive(PartialEq, Serialize, Deserialize, Debug, Clone)]
-pub struct TopicMetrics {
-    pub brokers: HashMap<i32, TopicBrokerMetrics>,
-    pub partitions: Vec<PartitionMetrics>
-}
-
-impl TopicMetrics {
-    pub fn new() -> TopicMetrics {
-        TopicMetrics {
-            brokers: HashMap::new(),
-            partitions: Vec::new(),
-        }
-    }
-
-    pub fn aggregate_broker_metrics(&self) -> TopicBrokerMetrics {
-        return self.brokers.iter()
-            .fold(TopicBrokerMetrics::default(),
-                  |mut acc, (_, broker_metrics)| {
-                      acc.m_rate_15 += broker_metrics.m_rate_15;
-                      acc.b_rate_15 += broker_metrics.b_rate_15;
-                      acc
-            });
-    }
-}
-
-impl Default for TopicMetrics {
-    fn default() -> Self {
-        TopicMetrics::new()
-    }
-}
 
 pub struct MetricsFetchTaskGroup {
     cache: Cache,
@@ -163,11 +206,17 @@ impl MetricsFetchTaskGroup {
             .chain_err(|| format!("Failed to fetch message rate metrics from {}", broker.hostname))?;
         let msg_rate_metrics = parse_broker_rate_metrics(&msg_rate_json)
             .chain_err(|| "Failed to parse message rate broker metrics")?;
+        let partition_metrics_json = fetch_metrics_json(&broker.hostname, port, "kafka.log:name=Size,*,type=Log/Value")
+            .chain_err(|| format!("Failed to fetch partition size metrics from {}", broker.hostname))?;
+        let pt_size_metrics = parse_partition_size_metrics(&partition_metrics_json)
+            .chain_err(|| "Failed to parse partition size broker metrics")?;
         for (topic, b_rate_15) in byte_rate_metrics {
             let mut topic_metrics = self.cache.metrics.get(&(cluster_id.clone(), topic.clone()))
                 .unwrap_or_default();
-            let m_rate_15 = msg_rate_metrics.get(&topic).unwrap_or(&-0f64).clone();
-            topic_metrics.brokers.insert(broker.id, TopicBrokerMetrics { m_rate_15, b_rate_15});
+            let m_rate_15 = msg_rate_metrics.get(&topic).unwrap_or(&f64::NAN).clone();
+            let partitions = pt_size_metrics.get(&topic).cloned()
+                .unwrap_or_else(|| Vec::new());
+            topic_metrics.brokers.insert(broker.id, TopicBrokerMetrics { m_rate_15, b_rate_15, partitions});
             self.cache.metrics.insert((cluster_id.clone(), topic.clone()), topic_metrics);
         }
         log_elapsed_time("metrics fetch", start);

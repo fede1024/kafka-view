@@ -13,7 +13,7 @@ use rocket::State;
 fn topic_table(cluster_id: &ClusterId, topic_name: &str) -> PreEscaped<String> {
     let api_url = format!("/api/clusters/{}/topics/{}/topology", cluster_id, topic_name);
     layout::datatable_ajax("topology-ajax", &api_url, cluster_id.name(),
-        html! { tr { th "Id" th "Leader" th "Replicas" th "ISR" th "Status" } }
+        html! { tr { th "Id" th "Size" th "Leader" th "Replicas" th "ISR" th "Status" } }
     )
 }
 
