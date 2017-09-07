@@ -12,7 +12,7 @@ fn broker_table() -> PreEscaped<String> {
 
 fn metrics_table() -> PreEscaped<String> {
     layout::datatable_ajax("internals-cache-metrics-ajax", "/api/internals/cache/metrics", "",
-        html! { tr { th "Cluster id" th "Broker id" th "Topics" } }
+        html! { tr { th "Cluster id" th "Topic name" th "Brokers" } }
     )
 }
 
@@ -47,7 +47,7 @@ pub fn caches_page(cache: State<Cache>) -> Markup {
         (cache_description_table("BrokerCache", "ClusterId", "Vec<Broker>", cache.brokers.keys().len()))
         div (broker_table())
         h3 "Metrics"
-        (cache_description_table("MetricsCache", "(ClusterId, BrokerId)", "BrokerMetrics", cache.metrics.keys().len()))
+        (cache_description_table("MetricsCache", "(ClusterId, TopicName)", "TopicMetrics", cache.metrics.keys().len()))
         div (metrics_table())
     };
     layout::page("Caches", content)

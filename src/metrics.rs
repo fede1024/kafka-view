@@ -22,7 +22,7 @@ pub struct PartitionMetrics {
 
 impl Default for PartitionMetrics {
     fn default() -> PartitionMetrics {
-        PartitionMetrics { size_bytes: f64::NAN }
+        PartitionMetrics { size_bytes: 0f64 }
     }
 }
 
@@ -36,8 +36,8 @@ pub struct TopicBrokerMetrics {
 impl Default for TopicBrokerMetrics {
     fn default() -> Self {
         TopicBrokerMetrics {
-            m_rate_15: f64::NAN,
-            b_rate_15: f64::NAN,
+            m_rate_15: 0f64,
+            b_rate_15: 0f64,
             partitions: Vec::new(),
         }
     }
@@ -130,7 +130,7 @@ fn parse_broker_rate_metrics(jolokia_json_response: &Value) -> Result<HashMap<To
         match *value {
             Value::Object(ref obj) => {
                 match obj.get("FifteenMinuteRate") {
-                    Some(&Value::Number(ref rate)) => metrics.insert(topic.to_owned(), rate.as_f64().unwrap_or(f64::NAN)),
+                    Some(&Value::Number(ref rate)) => metrics.insert(topic.to_owned(), rate.as_f64().unwrap_or(-1f64)),
                     None => bail!("Can't find key in metric"),
                     _ => bail!("Unexpected metric type"),
                 };
@@ -161,7 +161,7 @@ fn parse_partition_size_metrics(jolokia_json_response: &Value) -> Result<HashMap
             Value::Object(ref obj) => {
                 match obj.get("Value") {
                     Some(&Value::Number(ref size)) => {
-                        let partition_metrics = PartitionMetrics { size_bytes: size.as_f64().unwrap_or(f64::NAN) };
+                        let partition_metrics = PartitionMetrics { size_bytes: size.as_f64().unwrap_or(-1f64) };
                         insert_at(
                             metrics.entry(topic.unwrap().to_owned()).or_insert_with(|| Vec::new()),
                             partition.unwrap() as usize,
@@ -213,7 +213,7 @@ impl MetricsFetchTaskGroup {
         for (topic, b_rate_15) in byte_rate_metrics {
             let mut topic_metrics = self.cache.metrics.get(&(cluster_id.clone(), topic.clone()))
                 .unwrap_or_default();
-            let m_rate_15 = msg_rate_metrics.get(&topic).unwrap_or(&f64::NAN).clone();
+            let m_rate_15 = msg_rate_metrics.get(&topic).unwrap_or(&-1f64).clone();
             let partitions = pt_size_metrics.get(&topic).cloned()
                 .unwrap_or_else(|| Vec::new());
             topic_metrics.brokers.insert(broker.id, TopicBrokerMetrics { m_rate_15, b_rate_15, partitions});

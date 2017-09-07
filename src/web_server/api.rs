@@ -319,8 +319,8 @@ pub fn cache_metrics(cache: State<Cache>, timestamp: &str) -> String {
     let _ = timestamp;
     let result_data = cache.metrics.lock_iter(|metrics_cache_entry| {
         metrics_cache_entry
-            .map(|(&(ref cluster_id, ref broker_id), metrics)| {
-                ((cluster_id.clone(), broker_id.clone(), metrics.brokers.len()))
+            .map(|(&(ref cluster_id, ref topic_id), metrics)| {
+                ((cluster_id.clone(), topic_id.clone(), metrics.brokers.len()))
             }).collect::<Vec<_>>()
     });
 
