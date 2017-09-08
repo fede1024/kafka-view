@@ -232,7 +232,7 @@ fn body(page_title: &str, content: PreEscaped<String>) -> PreEscaped<String> {
                             "kafka-view " (option_env!("CARGO_PKG_VERSION").unwrap_or("")) }
                         }
                     div class="col-md-4" style="text-align: center;" {
-                        a href="https://www.rust-lang.org" "Rust 1.19.0-nightly"
+                        a href="https://www.rust-lang.org" "Rust 1.22.0-nightly"
                     }
                     div class="col-md-4" style="text-align: center;" {
                         a class="github-button" href="https://github.com/fede1024/kafka-view"
