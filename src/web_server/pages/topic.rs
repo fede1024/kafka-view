@@ -1,5 +1,6 @@
-use maud::{PreEscaped, Markup};
+use maud::{PreEscaped, Markup, html};
 use rand::random;
+use rocket::http::RawStr;
 
 use cache::Cache;
 use config::Config;
@@ -44,8 +45,8 @@ fn topic_tailer_panel(cluster_id: &ClusterId, topic: &str, tailer_id: u64) -> Pr
 }
 
 #[get("/clusters/<cluster_id>/topics/<topic_name>")]
-pub fn topic_page(cluster_id: ClusterId, topic_name: &str, cache: State<Cache>, config: State<Config>) -> Markup {
-    let partitions = match cache.topics.get(&(cluster_id.clone(), topic_name.to_owned())) {
+pub fn topic_page(cluster_id: ClusterId, topic_name: &RawStr, cache: State<Cache>, config: State<Config>) -> Markup {
+    let partitions = match cache.topics.get(&(cluster_id.clone(), topic_name.to_string())) {
         Some(partitions) => partitions,
         None => {
             return pages::warning_page(
@@ -58,7 +59,7 @@ pub fn topic_page(cluster_id: ClusterId, topic_name: &str, cache: State<Cache>, 
         .and_then(|cluster_config| cluster_config.graph_url.as_ref());
     let _ = cache.brokers.get(&cluster_id).expect("Cluster should exist");  // TODO: handle better
 
-    let metrics = cache.metrics.get(&(cluster_id.clone(), topic_name.to_owned()))
+    let metrics = cache.metrics.get(&(cluster_id.clone(), topic_name.to_string()))
         .unwrap_or_default()
         .aggregate_broker_metrics();
     let content = html! {

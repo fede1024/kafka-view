@@ -1,6 +1,5 @@
-#![feature(alloc_system, custom_derive, plugin, conservative_impl_trait, retain_hash_collection)]
+#![feature(alloc_system, custom_derive, plugin, conservative_impl_trait, proc_macro)]
 #![plugin(rocket_codegen)]
-#![plugin(maud_macros)]
 
 extern crate rocket;
 extern crate alloc_system;

@@ -1,4 +1,4 @@
-use maud::{self, PreEscaped};
+use maud::{self, PreEscaped, html};
 
 
 pub fn search_form(action: &str, placeholder: &str, value: &str, regex: bool) -> PreEscaped<String> {

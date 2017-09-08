@@ -1,6 +1,7 @@
-use rocket::request::FromParam;
+use rocket::request::{FromParam, Request};
 use rocket::response::{self, Redirect, Responder, NamedFile};
 use rocket;
+use rocket::http::RawStr;
 use scheduled_executor::ThreadPoolExecutor;
 
 use error::*;
@@ -24,8 +25,8 @@ fn index() -> Redirect {
 impl<'a> FromParam<'a> for ClusterId {
     type Error = ();
 
-    fn from_param(param: &'a str) -> std::result::Result<Self, Self::Error> {
-        Ok(param.into())
+    fn from_param(param: &'a RawStr) -> std::result::Result<Self, Self::Error> {
+        Ok(param.as_str().into())
     }
 }
 
@@ -60,8 +61,8 @@ impl CachedFile {
 }
 
 impl<'a> Responder<'a> for CachedFile {
-    fn respond(self) -> response::Result<'a> {
-        let inner_response = self.file.respond().unwrap(); // fixme
+    fn respond_to(self, request: &Request) -> response::Result<'a> {
+        let inner_response = self.file.respond_to(request).unwrap(); // fixme
         response::Response::build_from(inner_response)
             .raw_header("Cache-Control", format!("max-age={}, must-revalidate", self.ttl))
             //.raw_header("Content-Encoding", "gzip")

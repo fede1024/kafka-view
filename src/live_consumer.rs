@@ -3,6 +3,7 @@ use rdkafka::message::BorrowedMessage;
 use rdkafka::consumer::{BaseConsumer, EmptyConsumerContext};
 use rdkafka::config::ClientConfig;
 use rocket::State;
+use rocket::http::RawStr;
 use scheduled_executor::ThreadPoolExecutor;
 
 use config::{ClusterConfig, Config};
@@ -171,7 +172,7 @@ impl LiveConsumerStore {
 #[get("/api/tailer/<cluster_id>/<topic>/<id>")]
 pub fn test_live_consumer_api(
     cluster_id: ClusterId,
-    topic: &str,
+    topic: &RawStr,
     id: u64,
     config: State<Config>,
     live_consumers_store: State<LiveConsumerStore>,

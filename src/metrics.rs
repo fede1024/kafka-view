@@ -124,7 +124,7 @@ fn parse_broker_rate_metrics(jolokia_json_response: &Value) -> Result<HashMap<To
 
     for (mbean_name, value) in value_map.iter() {
         let topic = match re.captures(mbean_name) {
-            Some(cap) => cap.at(1).unwrap(),
+            Some(cap) => cap.get(1).unwrap().as_str(),
             None => "__TOTAL__",
         };
         match *value {
@@ -150,9 +150,9 @@ fn parse_partition_size_metrics(jolokia_json_response: &Value) -> Result<HashMap
     let mut metrics = HashMap::new();
     for (mbean_name, value) in value_map.iter() {
         let topic = topic_re.captures(mbean_name)
-            .and_then(|cap| cap.at(1));
+            .and_then(|cap| cap.get(1).map(|m| m.as_str()));
         let partition = partition_re.captures(mbean_name)
-            .and_then(|cap| cap.at(1))
+            .and_then(|cap| cap.get(1).map(|m| m.as_str()))
             .and_then(|p_str| p_str.parse::<u32>().ok());
         if topic.is_none() || partition.is_none() {
             bail!("Can't parse topic and partition metadata from metric name");
@@ -217,7 +217,8 @@ impl MetricsFetchTaskGroup {
             let partitions = pt_size_metrics.get(&topic).cloned()
                 .unwrap_or_else(|| Vec::new());
             topic_metrics.brokers.insert(broker.id, TopicBrokerMetrics { m_rate_15, b_rate_15, partitions});
-            self.cache.metrics.insert((cluster_id.clone(), topic.clone()), topic_metrics);
+            self.cache.metrics.insert((cluster_id.clone(), topic.clone()), topic_metrics)
+                .chain_err(|| "Failed to insert to metrics")?;
         }
         log_elapsed_time("metrics fetch", start);
         Ok(())

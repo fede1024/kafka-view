@@ -1,4 +1,4 @@
-use maud::Markup;
+use maud::{Markup, html};
 use rocket::request::{FromForm, FormItems};
 use rocket::http::uri::URI;
 
@@ -13,10 +13,10 @@ pub struct OmnisearchFormParams {
 impl<'f> FromForm<'f> for OmnisearchFormParams {
     type Error = ();
 
-    fn from_form_items(form_items: &mut FormItems<'f>) -> Result<Self, Self::Error> {
+    fn from_form(form_items: &mut FormItems<'f>, _strict: bool) -> Result<Self, Self::Error> {
         let mut params = OmnisearchFormParams{string: "".to_owned(), regex: false};
         for (key, value) in form_items {
-            match key {
+            match key.as_str() {
                 "string" => params.string = URI::percent_decode_lossy(value.as_bytes()).to_string(),
                 "regex" => params.regex = value == "on" || value == "true",
                 _ => {},

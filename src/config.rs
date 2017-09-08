@@ -57,7 +57,7 @@ pub fn read_config(path: &str) -> Result<Config> {
     let mut config: Config = serde_yaml::from_str(&s)
         .chain_err(|| "Unable to parse configuration file")?;
 
-    for (cluster_id, mut cluster) in &mut config.clusters {
+    for (cluster_id, cluster) in &mut config.clusters {
         cluster.cluster_id = Some(cluster_id.clone());
     }
 

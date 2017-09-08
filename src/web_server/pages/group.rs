@@ -1,4 +1,5 @@
-use maud::{Markup, PreEscaped};
+use maud::{Markup, PreEscaped, html};
+use rocket::http::RawStr;
 
 use web_server::pages;
 use web_server::view::layout;
@@ -23,12 +24,12 @@ fn group_offsets_table(cluster_id: &ClusterId, group_name: &str) -> PreEscaped<S
 }
 
 #[get("/clusters/<cluster_id>/groups/<group_name>")]
-pub fn group_page(cluster_id: ClusterId, group_name: &str, cache: State<Cache>) -> Markup {
+pub fn group_page(cluster_id: ClusterId, group_name: &RawStr, cache: State<Cache>) -> Markup {
     if cache.brokers.get(&cluster_id).is_none() {
         return pages::warning_page(group_name, "The specified cluster doesn't exist.")
     }
 
-    let group_state = match cache.groups.get(&(cluster_id.to_owned(), group_name.to_owned())) {
+    let group_state = match cache.groups.get(&(cluster_id.to_owned(), group_name.to_string())) {
         Some(group) => group.state,
         None => "Not registered".to_string(),
     };

@@ -3,6 +3,7 @@ use futures_cpupool::Builder;
 use rdkafka::error::KafkaResult;
 use regex::Regex;
 use rocket::State;
+use rocket::http::RawStr;
 
 use cache::Cache;
 use error::*;
@@ -130,7 +131,7 @@ pub fn cluster_groups(cluster_id: ClusterId, cache: State<Cache>, timestamp: &st
 }
 
 #[get("/api/clusters/<cluster_id>/topics/<topic_name>/groups?<timestamp>")]
-pub fn topic_groups(cluster_id: ClusterId, topic_name: &str, cache: State<Cache>, timestamp: &str) -> String {
+pub fn topic_groups(cluster_id: ClusterId, topic_name: &RawStr, cache: State<Cache>, timestamp: &str) -> String {
     let _ = timestamp;
     let brokers = cache.brokers.get(&cluster_id);
     if brokers.is_none() {  // TODO: Improve here
@@ -148,9 +149,9 @@ pub fn topic_groups(cluster_id: ClusterId, topic_name: &str, cache: State<Cache>
 }
 
 #[get("/api/clusters/<cluster_id>/groups/<group_name>/members?<timestamp>")]
-pub fn group_members(cluster_id: ClusterId, group_name: &str, cache: State<Cache>, timestamp: &str) -> String {
+pub fn group_members(cluster_id: ClusterId, group_name: &RawStr, cache: State<Cache>, timestamp: &str) -> String {
     let _ = timestamp;
-    let group = cache.groups.get(&(cluster_id.clone(), group_name.to_owned()));
+    let group = cache.groups.get(&(cluster_id.clone(), group_name.to_string()));
     if group.is_none() {  // TODO: Improve here
         return json!({"data": []}).to_string();
     }
@@ -166,9 +167,9 @@ pub fn group_members(cluster_id: ClusterId, group_name: &str, cache: State<Cache
 }
 
 #[get("/api/clusters/<cluster_id>/groups/<group_name>/offsets?<timestamp>")]
-pub fn group_offsets(cluster_id: ClusterId, group_name: &str, cache: State<Cache>, timestamp: &str) -> String {
+pub fn group_offsets(cluster_id: ClusterId, group_name: &RawStr, cache: State<Cache>, timestamp: &str) -> String {
     let _ = timestamp;
-    let offsets = cache.offsets_by_cluster_group(&cluster_id, &group_name.to_owned());
+    let offsets = cache.offsets_by_cluster_group(&cluster_id, &group_name.to_string());
 
     let wms = time!("fetch wms", fetch_watermarks(&cluster_id, &offsets));
     let wms = match wms {
@@ -230,14 +231,14 @@ fn fetch_watermarks(cluster_id: &ClusterId, offsets: &Vec<((ClusterId, String, T
 //
 
 #[get("/api/clusters/<cluster_id>/topics/<topic_name>/topology?<timestamp>")]
-pub fn topic_topology(cluster_id: ClusterId, topic_name: &str, cache: State<Cache>, timestamp: &str) -> String {
+pub fn topic_topology(cluster_id: ClusterId, topic_name: &RawStr, cache: State<Cache>, timestamp: &str) -> String {
     let _ = timestamp;
-    let partitions = cache.topics.get(&(cluster_id.to_owned(), topic_name.to_owned()));
+    let partitions = cache.topics.get(&(cluster_id.to_owned(), topic_name.to_string()));
     if partitions.is_none() {
         return json!({"data": []}).to_string();
     }
 
-    let topic_metrics = cache.metrics.get(&(cluster_id.clone(), topic_name.to_owned()))
+    let topic_metrics = cache.metrics.get(&(cluster_id.clone(), topic_name.to_string()))
         .unwrap_or_default();
     let partitions = partitions.unwrap();
 

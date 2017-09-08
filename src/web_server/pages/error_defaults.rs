@@ -1,6 +1,6 @@
 use web_server::view::layout;
 
-use maud::Markup;
+use maud::{Markup, html};
 
 pub fn warning_page(title: &str, message: &str) -> Markup {
     let content = layout::notification("warning",

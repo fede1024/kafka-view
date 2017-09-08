@@ -1,4 +1,4 @@
-use maud::{Markup, PreEscaped};
+use maud::{Markup, PreEscaped, html};
 use rocket::State;
 
 use cache::Cache;

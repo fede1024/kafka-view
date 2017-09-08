@@ -1,4 +1,4 @@
-use maud::{PreEscaped, Markup};
+use maud::{PreEscaped, Markup, html};
 
 use web_server::pages;
 use web_server::view::layout;
