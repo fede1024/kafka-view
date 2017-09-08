@@ -7,7 +7,7 @@ use rdkafka::producer::FutureProducer;
 use rdkafka::error::KafkaError;
 use rdkafka::message::{Message, BorrowedMessage, OwnedMessage};
 use rdkafka::util::{millis_to_epoch, duration_to_millis};
-use serde::de::Deserialize;
+use serde::de::{Deserialize, DeserializeOwned};
 use serde::ser::Serialize;
 use serde_cbor;
 use rand::random;
@@ -28,8 +28,8 @@ use metrics::TopicMetrics;
 struct WrappedKey(String, Vec<u8>);
 
 impl WrappedKey {
-    fn new<K>(cache_name: String, key: &K) -> WrappedKey
-            where K: Serialize + Deserialize {
+    fn new<'de, K>(cache_name: String, key: &'de K) -> WrappedKey
+            where K: Serialize + Deserialize<'de> {
         WrappedKey(cache_name, serde_cbor::to_vec(key).unwrap())  //TODO: error handling
     }
 
@@ -70,9 +70,9 @@ impl ReplicaWriter {
     }
 
     // TODO: use structure for value
-    pub fn write_update<K, V>(&self, name: &str, key: &K, value: &V) -> Result<()>
-            where K: Serialize + Deserialize + Clone,
-                  V: Serialize + Deserialize {
+    pub fn write_update<'de, K, V>(&self, name: &str, key: &'de K, value: &'de V) -> Result<()>
+            where K: Serialize + Deserialize<'de> + Clone,
+                  V: Serialize + Deserialize<'de> {
         let serialized_key = serde_cbor::to_vec(&WrappedKey::new(name.to_owned(), key))
             .chain_err(|| "Failed to serialize key")?;
         let serialized_value = serde_cbor::to_vec(&value)
@@ -87,8 +87,8 @@ impl ReplicaWriter {
         Ok(())
     }
 
-    pub fn write_remove<K>(&self, name: &str, key: &K) -> Result<()>
-            where K: Serialize + Deserialize + Clone {
+    pub fn write_remove<'de, K>(&self, name: &str, key: &'de K) -> Result<()>
+            where K: Serialize + Deserialize<'de> + Clone {
         let serialized_key = serde_cbor::to_vec(&WrappedKey::new(name.to_owned(), key))
             .chain_err(|| "Failed to serialize key")?;
         let ts = millis_to_epoch(SystemTime::now());
@@ -273,16 +273,16 @@ impl<V> ValueContainer<V> {
 }
 
 pub struct ReplicatedMap<K, V>
-        where K: Eq + Hash + Clone + Serialize + Deserialize,
-              V: Clone + PartialEq + Serialize + Deserialize {
+        where K: Eq + Hash + Clone + Serialize + DeserializeOwned,
+              V: Clone + PartialEq + Serialize + DeserializeOwned {
     name: String,
     map: Arc<RwLock<HashMap<K, ValueContainer<V>>>>,
     replica_writer: Arc<ReplicaWriter>,
 }
 
 impl<K, V> ReplicatedMap<K, V>
-        where K: Eq + Hash + Clone + Serialize + Deserialize,
-              V: Clone + PartialEq + Serialize + Deserialize {
+        where K: Eq + Hash + Clone + Serialize + DeserializeOwned,
+              V: Clone + PartialEq + Serialize + DeserializeOwned {
     pub fn new(name: &str, replica_writer: Arc<ReplicaWriter>) -> ReplicatedMap<K, V> {
         ReplicatedMap {
             name: name.to_owned(),
