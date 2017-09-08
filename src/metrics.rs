@@ -1,6 +1,6 @@
 use curl::easy::Easy;
 use serde_json::Value;
-use chrono::{DateTime, UTC};
+use chrono::{DateTime, Utc};
 use serde_json;
 use regex::Regex;
 use scheduled_executor::TaskGroup;
@@ -178,8 +178,8 @@ fn parse_partition_size_metrics(jolokia_json_response: &Value) -> Result<HashMap
     Ok(metrics)
 }
 
-fn log_elapsed_time(task_name: &str, start: DateTime<UTC>) {
-    debug!("{} completed in: {:.3}ms", task_name, UTC::now().signed_duration_since(start).num_microseconds().unwrap() as f64 / 1000f64);
+fn log_elapsed_time(task_name: &str, start: DateTime<Utc>) {
+    debug!("{} completed in: {:.3}ms", task_name, Utc::now().signed_duration_since(start).num_microseconds().unwrap() as f64 / 1000f64);
 }
 
 
@@ -197,7 +197,7 @@ impl MetricsFetchTaskGroup {
     }
 
     fn fetch_metrics(&self, cluster_id: &ClusterId, broker: &Broker, port: i32) -> Result<()> {
-        let start = UTC::now();
+        let start = Utc::now();
         let byte_rate_json = fetch_metrics_json(&broker.hostname, port, "kafka.server:name=BytesInPerSec,*,type=BrokerTopicMetrics/FifteenMinuteRate")
             .chain_err(|| format!("Failed to fetch byte rate metrics from {}", broker.hostname))?;
         let byte_rate_metrics = parse_broker_rate_metrics(&byte_rate_json)
