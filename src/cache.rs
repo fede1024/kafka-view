@@ -9,7 +9,7 @@ use rdkafka::message::{Message, BorrowedMessage, OwnedMessage};
 use rdkafka::util::{millis_to_epoch, duration_to_millis};
 use serde::de::{Deserialize, DeserializeOwned};
 use serde::ser::Serialize;
-use serde_cbor;
+use serde_json;
 use rand::random;
 
 use std::borrow::Borrow;
@@ -25,22 +25,23 @@ use metrics::TopicMetrics;
 
 
 #[derive(Serialize, Deserialize, Debug, Hash, Eq, PartialEq)]
-struct WrappedKey(String, Vec<u8>);
+struct WrappedKey(String, String);
 
 impl WrappedKey {
     fn new<'de, K>(cache_name: String, key: &'de K) -> WrappedKey
             where K: Serialize + Deserialize<'de> {
-        WrappedKey(cache_name, serde_cbor::to_vec(key).unwrap())  //TODO: error handling
+        WrappedKey(cache_name, serde_json::to_string(key).unwrap())  //TODO: error handling
     }
 
     pub fn cache_name(&self) -> &str {
         &self.0
     }
 
-    pub fn serialized_key(&self) -> &[u8] {
+    pub fn serialized_key(&self) -> &str {
         &self.1
     }
 }
+
 
 //
 // ********* REPLICA WRITER **********
@@ -55,7 +56,7 @@ impl ReplicaWriter {
     pub fn new(brokers: &str, topic_name: &str) -> Result<ReplicaWriter> {
         let producer = ClientConfig::new()
             .set("bootstrap.servers", brokers)
-            //.set("compression.codec", "gzip")
+            .set("compression.codec", "gzip")
             .set("message.max.bytes", "10000000")
             .set("api.version.request", "true")
             .create::<FutureProducer<_>>()
@@ -73,9 +74,9 @@ impl ReplicaWriter {
     pub fn write_update<'de, K, V>(&self, name: &str, key: &'de K, value: &'de V) -> Result<()>
             where K: Serialize + Deserialize<'de> + Clone,
                   V: Serialize + Deserialize<'de> {
-        let serialized_key = serde_cbor::to_vec(&WrappedKey::new(name.to_owned(), key))
+        let serialized_key = serde_json::to_vec(&WrappedKey::new(name.to_owned(), key))
             .chain_err(|| "Failed to serialize key")?;
-        let serialized_value = serde_cbor::to_vec(&value)
+        let serialized_value = serde_json::to_vec(&value)
             .chain_err(|| "Failed to serialize value")?;
         // trace!("Serialized value size: {}", serialized_value.len());
         trace!("Serialized update size: key={:.3}KB value={:.3}KB",
@@ -89,7 +90,7 @@ impl ReplicaWriter {
 
     pub fn write_remove<'de, K>(&self, name: &str, key: &'de K) -> Result<()>
             where K: Serialize + Deserialize<'de> + Clone {
-        let serialized_key = serde_cbor::to_vec(&WrappedKey::new(name.to_owned(), key))
+        let serialized_key = serde_json::to_vec(&WrappedKey::new(name.to_owned(), key))
             .chain_err(|| "Failed to serialize key")?;
         let ts = millis_to_epoch(SystemTime::now());
         let _f = self.producer.send_copy::<Vec<u8>, Vec<u8>>(self.topic_name.as_str(), None, None,
@@ -104,8 +105,8 @@ impl ReplicaWriter {
 
 #[derive(Debug)]
 pub enum ReplicaCacheUpdate<'a> {
-    Set { key: &'a[u8], payload: &'a[u8], timestamp: u64 },
-    Delete { key: &'a[u8] }
+    Set { key: &'a str, payload: &'a[u8], timestamp: u64 },
+    Delete { key: &'a str }
 }
 
 pub trait UpdateReceiver: Send + 'static {
@@ -240,7 +241,7 @@ fn parse_message_key(message: &BorrowedMessage) -> Result<WrappedKey> {
         None => bail!("Empty key found"),
     };
 
-    let wrapped_key = serde_cbor::from_slice::<WrappedKey>(key_bytes)
+    let wrapped_key = serde_json::from_slice::<WrappedKey>(key_bytes)
         .chain_err(|| "Failed to decode wrapped key")?;
     Ok(wrapped_key)
 }
@@ -309,14 +310,14 @@ impl<K, V> ReplicatedMap<K, V>
     fn receive_update(&self, update: ReplicaCacheUpdate) -> Result<()> {
         match update {
             ReplicaCacheUpdate::Set { key, payload, timestamp } => {
-                let key = serde_cbor::from_slice::<K>(&key)
+                let key = serde_json::from_str::<K>(key)
                     .chain_err(|| "Failed to parse key")?;
-                let value = serde_cbor::from_slice::<V>(payload)
+                let value = serde_json::from_slice::<V>(payload)
                     .chain_err(|| "Failed to parse payload")?;
                 self.local_update(key, value, Some(timestamp));
             },
             ReplicaCacheUpdate::Delete { key } => {
-                let key = serde_cbor::from_slice::<K>(&key)
+                let key = serde_json::from_str::<K>(key)
                     .chain_err(|| "Failed to parse key")?;
                 self.local_remove(&key);
             }

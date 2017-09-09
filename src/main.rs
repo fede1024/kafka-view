@@ -21,7 +21,6 @@ extern crate rand;
 extern crate rdkafka;
 extern crate regex;
 extern crate serde;
-extern crate serde_cbor;
 extern crate serde_yaml;
 extern crate scheduled_executor;
 
