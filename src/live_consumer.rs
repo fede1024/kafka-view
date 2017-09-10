@@ -14,6 +14,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
+use std::borrow::Cow;
 
 
 pub struct LiveConsumer {
@@ -198,15 +199,14 @@ pub fn test_live_consumer_api(
     let mut output = Vec::new();
     for message in consumer.poll(100, Duration::from_secs(3)) {
         let payload = message.payload()
-            .map(|bytes| String::from_utf8_lossy(bytes).to_string())
-            .unwrap_or("".to_owned());
-        // TODO: allocate less
-        let truncated = if payload.len() > 1024 {
-            format!("{}...", &payload[..1024])  // TODO: fix handling of utf8
+            .map(|bytes| String::from_utf8_lossy(bytes))
+            .unwrap_or(Cow::Borrowed(""));
+        if payload.len() > 1024 {
+            let truncated = format!("{}...", payload.chars().take(1024).collect::<String>());
+            output.push(json!{(message.partition(), message.offset(), truncated)});
         } else {
-            payload.clone()
+            output.push(json!{(message.partition(), message.offset(), payload)});
         };
-        output.push(json!{(message.partition(), message.offset(), truncated)});
     }
 
     Ok(json!(output).to_string())
