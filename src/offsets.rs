@@ -41,7 +41,7 @@ fn parse_group_offset(key_rdr: &mut Cursor<&[u8]>,
     let group = read_str(key_rdr).chain_err(|| "Failed to parse group name from key")?.to_owned();
     let topic = read_str(key_rdr).chain_err(|| "Failed to parse topic name from key")?.to_owned();
     let partition = key_rdr.read_i32::<BigEndian>().chain_err(|| "Failed to parse partition from key")?;
-    if payload_rdr.get_ref().len() != 0 {
+    if !payload_rdr.get_ref().is_empty() {
         let _version = payload_rdr.read_i16::<BigEndian>().chain_err(|| "Failed to parse value version")?;
         let offset = payload_rdr.read_i64::<BigEndian>().chain_err(|| "Failed to parse offset from value")?;
         Ok(ConsumerUpdate::SetCommit { group: group, topic: topic, partition: partition, offset: offset })
@@ -64,7 +64,7 @@ fn parse_message(key: &[u8], payload: &[u8]) -> Result<ConsumerUpdate> {
 
 fn create_consumer(brokers: &str, group_id: &str, start_offsets: Option<Vec<i64>>) -> Result<StreamConsumer<EmptyConsumerContext>> {
     let consumer = ClientConfig::new()
-        .set("group.id", &group_id)
+        .set("group.id", group_id)
         .set("bootstrap.servers", brokers)
         .set("enable.partition.eof", "false")
         .set("session.timeout.ms", "30000")
@@ -90,7 +90,7 @@ fn create_consumer(brokers: &str, group_id: &str, start_offsets: Option<Vec<i64>
         },
         None => {
             debug!("No previous offsets found, subscribing to topic");
-            consumer.subscribe(&vec!["__consumer_offsets"])
+            consumer.subscribe(&["__consumer_offsets"])
                 .chain_err(|| format!("Can't subscribe to offset __consumer_offsets ({})", brokers))?;
         }
     }
@@ -124,7 +124,7 @@ fn update_global_cache(cluster_id: &ClusterId, local_cache: &HashMap<(String, St
 fn commit_offset_position_to_array(tp_list: TopicPartitionList) -> Vec<i64> {
     let tp_elements = tp_list.elements_for_topic("__consumer_offsets");
     let mut offsets = vec![0; tp_elements.len()];
-    for tp in tp_elements.iter() {
+    for tp in &tp_elements {
         offsets[tp.partition() as usize] = tp.offset().to_raw();
     }
     offsets
@@ -160,12 +160,11 @@ fn consume_offset_topic(cluster_id: ClusterId, consumer: StreamConsumer<EmptyCon
                     },
                 };
                 match parse_message(key, payload) {
-                    Ok(update) => match update {
-                        ConsumerUpdate::SetCommit {group, topic, partition, offset} => {
-                            let mut offsets = local_cache.entry((group.to_owned(), topic.to_owned())).or_insert(Vec::new());
+                    Ok(update) => {
+                        if let ConsumerUpdate::SetCommit {group, topic, partition, offset} = update {
+                            let mut offsets = local_cache.entry((group.to_owned(), topic.to_owned())).or_insert_with(Vec::new);
                             insert_at(&mut offsets, partition as usize, offset, -1);
-                        },
-                        _ => {},
+                        }
                     },
                     Err(e) => format_error_chain!(e),
                 };
@@ -200,7 +199,7 @@ fn consume_offset_topic(cluster_id: ClusterId, consumer: StreamConsumer<EmptyCon
 
 pub fn run_offset_consumer(cluster_id: &ClusterId, cluster_config: &ClusterConfig,
                            config: &Config, cache: &Cache) -> Result<()> {
-    let start_position = cache.internal_offsets.get(&cluster_id);
+    let start_position = cache.internal_offsets.get(cluster_id);
     let consumer = create_consumer(&cluster_config.bootstrap_servers(), &config.consumer_offsets_group_id,
                                    start_position)
         .chain_err(|| format!("Failed to create offset consumer for {}", cluster_id))?;
@@ -225,7 +224,7 @@ pub trait OffsetStore {
         -> Vec<((ClusterId, String, TopicName), Vec<i64>)>;
     fn offsets_by_cluster_topic(&self, cluster_id: &ClusterId, topic_name: &TopicName)
         -> Vec<((ClusterId, String, TopicName), Vec<i64>)>;
-    fn offsets_by_cluster_group(&self, cluster_id: &ClusterId, group_name: &String)
+    fn offsets_by_cluster_group(&self, cluster_id: &ClusterId, group_name: &str)
         -> Vec<((ClusterId, String, TopicName), Vec<i64>)>;
 }
 
@@ -238,7 +237,7 @@ impl OffsetStore for Cache {
         self.offsets.filter_clone(|&(ref c, _, ref t)| c == cluster && t == topic)
     }
 
-    fn offsets_by_cluster_group(&self, cluster: &ClusterId, group: &String) -> Vec<((ClusterId, String, TopicName), Vec<i64>)> {
+    fn offsets_by_cluster_group(&self, cluster: &ClusterId, group: &str) -> Vec<((ClusterId, String, TopicName), Vec<i64>)> {
         self.offsets.filter_clone(|&(ref c, ref g, _)| c == cluster && g == group)
     }
 }

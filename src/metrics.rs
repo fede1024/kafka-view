@@ -56,13 +56,13 @@ impl TopicMetrics {
     }
 
     pub fn aggregate_broker_metrics(&self) -> TopicBrokerMetrics {
-        return self.brokers.iter()
+        self.brokers.iter()
             .fold(TopicBrokerMetrics::default(),
                   |mut acc, (_, broker_metrics)| {
                       acc.m_rate_15 += broker_metrics.m_rate_15;
                       acc.b_rate_15 += broker_metrics.b_rate_15;
                       acc
-                  });
+                  })
     }
 }
 
@@ -127,15 +127,12 @@ fn parse_broker_rate_metrics(jolokia_json_response: &Value) -> Result<HashMap<To
             Some(cap) => cap.get(1).unwrap().as_str(),
             None => "__TOTAL__",
         };
-        match *value {
-            Value::Object(ref obj) => {
-                match obj.get("FifteenMinuteRate") {
-                    Some(&Value::Number(ref rate)) => metrics.insert(topic.to_owned(), rate.as_f64().unwrap_or(-1f64)),
-                    None => bail!("Can't find key in metric"),
-                    _ => bail!("Unexpected metric type"),
-                };
-            },
-            _ => {},
+        if let Value::Object(ref obj) = *value {
+            match obj.get("FifteenMinuteRate") {
+                Some(&Value::Number(ref rate)) => metrics.insert(topic.to_owned(), rate.as_f64().unwrap_or(-1f64)),
+                None => bail!("Can't find key in metric"),
+                _ => bail!("Unexpected metric type"),
+            };
         }
     }
     Ok(metrics)
@@ -157,22 +154,19 @@ fn parse_partition_size_metrics(jolokia_json_response: &Value) -> Result<HashMap
         if topic.is_none() || partition.is_none() {
             bail!("Can't parse topic and partition metadata from metric name");
         }
-        match *value {
-            Value::Object(ref obj) => {
-                match obj.get("Value") {
-                    Some(&Value::Number(ref size)) => {
-                        let partition_metrics = PartitionMetrics { size_bytes: size.as_f64().unwrap_or(-1f64) };
-                        insert_at(
-                            metrics.entry(topic.unwrap().to_owned()).or_insert_with(|| Vec::new()),
-                            partition.unwrap() as usize,
-                            partition_metrics,
-                            PartitionMetrics::default());
-                    },
-                    None => bail!("Can't find key in metric"),
-                    _ => bail!("Unexpected metric type"),
-                };
-            },
-            _ => {},
+        if let Value::Object(ref obj) = *value {
+            match obj.get("Value") {
+                Some(&Value::Number(ref size)) => {
+                    let partition_metrics = PartitionMetrics { size_bytes: size.as_f64().unwrap_or(-1f64) };
+                    insert_at(
+                        metrics.entry(topic.unwrap().to_owned()).or_insert_with(Vec::new),
+                        partition.unwrap() as usize,
+                        partition_metrics,
+                        PartitionMetrics::default());
+                },
+                None => bail!("Can't find key in metric"),
+                _ => bail!("Unexpected metric type"),
+            };
         }
     }
     Ok(metrics)
@@ -213,9 +207,9 @@ impl MetricsFetchTaskGroup {
         for (topic, b_rate_15) in byte_rate_metrics {
             let mut topic_metrics = self.cache.metrics.get(&(cluster_id.clone(), topic.clone()))
                 .unwrap_or_default();
-            let m_rate_15 = msg_rate_metrics.get(&topic).unwrap_or(&-1f64).clone();
+            let m_rate_15 = *msg_rate_metrics.get(&topic).unwrap_or(&-1f64);
             let partitions = pt_size_metrics.get(&topic).cloned()
-                .unwrap_or_else(|| Vec::new());
+                .unwrap_or_else(Vec::new);
             topic_metrics.brokers.insert(broker.id, TopicBrokerMetrics { m_rate_15, b_rate_15, partitions});
             self.cache.metrics.insert((cluster_id.clone(), topic.clone()), topic_metrics)
                 .chain_err(|| "Failed to insert to metrics")?;

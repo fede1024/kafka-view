@@ -29,7 +29,7 @@ pub fn cluster_topics(cluster_id: ClusterId, cache: State<Cache>, timestamp: &st
     let topics = cache.topics.filter_clone(|&(ref c, _)| c == &cluster_id);
 
     let mut result_data = Vec::with_capacity(topics.len());
-    for &((_, ref topic_name), ref partitions) in topics.iter() {
+    for &((_, ref topic_name), ref partitions) in &topics {
         let metrics = cache.metrics.get(&(cluster_id.clone(), topic_name.to_owned()))
             .unwrap_or_default()
             .aggregate_broker_metrics();
@@ -99,14 +99,14 @@ fn build_group_list<F>(cache: &Cache, filter_fn: F) -> HashMap<(ClusterId, Strin
 
     let mut groups: HashMap<(ClusterId, String), GroupInfo> = cache.groups
         .lock_iter(|iter| {
-            iter.filter(|&(&(ref c, ref t), ref g)| filter_fn(&c, &t, &g.name))
+            iter.filter(|&(&(ref c, ref t), g)| filter_fn(c, t, &g.name))
                 .map(|(&(ref c, _), g)| ((c.clone(), g.name.clone()), GroupInfo::new(g.state.clone(), g.members.len())))
                 .collect()
         });
 
     let offsets = cache.offsets.filter_clone_k(|&(ref c, ref g, ref t)| filter_fn(c, t, g));
     for (cluster_id, group, _) in offsets {
-        (*groups.entry((cluster_id, group)).or_insert(GroupInfo::new_empty())).add_offset();
+        groups.entry((cluster_id, group)).or_insert_with(GroupInfo::new_empty).add_offset();
     }
 
     groups
@@ -169,7 +169,7 @@ pub fn group_members(cluster_id: ClusterId, group_name: &RawStr, cache: State<Ca
 #[get("/api/clusters/<cluster_id>/groups/<group_name>/offsets?<timestamp>")]
 pub fn group_offsets(cluster_id: ClusterId, group_name: &RawStr, cache: State<Cache>, timestamp: &str) -> String {
     let _ = timestamp;
-    let offsets = cache.offsets_by_cluster_group(&cluster_id, &group_name.to_string());
+    let offsets = cache.offsets_by_cluster_group(&cluster_id, group_name.as_str());
 
     let wms = time!("fetch wms", fetch_watermarks(&cluster_id, &offsets));
     let wms = match wms {
@@ -199,9 +199,9 @@ pub fn group_offsets(cluster_id: ClusterId, group_name: &RawStr, cache: State<Ca
     json!({"data": result_data}).to_string()
 }
 
-fn fetch_watermarks(cluster_id: &ClusterId, offsets: &Vec<((ClusterId, String, TopicName), Vec<i64>)>)
+fn fetch_watermarks(cluster_id: &ClusterId, offsets: &[((ClusterId, String, TopicName), Vec<i64>)])
         -> Result<HashMap<(TopicName, i32), KafkaResult<(i64, i64)>>> {
-    let consumer = CONSUMERS.get_err(&cluster_id)?;
+    let consumer = CONSUMERS.get_err(cluster_id)?;
 
     let cpu_pool = Builder::new().pool_size(32).create();
 
@@ -263,7 +263,7 @@ pub fn consumer_search(search: OmnisearchFormParams, cache: State<Cache>) -> Str
     let groups = if search.regex {
         Regex::new(&search.string)
             .map(|r| build_group_list(&cache, |_, _, g| r.is_match(g)))
-            .unwrap_or(HashMap::new())
+            .unwrap_or_default()
     } else {
         build_group_list(&cache, |_, _, g| g.contains(&search.string))
     };
@@ -281,7 +281,7 @@ pub fn topic_search(search: OmnisearchFormParams, cache: State<Cache>) -> String
     let topics = if search.regex {
         Regex::new(&search.string)
             .map(|r| cache.topics.filter_clone(|&(_, ref name)| r.is_match(name)))
-            .unwrap_or(Vec::new())
+            .unwrap_or_default()
     } else {
         cache.topics.filter_clone(|&(_, ref name)| name.contains(&search.string))
     };
@@ -307,7 +307,7 @@ pub fn cache_brokers(cache: State<Cache>, timestamp: &str) -> String {
     let _ = timestamp;
     let result_data = cache.brokers.lock_iter(|brokers_cache_entry| {
         brokers_cache_entry.map(|(cluster_id, brokers)| {
-            ((cluster_id.clone(), brokers.iter().map(|b| b.id).collect::<Vec<_>>()))
+            (cluster_id.clone(), brokers.iter().map(|b| b.id).collect::<Vec<_>>())
         })
         .collect::<Vec<_>>()
     });
@@ -321,7 +321,7 @@ pub fn cache_metrics(cache: State<Cache>, timestamp: &str) -> String {
     let result_data = cache.metrics.lock_iter(|metrics_cache_entry| {
         metrics_cache_entry
             .map(|(&(ref cluster_id, ref topic_id), metrics)| {
-                ((cluster_id.clone(), topic_id.clone(), metrics.brokers.len()))
+                (cluster_id.clone(), topic_id.clone(), metrics.brokers.len())
             }).collect::<Vec<_>>()
     });
 
@@ -332,8 +332,8 @@ pub fn cache_metrics(cache: State<Cache>, timestamp: &str) -> String {
 pub fn live_consumers(live_consumers: State<LiveConsumerStore>, timestamp: &str) -> String {
     let _ = timestamp;
     let result_data = live_consumers.consumers().iter()
-        .map(|consumer| ((consumer.id(), consumer.cluster_id().to_owned(), consumer.topic().to_owned(),
-                          consumer.last_poll().elapsed().as_secs())))
+        .map(|consumer| (consumer.id(), consumer.cluster_id().to_owned(), consumer.topic().to_owned(),
+                          consumer.last_poll().elapsed().as_secs()))
         .collect::<Vec<_>>();
     json!({"data": result_data}).to_string()
 }
