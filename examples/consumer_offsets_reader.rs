@@ -57,7 +57,7 @@ fn parse_group_offset(key_rdr: &mut Cursor<&[u8]>,
     let group = read_str(key_rdr)?.to_owned();
     let topic = read_str(key_rdr)?.to_owned();
     let partition = key_rdr.read_i32::<BigEndian>()?;
-    if payload_rdr.get_ref().len() != 0 {
+    if !payload_rdr.get_ref().is_empty() {
         payload_rdr.read_i16::<BigEndian>()?;
         let offset = payload_rdr.read_i64::<BigEndian>()?;
         Ok(ConsumerUpdate::SetCommit { group: group, topic: topic, partition: partition, offset: offset })

@@ -141,7 +141,7 @@ impl ReplicaReader {
 
         //let topic_partition = TopicPartitionList::with_topics(&vec![topic_name]);
         // consumer.assign(&topic_partition)
-        consumer.subscribe(&vec![topic_name])
+        consumer.subscribe(&[topic_name])
             .chain_err(|| "Can't subscribe to specified topics")?;
 
         Ok(ReplicaReader {
@@ -167,7 +167,7 @@ impl ReplicaReader {
                             key: w_key.serialized_key(),
                             payload: payload,
                             timestamp: message.timestamp().to_millis()
-                                .unwrap_or(millis_to_epoch(SystemTime::now())) as u64,
+                                .unwrap_or_else(|| millis_to_epoch(SystemTime::now())) as u64,
                         },
                         None => ReplicaCacheUpdate::Delete {
                             key: w_key.serialized_key()
@@ -192,12 +192,12 @@ impl ReplicaReader {
         let metadata = self.consumer.fetch_metadata(Some(topic_name), 30000)
             .chain_err(|| "Failed to fetch metadata")?;
 
-        if metadata.topics().len() == 0 {
+        if metadata.topics().is_empty() {
             warn!("No replicator topic found ({} {})", self.brokers, self.topic_name);
             return Ok(HashMap::new());
         }
-        let ref topic_metadata = metadata.topics()[0];
-        if topic_metadata.partitions().len() == 0 {
+        let topic_metadata = &metadata.topics()[0];
+        if topic_metadata.partitions().is_empty() {
             return Ok(state);  // Topic is empty and auto created
         }
 
@@ -217,7 +217,7 @@ impl ReplicaReader {
                 Err(_) => error!("Stream receive error"),
             };
             if borrowed_state.len() >= 10000 {
-                for (key, message) in borrowed_state.into_iter() {
+                for (key, message) in borrowed_state {
                     state.insert(key, message.detach());
                 }
                 borrowed_state = HashMap::new();
@@ -226,7 +226,7 @@ impl ReplicaReader {
                 break;
             }
         }
-        for (key, message) in borrowed_state.into_iter() {
+        for (key, message) in borrowed_state {
             state.insert(key, message.detach());
         }
         self.consumer.stop();
@@ -384,7 +384,7 @@ impl<K, V> ReplicatedMap<K, V>
               Q: Hash + Eq
     {
         match self.map.read() {
-            Ok(cache) => { return (*cache).get(key).map(|v| v.value.clone()) },
+            Ok(cache) => (*cache).get(key).map(|v| v.value.clone()),
             Err(_) => panic!("Poison error"),
         }
     }

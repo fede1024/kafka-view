@@ -48,11 +48,11 @@ pub fn omnisearch_p(search: OmnisearchFormParams) -> Markup {
 
     layout::page("Omnisearch", html! {
         (search_form)
-        @if search.string.len() > 0 {
+        @if !search.string.is_empty() {
             h3 "Topics"
             (topics)
         }
-        @if search.string.len() > 0 {
+        @if !search.string.is_empty() {
             h3 "Consumers"
             (consumers)
         }
@@ -74,7 +74,7 @@ pub fn consumer_search_p(search: OmnisearchFormParams) -> Markup {
 
     layout::page("Consumer search", html! {
         (search_form)
-        @if search.string.len() > 0 {
+        @if !search.string.is_empty() {
             h3 "Search results"
             (results)
         }
@@ -100,7 +100,7 @@ pub fn topic_search_p(search: OmnisearchFormParams) -> Markup {
 
     layout::page("Topic search", html! {
         (search_form)
-        @if search.string.len() > 0 {
+        @if !search.string.is_empty() {
             h3 "Search results"
             (results)
         }

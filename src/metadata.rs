@@ -38,7 +38,7 @@ impl MetadataConsumerCache {
     }
 
     pub fn get_err(&self, cluster_id: &ClusterId) -> Result<Arc<MetadataConsumer>> {
-        self.get(cluster_id).ok_or(ErrorKind::MissingConsumerError(cluster_id.clone()).into())
+        self.get(cluster_id).ok_or_else(|| ErrorKind::MissingConsumerError(cluster_id.clone()).into())
     }
 
     pub fn get_or_init(&self, cluster_id: &ClusterId, config: &ClusterConfig) -> Result<Arc<MetadataConsumer>> {
