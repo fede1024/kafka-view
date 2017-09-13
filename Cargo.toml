@@ -2,6 +2,7 @@
 name = "kafka-view"
 version = "0.1.0"
 authors = ["Federico Giraud <giraud.federico@gmail.com>"]
+license = "MIT"
 
 [dependencies]
 byteorder = "1"
