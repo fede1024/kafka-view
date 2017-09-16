@@ -1,0 +1,6 @@
+sudo: false
+language: rust
+rust:
+  - nightly-2017-09-07
+  - nightly
+script: cargo build
