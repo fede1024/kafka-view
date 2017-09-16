@@ -62,10 +62,12 @@ pub fn topic_page(cluster_id: ClusterId, topic_name: &RawStr, cache: State<Cache
     let metrics = cache.metrics.get(&(cluster_id.clone(), topic_name.to_string()))
         .unwrap_or_default()
         .aggregate_broker_metrics();
+
+    let cluster_link = format!("/clusters/{}/", cluster_id.name());
     let content = html! {
         h3 style="margin-top: 0px" "General information"
         dl class="dl-horizontal" {
-            dt "Cluster name " dd (cluster_id)
+            dt "Cluster name " dd { a href=(cluster_link) (cluster_id) }
             dt "Topic name " dd (topic_name)
             dt "Number of partitions " dd (partitions.len())
             dt "Number of replicas " dd (partitions[0].replicas.len())
