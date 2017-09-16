@@ -1,6 +1,9 @@
 kafka-view
 ==========
 
+[![Build Status](https://travis-ci.org/fede1024/kafka-view.svg?branch=master)](https://travis-ci.org/fede1024/kafka-view)
+[![Join the chat at https://gitter.im/rust-rdkafka/Lobby](https://badges.gitter.im/rust-rdkafka/Lobby.svg)](https://gitter.im/rust-rdkafka/Lobby?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+
 Kafka-view is an experimental web interface for Kafka written in Rust.
 Kafka-view creates and maintains a materialized view of the internal state of
 Kafka including cluster metadata, traffic metrics, group membership, consumer
@@ -118,6 +121,10 @@ model will allow kafka-view to run in clustered mode, where multiple kafka-view
 instances will work together to poll data from Kafka and will share the
 information using the compacted topic.
 
+## Contributors
+
+Thanks to:
+* [messense](https://github.com/messense)
 
 ## Screenshots
 
