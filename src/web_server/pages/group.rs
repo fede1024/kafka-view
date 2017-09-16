@@ -34,10 +34,11 @@ pub fn group_page(cluster_id: ClusterId, group_name: &RawStr, cache: State<Cache
         None => "Not registered".to_string(),
     };
 
+    let cluster_link = format!("/clusters/{}/", cluster_id.name());
     let content = html! {
         h3 style="margin-top: 0px" "Information"
         dl class="dl-horizontal" {
-            dt "Cluster name:" dd (cluster_id)
+            dt "Cluster name:" dd { a href=(cluster_link) (cluster_id) }
             dt "Group name: " dd (group_name)
             dt "Group state: " dd (group_state)
         }
