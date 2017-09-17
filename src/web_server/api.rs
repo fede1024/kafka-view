@@ -11,6 +11,7 @@ use live_consumer::LiveConsumerStore;
 use metadata::{CONSUMERS, ClusterId, TopicName};
 use offsets::OffsetStore;
 use web_server::pages::omnisearch::OmnisearchFormParams;
+use utils::CompressedJSON;
 
 use std::collections::HashMap;
 
@@ -19,11 +20,11 @@ use std::collections::HashMap;
 //
 
 #[get("/api/clusters/<cluster_id>/topics?<timestamp>")]
-pub fn cluster_topics(cluster_id: ClusterId, cache: State<Cache>, timestamp: &str) -> String {
+pub fn cluster_topics(cluster_id: ClusterId, cache: State<Cache>, timestamp: &str) -> CompressedJSON {
     let _ = timestamp;
     let brokers = cache.brokers.get(&cluster_id);
     if brokers.is_none() {  // TODO: Improve here
-        return json!({"data": []}).to_string();
+        return CompressedJSON(json!({"data": []}));
     }
 
     let topics = cache.topics.filter_clone(|&(ref c, _)| c == &cluster_id);
@@ -37,8 +38,7 @@ pub fn cluster_topics(cluster_id: ClusterId, cache: State<Cache>, timestamp: &st
         result_data.push(json!((topic_name, partitions.len(), &errors, metrics.b_rate_15.round(), metrics.m_rate_15.round())));
     }
 
-    //Ok(json_gzip_response(json!({"data": result_data})))
-    json!({"data": result_data}).to_string()
+    CompressedJSON(json!({"data": result_data}))
 }
 
 //
@@ -46,11 +46,11 @@ pub fn cluster_topics(cluster_id: ClusterId, cache: State<Cache>, timestamp: &st
 //
 
 #[get("/api/clusters/<cluster_id>/brokers?<timestamp>")]
-pub fn brokers(cluster_id: ClusterId, cache: State<Cache>, timestamp: &str) -> String {
+pub fn brokers(cluster_id: ClusterId, cache: State<Cache>, timestamp: &str) -> CompressedJSON {
     let _ = timestamp;
     let brokers = cache.brokers.get(&cluster_id);
     if brokers.is_none() {  // TODO: Improve here
-        return json!({"data": []}).to_string();
+        return CompressedJSON(json!({"data": []}));
     }
 
     let brokers = brokers.unwrap();
@@ -65,7 +65,7 @@ pub fn brokers(cluster_id: ClusterId, cache: State<Cache>, timestamp: &str) -> S
         result_data.push(json!((broker.id, broker.hostname, metric.b_rate_15.round(), metric.m_rate_15.round())));
     }
 
-    json!({"data": result_data}).to_string()
+    CompressedJSON(json!({"data": result_data}))
 }
 
 //
@@ -113,11 +113,11 @@ fn build_group_list<F>(cache: &Cache, filter_fn: F) -> HashMap<(ClusterId, Strin
 }
 
 #[get("/api/clusters/<cluster_id>/groups?<timestamp>")]
-pub fn cluster_groups(cluster_id: ClusterId, cache: State<Cache>, timestamp: &str) -> String {
+pub fn cluster_groups(cluster_id: ClusterId, cache: State<Cache>, timestamp: &str) -> CompressedJSON {
     let _ = timestamp;
     let brokers = cache.brokers.get(&cluster_id);
     if brokers.is_none() {  // TODO: Improve here
-        return json!({"data": []}).to_string();
+        return CompressedJSON(json!({"data": []}));
     }
 
     let groups = build_group_list(cache.inner(), |c, _, _| &cluster_id == c);
@@ -127,15 +127,15 @@ pub fn cluster_groups(cluster_id: ClusterId, cache: State<Cache>, timestamp: &st
         result_data.push(json!((group_name, info.state, info.members, info.stored_offsets)));
     }
 
-    json!({"data": result_data}).to_string()
+    CompressedJSON(json!({"data": result_data}))
 }
 
 #[get("/api/clusters/<cluster_id>/topics/<topic_name>/groups?<timestamp>")]
-pub fn topic_groups(cluster_id: ClusterId, topic_name: &RawStr, cache: State<Cache>, timestamp: &str) -> String {
+pub fn topic_groups(cluster_id: ClusterId, topic_name: &RawStr, cache: State<Cache>, timestamp: &str) -> CompressedJSON {
     let _ = timestamp;
     let brokers = cache.brokers.get(&cluster_id);
     if brokers.is_none() {  // TODO: Improve here
-        return json!({"data": []}).to_string();
+        return CompressedJSON(json!({"data": []}));
     }
 
     let groups = build_group_list(cache.inner(), |c, t, _| &cluster_id == c && topic_name == t);
@@ -145,15 +145,15 @@ pub fn topic_groups(cluster_id: ClusterId, topic_name: &RawStr, cache: State<Cac
         result_data.push(json!((group_name, info.state, info.members, info.stored_offsets)));
     }
 
-    json!({"data": result_data}).to_string()
+    CompressedJSON(json!({"data": result_data}))
 }
 
 #[get("/api/clusters/<cluster_id>/groups/<group_name>/members?<timestamp>")]
-pub fn group_members(cluster_id: ClusterId, group_name: &RawStr, cache: State<Cache>, timestamp: &str) -> String {
+pub fn group_members(cluster_id: ClusterId, group_name: &RawStr, cache: State<Cache>, timestamp: &str) -> CompressedJSON {
     let _ = timestamp;
     let group = cache.groups.get(&(cluster_id.clone(), group_name.to_string()));
     if group.is_none() {  // TODO: Improve here
-        return json!({"data": []}).to_string();
+        return CompressedJSON(json!({"data": []}));
     }
 
     let group = group.unwrap();
@@ -163,11 +163,11 @@ pub fn group_members(cluster_id: ClusterId, group_name: &RawStr, cache: State<Ca
         result_data.push(json!((member.id, member.client_id, member.client_host)));
     }
 
-    json!({"data": result_data}).to_string()
+    CompressedJSON(json!({"data": result_data}))
 }
 
 #[get("/api/clusters/<cluster_id>/groups/<group_name>/offsets?<timestamp>")]
-pub fn group_offsets(cluster_id: ClusterId, group_name: &RawStr, cache: State<Cache>, timestamp: &str) -> String {
+pub fn group_offsets(cluster_id: ClusterId, group_name: &RawStr, cache: State<Cache>, timestamp: &str) -> CompressedJSON {
     let _ = timestamp;
     let offsets = cache.offsets_by_cluster_group(&cluster_id, group_name.as_str());
 
@@ -176,7 +176,7 @@ pub fn group_offsets(cluster_id: ClusterId, group_name: &RawStr, cache: State<Ca
         Ok(wms) => wms,
         Err(e) => {
             error!("Error while fetching watermarks: {}", e);
-            return json!({"data": []}).to_string();
+            return CompressedJSON(json!({"data": []}));
         }
     };
 
@@ -196,7 +196,7 @@ pub fn group_offsets(cluster_id: ClusterId, group_name: &RawStr, cache: State<Ca
         }
     }
 
-    json!({"data": result_data}).to_string()
+    CompressedJSON(json!({"data": result_data}))
 }
 
 fn fetch_watermarks(cluster_id: &ClusterId, offsets: &[((ClusterId, String, TopicName), Vec<i64>)])
@@ -231,11 +231,11 @@ fn fetch_watermarks(cluster_id: &ClusterId, offsets: &[((ClusterId, String, Topi
 //
 
 #[get("/api/clusters/<cluster_id>/topics/<topic_name>/topology?<timestamp>")]
-pub fn topic_topology(cluster_id: ClusterId, topic_name: &RawStr, cache: State<Cache>, timestamp: &str) -> String {
+pub fn topic_topology(cluster_id: ClusterId, topic_name: &RawStr, cache: State<Cache>, timestamp: &str) -> CompressedJSON {
     let _ = timestamp;
     let partitions = cache.topics.get(&(cluster_id.to_owned(), topic_name.to_string()));
     if partitions.is_none() {
-        return json!({"data": []}).to_string();
+        return CompressedJSON(json!({"data": []}));
     }
 
     let topic_metrics = cache.metrics.get(&(cluster_id.clone(), topic_name.to_string()))
@@ -251,7 +251,7 @@ pub fn topic_topology(cluster_id: ClusterId, topic_name: &RawStr, cache: State<C
         result_data.push(json!((p.id, partition_metrics.size_bytes, p.leader, p.replicas, p.isr, p.error)));
     }
 
-    json!({"data": result_data}).to_string()
+    CompressedJSON(json!({"data": result_data}))
 }
 
 //
@@ -259,7 +259,7 @@ pub fn topic_topology(cluster_id: ClusterId, topic_name: &RawStr, cache: State<C
 //
 
 #[get("/api/search/consumer?<search>")]
-pub fn consumer_search(search: OmnisearchFormParams, cache: State<Cache>) -> String {
+pub fn consumer_search(search: OmnisearchFormParams, cache: State<Cache>) -> CompressedJSON {
     let groups = if search.regex {
         Regex::new(&search.string)
             .map(|r| build_group_list(&cache, |_, _, g| r.is_match(g)))
@@ -273,11 +273,11 @@ pub fn consumer_search(search: OmnisearchFormParams, cache: State<Cache>) -> Str
         result_data.push(json!((cluster_id, group_name, info.state, info.members, info.stored_offsets)));
     }
 
-    json!({"data": result_data}).to_string()
+    CompressedJSON(json!({"data": result_data}))
 }
 
 #[get("/api/search/topic?<search>")]
-pub fn topic_search(search: OmnisearchFormParams, cache: State<Cache>) -> String {
+pub fn topic_search(search: OmnisearchFormParams, cache: State<Cache>) -> CompressedJSON {
     let topics = if search.regex {
         Regex::new(&search.string)
             .map(|r| cache.topics.filter_clone(|&(_, ref name)| r.is_match(name)))
@@ -295,7 +295,7 @@ pub fn topic_search(search: OmnisearchFormParams, cache: State<Cache>) -> String
         result_data.push(json!((cluster_id, topic_name, partitions.len(), errors, metrics.b_rate_15, metrics.m_rate_15)));
     }
 
-    json!({"data": result_data}).to_string()
+    CompressedJSON(json!({"data": result_data}))
 }
 
 //
@@ -303,7 +303,7 @@ pub fn topic_search(search: OmnisearchFormParams, cache: State<Cache>) -> String
 //
 
 #[get("/api/internals/cache/brokers?<timestamp>")]
-pub fn cache_brokers(cache: State<Cache>, timestamp: &str) -> String {
+pub fn cache_brokers(cache: State<Cache>, timestamp: &str) -> CompressedJSON {
     let _ = timestamp;
     let result_data = cache.brokers.lock_iter(|brokers_cache_entry| {
         brokers_cache_entry.map(|(cluster_id, brokers)| {
@@ -312,11 +312,11 @@ pub fn cache_brokers(cache: State<Cache>, timestamp: &str) -> String {
         .collect::<Vec<_>>()
     });
 
-    json!({"data": result_data}).to_string()
+    CompressedJSON(json!({"data": result_data}))
 }
 
 #[get("/api/internals/cache/metrics?<timestamp>")]
-pub fn cache_metrics(cache: State<Cache>, timestamp: &str) -> String {
+pub fn cache_metrics(cache: State<Cache>, timestamp: &str) -> CompressedJSON {
     let _ = timestamp;
     let result_data = cache.metrics.lock_iter(|metrics_cache_entry| {
         metrics_cache_entry
@@ -325,15 +325,15 @@ pub fn cache_metrics(cache: State<Cache>, timestamp: &str) -> String {
             }).collect::<Vec<_>>()
     });
 
-    json!({"data": result_data}).to_string()
+    CompressedJSON(json!({"data": result_data}))
 }
 
 #[get("/api/internals/live_consumers?<timestamp>")]
-pub fn live_consumers(live_consumers: State<LiveConsumerStore>, timestamp: &str) -> String {
+pub fn live_consumers(live_consumers: State<LiveConsumerStore>, timestamp: &str) -> CompressedJSON {
     let _ = timestamp;
     let result_data = live_consumers.consumers().iter()
         .map(|consumer| (consumer.id(), consumer.cluster_id().to_owned(), consumer.topic().to_owned(),
                           consumer.last_poll().elapsed().as_secs()))
         .collect::<Vec<_>>();
-    json!({"data": result_data}).to_string()
+    CompressedJSON(json!({"data": result_data}))
 }

@@ -20,9 +20,11 @@ extern crate maud;
 extern crate rand;
 extern crate rdkafka;
 extern crate regex;
+extern crate scheduled_executor;
 extern crate serde;
 extern crate serde_yaml;
-extern crate scheduled_executor;
+extern crate brotli;
+
 
 #[macro_use] mod utils;
 mod cache;

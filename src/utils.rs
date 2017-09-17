@@ -1,8 +1,14 @@
+use brotli;
 use chrono::Local;
 use env_logger::LogBuilder;
 use log::{LogRecord, LogLevelFilter};
+use rocket::http::{ContentType, Status};
+use rocket::response::{self, Responder};
+use rocket::{Request, Response};
+use serde_json;
 
 use std::thread;
+use std::io;
 
 pub fn setup_logger(log_thread: bool, rust_log: Option<&str>, date_format: &str) {
     let date_format = date_format.to_owned();
@@ -26,12 +32,12 @@ pub fn setup_logger(log_thread: bool, rust_log: Option<&str>, date_format: &str)
 
 macro_rules! format_error_chain {
     ($err: expr) => {{
-        error ! ("error: {}", $err);
+        error!("error: {}", $err);
         for e in $err.iter().skip(1) {
-            error ! ("caused by: {}", e);
+            error!("caused by: {}", e);
         }
         if let Some(backtrace) = $err.backtrace() {
-            error ! ("backtrace: {:?}", backtrace);
+            error!("backtrace: {:?}", backtrace);
         }
     }}
 }
@@ -54,4 +60,29 @@ pub fn insert_at<T: Copy>(vector: &mut Vec<T>, pos: usize, value: T, default: T)
         vector.push(default);
     }
     vector[pos] = value;
+}
+
+/// Wraps a JSON value and implements a responder for it, with support for brotli compression.
+pub struct CompressedJSON(pub serde_json::Value);
+
+impl Responder<'static> for CompressedJSON {
+    fn respond_to(self, req: &Request) -> response::Result<'static> {
+        let json = serde_json::to_vec(&self.0).unwrap();
+        let reader = io::Cursor::new(json);
+        let headers = req.headers();
+        if headers.contains("Accept") && headers.get("Accept-Encoding").any(|e| e.contains("br")) {
+            Ok(Response::build()
+                .status(Status::Ok)
+                .header(ContentType::JSON)
+                .raw_header("Content-Encoding", "br")
+                .streamed_body(brotli::CompressorReader::new(reader, 4096, 3, 20))
+                .finalize())
+        } else {
+            Ok(Response::build()
+                .status(Status::Ok)
+                .header(ContentType::JSON)
+                .streamed_body(reader)
+                .finalize())
+        }
+    }
 }
