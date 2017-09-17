@@ -11,6 +11,7 @@ use live_consumer::LiveConsumerStore;
 use metadata::{CONSUMERS, ClusterId, TopicName};
 use offsets::OffsetStore;
 use web_server::pages::omnisearch::OmnisearchFormParams;
+use utils::GZippedString;
 
 use std::collections::HashMap;
 
@@ -19,11 +20,11 @@ use std::collections::HashMap;
 //
 
 #[get("/api/clusters/<cluster_id>/topics?<timestamp>")]
-pub fn cluster_topics(cluster_id: ClusterId, cache: State<Cache>, timestamp: &str) -> String {
+pub fn cluster_topics(cluster_id: ClusterId, cache: State<Cache>, timestamp: &str) -> GZippedString {
     let _ = timestamp;
     let brokers = cache.brokers.get(&cluster_id);
     if brokers.is_none() {  // TODO: Improve here
-        return json!({"data": []}).to_string();
+        return GZippedString(json!({"data": []}).to_string());
     }
 
     let topics = cache.topics.filter_clone(|&(ref c, _)| c == &cluster_id);
@@ -38,7 +39,7 @@ pub fn cluster_topics(cluster_id: ClusterId, cache: State<Cache>, timestamp: &st
     }
 
     //Ok(json_gzip_response(json!({"data": result_data})))
-    json!({"data": result_data}).to_string()
+    GZippedString(json!({"data": result_data}).to_string())
 }
 
 //
