@@ -32,12 +32,12 @@ pub fn setup_logger(log_thread: bool, rust_log: Option<&str>, date_format: &str)
 
 macro_rules! format_error_chain {
     ($err: expr) => {{
-        error ! ("error: {}", $err);
+        error!("error: {}", $err);
         for e in $err.iter().skip(1) {
-            error ! ("caused by: {}", e);
+            error!("caused by: {}", e);
         }
         if let Some(backtrace) = $err.backtrace() {
-            error ! ("backtrace: {:?}", backtrace);
+            error!("backtrace: {:?}", backtrace);
         }
     }}
 }
