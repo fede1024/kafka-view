@@ -14,7 +14,6 @@ extern crate chrono;
 extern crate clap;
 extern crate curl;
 extern crate env_logger;
-extern crate flate2;
 extern crate futures;
 extern crate futures_cpupool;
 extern crate maud;
@@ -24,6 +23,7 @@ extern crate regex;
 extern crate scheduled_executor;
 extern crate serde;
 extern crate serde_yaml;
+extern crate brotli;
 
 
 #[macro_use] mod utils;

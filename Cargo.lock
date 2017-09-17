@@ -2,6 +2,7 @@
 name = "kafka-view"
 version = "0.1.0"
 dependencies = [
+ "brotli 1.0.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "byteorder 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "chrono 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "clap 2.26.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -42,6 +43,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "memchr 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
+
+[[package]]
+name = "alloc-no-stdlib"
+version = "1.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "ansi_term"
@@ -99,6 +105,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 name = "bitflags"
 version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
+name = "brotli"
+version = "1.0.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "alloc-no-stdlib 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "brotli-decompressor 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "brotli-decompressor"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "alloc-no-stdlib 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
 
 [[package]]
 name = "byteorder"
@@ -1163,6 +1186,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [metadata]
 "checksum aho-corasick 0.5.3 (registry+https://github.com/rust-lang/crates.io-index)" = "ca972c2ea5f742bfce5687b9aef75506a764f61d37f8f649047846a9686ddb66"
 "checksum aho-corasick 0.6.3 (registry+https://github.com/rust-lang/crates.io-index)" = "500909c4f87a9e52355b26626d890833e9e1d53ac566db76c36faa984b889699"
+"checksum alloc-no-stdlib 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "b21f6ad9c9957eb5d70c3dee16d31c092b3cab339628f821766b05e6833d72b8"
 "checksum ansi_term 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)" = "23ac7c30002a5accbf7e8987d0632fa6de155b7c3d39d0067317a391e00a2ef6"
 "checksum atty 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)" = "d912da0db7fa85514874458ca3651fe2cddace8d0b0505571dbdcd41ab490159"
 "checksum backtrace 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)" = "99f2ce94e22b8e664d95c57fff45b98a966c2252b60691d0b7aeeccd88d70983"
@@ -1170,6 +1194,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum base64 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)" = "96434f987501f0ed4eb336a411e0631ecd1afa11574fe148587adc4ff96143c9"
 "checksum bitflags 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)" = "aad18937a628ec6abcd26d1489012cc0e18c21798210f491af69ded9b881106d"
 "checksum bitflags 0.9.1 (registry+https://github.com/rust-lang/crates.io-index)" = "4efd02e230a02e18f92fc2735f44597385ed02ad8f831e7c1c1156ee5e1ab3a5"
+"checksum brotli 1.0.8 (registry+https://github.com/rust-lang/crates.io-index)" = "951f20a2cc403194b2746d9ac6f796292e3c0344e983c72c7d6bd6cff6c3d102"
+"checksum brotli-decompressor 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "39df8da5499507681bca2d22ffa76aca7e4116d89976815b850339b63b0abc50"
 "checksum byteorder 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "ff81738b726f5d099632ceaffe7fb65b90212e8dce59d518729e7e8634032d3d"
 "checksum bytes 0.4.5 (registry+https://github.com/rust-lang/crates.io-index)" = "d828f97b58cc5de3e40c421d0cf2132d6b2da4ee0e11b8632fa838f0f9333ad6"
 "checksum cfg-if 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)" = "d4c819a1287eb618df47cc647173c5c4c66ba19d888a6e50d605672aed3140de"
