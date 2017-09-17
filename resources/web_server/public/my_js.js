@@ -119,6 +119,13 @@ $(document).ready(function() {
             "lengthMenu": [ [10, 50, 200, -1], [10, 50, 200, "All"] ],
             "language": { "search": "Regex search:" },
             "processing": true,
+            "columns": [
+                { "data": "topic_name" },
+                { "data": "partition_count" },
+                { "data": "errors" },
+                { "data": "b_rate_15" },
+                { "data": "m_rate_15" }
+            ],
             "columnDefs": [
                 { "className": "dt-body-right", "targets": [ 1, 2, 3, 4 ] }
             ],

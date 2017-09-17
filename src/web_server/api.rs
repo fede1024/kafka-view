@@ -19,6 +19,15 @@ use std::collections::HashMap;
 // ********** TOPICS LIST **********
 //
 
+#[derive(Serialize)]
+struct TopicDetails {
+    topic_name: String,
+    partition_count: usize,
+    errors: String,
+    b_rate_15: f64,
+    m_rate_15: f64
+}
+
 #[get("/api/clusters/<cluster_id>/topics?<timestamp>")]
 pub fn cluster_topics(cluster_id: ClusterId, cache: State<Cache>, timestamp: &str) -> CompressedJSON {
     let _ = timestamp;
@@ -27,16 +36,23 @@ pub fn cluster_topics(cluster_id: ClusterId, cache: State<Cache>, timestamp: &st
         return CompressedJSON(json!({"data": []}));
     }
 
-    let topics = cache.topics.filter_clone(|&(ref c, _)| c == &cluster_id);
-
-    let mut result_data = Vec::with_capacity(topics.len());
-    for &((_, ref topic_name), ref partitions) in &topics {
-        let metrics = cache.metrics.get(&(cluster_id.clone(), topic_name.to_owned()))
-            .unwrap_or_default()
-            .aggregate_broker_metrics();
-        let errors = partitions.iter().find(|p| p.error.is_some());
-        result_data.push(json!((topic_name, partitions.len(), &errors, metrics.b_rate_15.round(), metrics.m_rate_15.round())));
-    }
+    let result_data = cache.topics
+        .filter_clone(|&(ref c, _)| c == &cluster_id)
+        .into_iter()
+        .map(|((_, topic_name), partitions)| {
+            let metrics = cache.metrics.get(&(cluster_id.clone(), topic_name.to_owned()))
+                .unwrap_or_default()
+                .aggregate_broker_metrics();
+            TopicDetails {
+                topic_name: topic_name,
+                partition_count: partitions.len(),
+                errors: partitions.into_iter().filter_map(|p| p.error)
+                    .collect::<Vec<_>>().join(","),
+                b_rate_15: metrics.b_rate_15.round(),
+                m_rate_15: metrics.m_rate_15.round(),
+            }
+        })
+        .collect::<Vec<_>>();
 
     CompressedJSON(json!({"data": result_data}))
 }
