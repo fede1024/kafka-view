@@ -14,7 +14,7 @@ use offsets::OffsetStore;
 use web_server::pages::omnisearch::OmnisearchFormParams;
 use utils::CompressedJSON;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 //
 // ********** TOPICS LIST **********
@@ -89,41 +89,41 @@ pub fn brokers(cluster_id: ClusterId, cache: State<Cache>, timestamp: &str) -> C
 // ********** GROUP **********
 //
 
+#[derive(Debug)]
 struct GroupInfo {
     state: String,
     members: usize,
-    stored_offsets: usize,
+    topics: HashSet<TopicName>,
 }
 
 impl GroupInfo {
     fn new(state: String, members: usize) -> GroupInfo {
-        GroupInfo { state: state, members: members, stored_offsets: 0 }
+        GroupInfo { state: state, members: members, topics: HashSet::new() }
     }
 
     fn new_empty() -> GroupInfo {
-        GroupInfo { state: "Offsets only".to_owned(), members: 0, stored_offsets: 0 }
+        GroupInfo { state: "Offsets only".to_owned(), members: 0, topics: HashSet::new() }
     }
 
-    fn add_offset(&mut self) {
-        self.stored_offsets += 1;
+    fn add_topic(&mut self, topic_name: TopicName) {
+        self.topics.insert(topic_name);
     }
 }
 
 // TODO: add doc
 // TODO: add limit
-fn build_group_list<F>(cache: &Cache, filter_fn: F) -> HashMap<(ClusterId, String), GroupInfo>
-        where F: Fn(&ClusterId, &TopicName, &String) -> bool {
-
+fn build_group_list<F>(cache: &Cache, filter: F) -> HashMap<(ClusterId, String), GroupInfo>
+        where F: Fn(&ClusterId, &String) -> bool {
     let mut groups: HashMap<(ClusterId, String), GroupInfo> = cache.groups
         .lock_iter(|iter| {
-            iter.filter(|&(&(ref c, ref t), g)| filter_fn(c, t, &g.name))
+            iter.filter(|&(&(ref c, ref g), _)| filter(c, g))
                 .map(|(&(ref c, _), g)| ((c.clone(), g.name.clone()), GroupInfo::new(g.state.clone(), g.members.len())))
                 .collect()
         });
 
-    let offsets = cache.offsets.filter_clone_k(|&(ref c, ref g, ref t)| filter_fn(c, t, g));
-    for (cluster_id, group, _) in offsets {
-        groups.entry((cluster_id, group)).or_insert_with(GroupInfo::new_empty).add_offset();
+    let offsets = cache.offsets.filter_clone_k(|&(ref c, ref g, _)| filter(c, g));
+    for (cluster_id, group, t) in offsets {
+        groups.entry((cluster_id, group)).or_insert_with(GroupInfo::new_empty).add_topic(t);
     }
 
     groups
@@ -137,11 +137,11 @@ pub fn cluster_groups(cluster_id: ClusterId, cache: State<Cache>, timestamp: &st
         return CompressedJSON(json!({"data": []}));
     }
 
-    let groups = build_group_list(cache.inner(), |c, _, _| &cluster_id == c);
+    let groups = build_group_list(cache.inner(), |c, _| c == &cluster_id);
 
     let mut result_data = Vec::with_capacity(groups.len());
     for ((_cluster_id, group_name), info) in groups {
-        result_data.push(json!((group_name, info.state, info.members, info.stored_offsets)));
+        result_data.push(json!((group_name, info.state, info.members, info.topics.len())));
     }
 
     CompressedJSON(json!({"data": result_data}))
@@ -155,11 +155,14 @@ pub fn topic_groups(cluster_id: ClusterId, topic_name: &RawStr, cache: State<Cac
         return CompressedJSON(json!({"data": []}));
     }
 
-    let groups = build_group_list(cache.inner(), |c, t, _| &cluster_id == c && topic_name == t);
+    let groups = build_group_list(cache.inner(), |c, _| c == &cluster_id);
 
     let mut result_data = Vec::with_capacity(groups.len());
     for ((_cluster_id, group_name), info) in groups {
-        result_data.push(json!((group_name, info.state, info.members, info.stored_offsets)));
+        if !info.topics.contains(&topic_name.to_string()) {
+            continue;
+        }
+        result_data.push(json!((group_name, info.state, info.members, info.topics.len())));
     }
 
     CompressedJSON(json!({"data": result_data}))
@@ -279,15 +282,15 @@ pub fn topic_topology(cluster_id: ClusterId, topic_name: &RawStr, cache: State<C
 pub fn consumer_search(search: OmnisearchFormParams, cache: State<Cache>) -> CompressedJSON {
     let groups = if search.regex {
         Regex::new(&search.string)
-            .map(|r| build_group_list(&cache, |_, _, g| r.is_match(g)))
+            .map(|r| build_group_list(&cache, |_, g| r.is_match(g)))
             .unwrap_or_default()
     } else {
-        build_group_list(&cache, |_, _, g| g.contains(&search.string))
+        build_group_list(&cache, |_, g| g.contains(&search.string))
     };
 
     let mut result_data = Vec::with_capacity(groups.len());
     for ((cluster_id, group_name), info) in groups {
-        result_data.push(json!((cluster_id, group_name, info.state, info.members, info.stored_offsets)));
+        result_data.push(json!((cluster_id, group_name, info.state, info.members, info.topics.len())));
     }
 
     CompressedJSON(json!({"data": result_data}))
