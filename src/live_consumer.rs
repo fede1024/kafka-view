@@ -1,6 +1,6 @@
 use rdkafka::Message;
 use rdkafka::message::BorrowedMessage;
-use rdkafka::consumer::{BaseConsumer, EmptyConsumerContext};
+use rdkafka::consumer::{BaseConsumer, Consumer, EmptyConsumerContext};
 use rdkafka::config::ClientConfig;
 use rocket::State;
 use rocket::http::RawStr;
@@ -32,10 +32,11 @@ impl LiveConsumer {
             .set("bootstrap.servers", &cluster_config.bootstrap_servers())
             .set("group.id", &format!("kafka_view_live_consumer_{}", id))
             .set("enable.partition.eof", "false")
-            .set("api.version.request", "false")
+            .set("api.version.request", "true")
             .set("enable.auto.commit", "false")
             .set("queued.max.messages.kbytes", "100") // Reduce memory usage
             .set("fetch.message.max.bytes", "102400")
+            //.set("debug", "all")
             .create::<BaseConsumer<_>>()
             .chain_err(|| "Failed to create rdkafka consumer")?;
 

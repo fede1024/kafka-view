@@ -18,7 +18,7 @@ lazy_static = "0.2.4"
 log = "^0.3.0"
 maud = { version = "0.17.1", features = ["rocket"] }
 rand = "0.3"
-rdkafka = "^0.12.0"
+rdkafka = { git = "https://github.com/fede1024/rust-rdkafka.git"}
 regex = "0.2"
 rocket = "0.3.2"
 rocket_codegen = "0.3.2"

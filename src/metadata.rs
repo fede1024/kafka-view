@@ -1,4 +1,4 @@
-use rdkafka::consumer::{BaseConsumer, EmptyConsumerContext};
+use rdkafka::consumer::{BaseConsumer, Consumer, EmptyConsumerContext};
 use rdkafka::config::ClientConfig;
 use rdkafka::error as rderror;
 

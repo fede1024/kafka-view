@@ -1,6 +1,7 @@
 use futures::{future, Future};
 use futures_cpupool::Builder;
 use rdkafka::error::KafkaResult;
+use rdkafka::consumer::Consumer;
 use regex::Regex;
 use rocket::State;
 use rocket::http::RawStr;

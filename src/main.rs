@@ -109,9 +109,9 @@ fn run_kafka_web(config_path: &str) -> Result<()> {
         Duration::from_secs(config.metadata_refresh * 2),
         Duration::from_secs(config.metadata_refresh),
         move |_| {
-            cache_clone.topics.remove_old(Duration::from_secs(metadata_expiration));
-            cache_clone.brokers.remove_old(Duration::from_secs(metadata_expiration));
-            cache_clone.groups.remove_old(Duration::from_secs(metadata_expiration));
+            cache_clone.topics.remove_expired(Duration::from_secs(metadata_expiration));
+            cache_clone.brokers.remove_expired(Duration::from_secs(metadata_expiration));
+            cache_clone.groups.remove_expired(Duration::from_secs(metadata_expiration));
         }
     );
 
@@ -121,7 +121,7 @@ fn run_kafka_web(config_path: &str) -> Result<()> {
         Duration::from_secs(config.metrics_refresh * 2),
         Duration::from_secs(config.metrics_refresh),
         move |_| {
-            cache_clone.metrics.remove_old(Duration::from_secs(metrics_expiration));
+            cache_clone.metrics.remove_expired(Duration::from_secs(metrics_expiration));
         }
     );
 
@@ -131,7 +131,7 @@ fn run_kafka_web(config_path: &str) -> Result<()> {
         Duration::from_secs(10),
         Duration::from_secs(120),
         move |_| {
-            cache_clone.offsets.remove_old(Duration::from_secs(offsets_store_duration));
+            cache_clone.offsets.remove_expired(Duration::from_secs(offsets_store_duration));
         }
     );
 

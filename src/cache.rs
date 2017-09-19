@@ -71,14 +71,15 @@ impl ReplicaWriter {
     }
 
     // TODO: use structure for value
-    pub fn write_update<'de, K, V>(&self, name: &str, key: &'de K, value: &'de V) -> Result<()>
+    /// Writes a new update into the topic. The name of the replicated map and the key will be
+    /// serialized together as key of the message, and the value will be serialized in the payload.
+    pub fn update<'de, K, V>(&self, name: &str, key: &'de K, value: &'de V) -> Result<()>
             where K: Serialize + Deserialize<'de> + Clone,
                   V: Serialize + Deserialize<'de> {
         let serialized_key = serde_json::to_vec(&WrappedKey::new(name.to_owned(), key))
             .chain_err(|| "Failed to serialize key")?;
         let serialized_value = serde_json::to_vec(&value)
             .chain_err(|| "Failed to serialize value")?;
-        // trace!("Serialized value size: {}", serialized_value.len());
         trace!("Serialized update size: key={:.3}KB value={:.3}KB",
             (serialized_key.len() as f64 / 1000f64), (serialized_value.len() as f64 / 1000f64));
         let ts = millis_to_epoch(SystemTime::now());
@@ -88,13 +89,20 @@ impl ReplicaWriter {
         Ok(())
     }
 
-    pub fn write_remove<'de, K>(&self, name: &str, key: &'de K) -> Result<()>
+    /// Deletes an element from the specified cache
+    pub fn delete<'de, K>(&self, name: &str, key: &'de K) -> Result<()>
             where K: Serialize + Deserialize<'de> + Clone {
         let serialized_key = serde_json::to_vec(&WrappedKey::new(name.to_owned(), key))
             .chain_err(|| "Failed to serialize key")?;
+        self.write_tombstone(&serialized_key)
+    }
+
+    /// Writes a tombstone for the specified message key.
+    fn write_tombstone(&self, message_key: &[u8]) -> Result<()> {
         let ts = millis_to_epoch(SystemTime::now());
-        let _f = self.producer.send_copy::<Vec<u8>, Vec<u8>>(self.topic_name.as_str(), None, None,
-                                                             Some(&serialized_key), Some(ts));
+        let _f = self.producer.send_copy::<[u8], [u8]>(
+            self.topic_name.as_str(), None, None, Some(&message_key), Some(ts)
+        );
         Ok(())
     }
 }
@@ -347,7 +355,7 @@ impl<K, V> ReplicatedMap<K, V>
     pub fn insert(&self, key: K, new_value: V) -> Result<()> {
         let current_value = self.get(&key);
         if current_value.is_none() || current_value.unwrap() != new_value {
-            self.replica_writer.write_update(&self.name, &key, &new_value)
+            self.replica_writer.update(&self.name, &key, &new_value)
                 .chain_err(|| "Failed to write cache update")?;
         }
         self.local_update(key, new_value, None);
@@ -355,13 +363,13 @@ impl<K, V> ReplicatedMap<K, V>
     }
 
     pub fn remove(&self, key: &K) -> Result<()> {
-        self.replica_writer.write_remove(&self.name, key)
+        self.replica_writer.delete(&self.name, key)
             .chain_err(|| "Failed to write cache delete")?;
         self.local_remove(key);
         Ok(())
     }
 
-    pub fn remove_old(&self, max_age: Duration) -> Vec<K> {
+    pub fn remove_expired(&self, max_age: Duration) -> Vec<K> {
         let to_remove = {
             let cache = self.map.read().unwrap();
             let max_ms = duration_to_millis(max_age) as i64;
