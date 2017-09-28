@@ -6,8 +6,7 @@ use scheduled_executor::ThreadPoolExecutor;
 
 use error::*;
 use web_server::pages;
-use web_server::api;
-use cache::Cache;
+use web_server::api; use cache::Cache;
 use config::Config;
 use metadata::ClusterId;
 use live_consumer::{self, LiveConsumerStore};
@@ -77,6 +76,7 @@ pub fn run_server(executor: &ThreadPoolExecutor, cache: Cache, config: &Config) 
     let rocket_config = rocket::config::Config::build(rocket::config::Environment::Development)
         .address(config.listen_host.to_owned())
         .port(config.listen_port)
+        .tls("private/cert.pem", "private/key.pem")
         .workers(32)
         .log_level(rocket::logger::LoggingLevel::Critical)
         .finalize()
