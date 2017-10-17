@@ -11,7 +11,7 @@ use rocket::State;
 fn group_members_table(cluster_id: &ClusterId, group_name: &str) -> PreEscaped<String> {
     let api_url = format!("/api/clusters/{}/groups/{}/members", cluster_id, group_name);
     layout::datatable_ajax("group-members-ajax", &api_url, cluster_id.name(),
-           html! { tr { th "Member id" th "Client id" th "Hostname" } },
+           html! { tr { th "Member id" th "Client id" th "Hostname" th "Assignments" } },
     )
 }
 
@@ -50,4 +50,3 @@ pub fn group_page(cluster_id: ClusterId, group_name: &RawStr, cache: State<Cache
 
     layout::page(&format!("Group: {}", group_name), content)
 }
-
