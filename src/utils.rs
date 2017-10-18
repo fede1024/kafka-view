@@ -6,9 +6,13 @@ use rocket::http::{ContentType, Status};
 use rocket::response::{self, Responder};
 use rocket::{Request, Response};
 use serde_json;
+use byteorder::{BigEndian, ReadBytesExt};
 
 use std::thread;
-use std::io;
+use std::io::{self, Cursor, BufRead};
+use std::str;
+
+use error::*;
 
 pub fn setup_logger(log_thread: bool, rust_log: Option<&str>, date_format: &str) {
     let date_format = date_format.to_owned();
@@ -85,4 +89,13 @@ impl Responder<'static> for CompressedJSON {
                 .finalize())
         }
     }
+}
+
+pub fn read_str<'a>(rdr: &'a mut Cursor<&[u8]>) -> Result<&'a str> {
+    let len = (rdr.read_i16::<BigEndian>()).chain_err(|| "Failed to parse string len")? as usize;
+    let pos = rdr.position() as usize;
+    let slice = str::from_utf8(&rdr.get_ref()[pos..(pos+len)])
+        .chain_err(|| "String is not valid UTF-8")?;
+    rdr.consume(len);
+    Ok(slice)
 }

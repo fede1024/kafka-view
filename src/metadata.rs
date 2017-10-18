@@ -1,16 +1,19 @@
 use rdkafka::consumer::{BaseConsumer, Consumer, EmptyConsumerContext};
 use rdkafka::config::ClientConfig;
 use rdkafka::error as rderror;
+use scheduled_executor::TaskGroup;
+use byteorder::{BigEndian, ReadBytesExt};
 
 use cache::Cache;
 use config::{ClusterConfig, Config};
 use error::*;
-use scheduled_executor::TaskGroup;
+use utils::read_str;
 
 use std::collections::HashMap;
 use std::error::Error;
 use std::fmt;
 use std::sync::{Arc, RwLock};
+use std::io::Cursor;
 
 
 pub type MetadataConsumer = BaseConsumer<EmptyConsumerContext>;
@@ -143,12 +146,19 @@ impl Broker {
 // ********** GROUPS **********
 //
 
+#[derive(PartialEq, Serialize, Deserialize, Debug, Clone)]
+pub struct MemberAssignment {
+    pub topic: String,
+    pub partitions: Vec<i32>
+}
 
 #[derive(PartialEq, Serialize, Deserialize, Debug, Clone)]
 pub struct GroupMember {
     pub id: String,
     pub client_id: String,
     pub client_host: String,
+    #[serde(default)]
+    pub assignments: Vec<MemberAssignment>,
 }
 
 #[derive(PartialEq, Serialize, Deserialize, Debug, Clone)]
@@ -158,6 +168,26 @@ pub struct Group {
     pub members: Vec<GroupMember>
 }
 
+fn parse_member_assignment(payload_rdr: &mut Cursor<&[u8]>) -> Result<Vec<MemberAssignment>> {
+    let _version = payload_rdr.read_i16::<BigEndian>().chain_err(|| "Failed to parse value version")?;
+    let assign_len = payload_rdr.read_i32::<BigEndian>().chain_err(|| "Failed to parse assigment length")?;
+    let mut assigns = Vec::with_capacity(assign_len as usize);
+    for _ in 0..assign_len {
+        let topic = read_str(payload_rdr).chain_err(|| "Failed to parse assignment topic name")?.to_owned();
+        let partition_len = payload_rdr.read_i32::<BigEndian>().chain_err(|| "Failed to parse assignment partition length")?;
+        let mut partitions = Vec::with_capacity(partition_len as usize);
+        for _ in 0..partition_len {
+            let partition = payload_rdr.read_i32::<BigEndian>().chain_err(|| "Failed to parse assignment partition")?;
+            partitions.push(partition);
+        }
+        assigns.push(MemberAssignment {
+            topic: topic,
+            partitions: partitions
+        })
+    }
+    Ok(assigns)
+}
+
 fn fetch_groups(consumer: &MetadataConsumer, timeout_ms: i32) -> Result<Vec<Group>> {
     let group_list = consumer.fetch_group_list(None, timeout_ms)
         .chain_err(|| "Failed to fetch consumer group list")?;
@@ -165,10 +195,20 @@ fn fetch_groups(consumer: &MetadataConsumer, timeout_ms: i32) -> Result<Vec<Grou
     let mut groups = Vec::new();
     for rd_group in group_list.groups() {
         let members = rd_group.members().iter()
-            .map(|m| GroupMember {
-                id: m.id().to_owned(),
-                client_id: m.client_id().to_owned(),
-                client_host: m.client_host().to_owned()
+            .map(|m| {
+                let mut assigns = Vec::new();
+                if rd_group.protocol_type() == "consumer" {
+                    if let Some(assignment) = m.assignment() {
+                        let mut payload_rdr = Cursor::new(assignment);
+                        assigns = parse_member_assignment(&mut payload_rdr).expect("Parse member assignment failed");
+                    }
+                }
+                GroupMember {
+                    id: m.id().to_owned(),
+                    client_id: m.client_id().to_owned(),
+                    client_host: m.client_host().to_owned(),
+                    assignments: assigns
+                }
             })
             .collect::<Vec<_>>();
         groups.push(Group {

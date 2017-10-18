@@ -180,7 +180,10 @@ pub fn group_members(cluster_id: ClusterId, group_name: &RawStr, cache: State<Ca
 
     let mut result_data = Vec::with_capacity(group.members.len());
     for member in group.members {
-        result_data.push(json!((member.id, member.client_id, member.client_host)));
+        let assigns = member.assignments.iter().map(|assign| {
+            format!("{}/{}", assign.topic, assign.partitions.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(","))
+        }).collect::<Vec<_>>().join("\n");
+        result_data.push(json!((member.id, member.client_id, member.client_host, assigns)));
     }
 
     CompressedJSON(json!({"data": result_data}))

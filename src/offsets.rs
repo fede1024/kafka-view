@@ -10,11 +10,11 @@ use cache::{Cache, OffsetsCache};
 use config::{Config, ClusterConfig};
 use error::*;
 use metadata::{ClusterId, TopicName};
-use utils::insert_at;
+use utils::{insert_at, read_str};
 
 use std::cmp;
 use std::collections::HashMap;
-use std::io::{Cursor, BufRead};
+use std::io::Cursor;
 use std::str;
 use std::thread;
 use std::time::{Instant, Duration};
@@ -25,15 +25,6 @@ enum ConsumerUpdate {
     Metadata,
     SetCommit { group: String, topic: String, partition: i32, offset: i64 },
     DeleteCommit { group: String, topic: String, partition: i32 },
-}
-
-fn read_str<'a>(rdr: &'a mut Cursor<&[u8]>) -> Result<&'a str> {
-    let len = (rdr.read_i16::<BigEndian>()).chain_err(|| "Failed to parse string len")? as usize;
-    let pos = rdr.position() as usize;
-    let slice = str::from_utf8(&rdr.get_ref()[pos..(pos+len)])
-        .chain_err(|| "String is not valid UTF-8")?;
-    rdr.consume(len);
-    Ok(slice)
 }
 
 fn parse_group_offset(key_rdr: &mut Cursor<&[u8]>,

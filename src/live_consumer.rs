@@ -90,9 +90,9 @@ impl LiveConsumer {
 
         while Instant::elapsed(&start_time) < timeout && buffer.len() < max_msg {
             match self.consumer.poll(100) {
-                Ok(None) => {},
-                Ok(Some(m)) => buffer.push(m),
-                Err(e) => {
+                None => {},
+                Some(Ok(m)) => buffer.push(m),
+                Some(Err(e)) => {
                     error!("Error while receiving message {:?}", e);
                 },
             };
@@ -212,4 +212,3 @@ pub fn test_live_consumer_api(
 
     Ok(json!(output).to_string())
 }
-
