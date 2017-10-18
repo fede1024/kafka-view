@@ -2,4 +2,12 @@ sudo: false
 language: rust
 rust:
   - nightly-2017-10-16
-script: cargo build
+script:
+  - cargo build
+  - export DOCKER_REPO=fede1024/kafka-view
+
+after_success:
+  - |
+    if [[ "$TRAVIS_OS_NAME" == "linux" && "$TRAVIS_PULL_REQUEST" == "false" && "$TRAVIS_BRANCH" == "master" ]]; then
+    docker build -t $DOCKER_REPO . && docker login -e $DOCKER_EMAIL -u $DOCKER_USER -p $DOCKER_PASS && docker push $DOCKER_REPO
+    fi

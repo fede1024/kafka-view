@@ -2,6 +2,7 @@ kafka-view
 ==========
 
 [![Build Status](https://travis-ci.org/fede1024/kafka-view.svg?branch=master)](https://travis-ci.org/fede1024/kafka-view)
+[![Docker Image](https://img.shields.io/docker/pulls/fede1024/kafka-view.svg?maxAge=2592000)](https://hub.docker.com/r/fede1024/kafka-view/)
 [![Join the chat at https://gitter.im/rust-rdkafka/Lobby](https://badges.gitter.im/rust-rdkafka/Lobby.svg)](https://gitter.im/rust-rdkafka/Lobby?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
 Kafka-view is an experimental web interface for Kafka written in Rust.
@@ -62,6 +63,18 @@ To compile and run:
 ```bash
 rustup override set $(cat rust-toolchain)
 cargo run --release -- --conf config.yaml
+```
+
+To build Docker image and run(Assuming you set port to 8080 in `config.yaml`):
+```bash
+docker build -t kafka-view .
+docker run --rm -p 8080:8080 kafka-view --conf config.yaml
+```
+
+Or you can use prebuilt image from Docker hub:
+```bash
+docker pull fede1024/kafka-view
+docker run --rm -p 8080:8080 fede1024/kafka-view --conf config.yaml
 ```
 
 ### Metrics
