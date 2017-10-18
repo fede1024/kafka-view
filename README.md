@@ -65,16 +65,16 @@ rustup override set $(cat rust-toolchain)
 cargo run --release -- --conf config.yaml
 ```
 
-To build Docker image and run(Assuming you set port to 8080 in `config.yaml`):
+To build Docker image and run(Assuming you have `config.yaml` in current working directory and set port to 8080 in it):
 ```bash
 docker build -t kafka-view .
-docker run --rm -p 8080:8080 kafka-view --conf config.yaml
+docker run --rm -p 8080:8080 -v `pwd`/config.yaml:/root/config.yaml kafka-view --conf config.yaml
 ```
 
 Or you can use prebuilt image from Docker hub:
 ```bash
 docker pull fede1024/kafka-view
-docker run --rm -p 8080:8080 fede1024/kafka-view --conf config.yaml
+docker run --rm -p 8080:8080 -v `pwd`/config.yaml:/root/config.yaml fede1024/kafka-view --conf config.yaml
 ```
 
 ### Metrics
