@@ -195,10 +195,12 @@ fn fetch_groups(consumer: &MetadataConsumer, timeout_ms: i32) -> Result<Vec<Grou
     for rd_group in group_list.groups() {
         let members = rd_group.members().iter()
             .map(|m| {
-                let mut assigns = vec![];
-                if let Some(assignment) = m.assignment() {
-                    let mut payload_rdr = Cursor::new(assignment);
-                    assigns = parse_member_assignment(&mut payload_rdr).expect("Parse member assignment failed");
+                let mut assigns = Vec::new();
+                if rd_group.protocol_type() == "consumer" {
+                    if let Some(assignment) = m.assignment() {
+                        let mut payload_rdr = Cursor::new(assignment);
+                        assigns = parse_member_assignment(&mut payload_rdr).expect("Parse member assignment failed");
+                    }
                 }
                 GroupMember {
                     id: m.id().to_owned(),
