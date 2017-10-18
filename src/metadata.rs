@@ -157,6 +157,7 @@ pub struct GroupMember {
     pub id: String,
     pub client_id: String,
     pub client_host: String,
+    #[serde(default)]
     pub assignments: Vec<MemberAssignment>,
 }
 
