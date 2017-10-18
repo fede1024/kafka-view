@@ -64,6 +64,12 @@ rustup override set $(cat rust-toolchain)
 cargo run --release -- --conf config.yaml
 ```
 
+To build Docker image and run:
+```bash
+docker build -t kafka-view .
+docker run --rm kafka-view --conf config.yaml
+```
+
 ### Metrics
 
 Kafka exports metrics via JMX, which can be accessed via HTTP through [jolokia]. The suggested way
