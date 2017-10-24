@@ -55,8 +55,7 @@ pub fn topic_page(cluster_id: ClusterId, topic_name: &RawStr, cache: State<Cache
         }
     };
 
-    let graph_url = config.clusters.get(&cluster_id)
-        .and_then(|cluster_config| cluster_config.graph_url.as_ref());
+    let cluster_config = config.clusters.get(&cluster_id).unwrap();
     let _ = cache.brokers.get(&cluster_id).expect("Cluster should exist");  // TODO: handle better
 
     let metrics = cache.metrics.get(&(cluster_id.clone(), topic_name.to_string()))
@@ -73,8 +72,8 @@ pub fn topic_page(cluster_id: ClusterId, topic_name: &RawStr, cache: State<Cache
             dt "Number of replicas " dd (partitions[0].replicas.len())
             dt "Traffic last 15 minutes"
             dd (format!("{:.1}   KB/s {:.0} msg/s", metrics.b_rate_15 / 1000f64, metrics.m_rate_15))
-            @if graph_url.is_some() {
-                dt "Traffic chart" dd (graph_link(graph_url.unwrap(), topic_name))
+            @if cluster_config.graph_url.is_some() {
+                dt "Traffic chart" dd (graph_link(cluster_config.graph_url.as_ref().unwrap(), topic_name))
             }
         }
         h3 "Topology"
@@ -82,7 +81,11 @@ pub fn topic_page(cluster_id: ClusterId, topic_name: &RawStr, cache: State<Cache
         h3 "Consumer groups"
         (consumer_groups_table(&cluster_id, topic_name))
         h3 "Tailer"
-        (topic_tailer_panel(&cluster_id, topic_name, random::<u64>()))
+        @if cluster_config.enable_tailing {
+            (topic_tailer_panel(&cluster_id, topic_name, random::<u64>()))
+        } else {
+            p "Topic tailing is disabled in this cluster."
+        }
     };
 
     layout::page(&format!("Topic: {}", topic_name), content)

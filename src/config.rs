@@ -8,6 +8,8 @@ use std::io::prelude::*;
 use std::fs::File;
 
 
+fn default_true() -> bool { true }
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ClusterConfig {
     pub cluster_id: Option<ClusterId>, // This will always be available after load
@@ -15,6 +17,8 @@ pub struct ClusterConfig {
     pub zookeeper: String,
     pub jolokia_port: Option<i32>,
     pub graph_url: Option<String>,
+    #[serde(default = "default_true")]
+    pub enable_tailing: bool,
 }
 
 impl ClusterConfig {
