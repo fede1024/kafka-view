@@ -83,7 +83,7 @@ pub fn topic_page(cluster_id: ClusterId, topic_name: &RawStr, cache: State<Cache
         h3 "Tailer"
         @if cluster_config.enable_tailing {
             (topic_tailer_panel(&cluster_id, topic_name, random::<u64>()))
-        } else {
+        } @else {
             p "Topic tailing is disabled in this cluster."
         }
     };
