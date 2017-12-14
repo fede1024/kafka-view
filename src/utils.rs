@@ -4,7 +4,7 @@ use env_logger::LogBuilder;
 use log::{LogRecord, LogLevelFilter};
 use rocket::http::{ContentType, Status};
 use rocket::response::{self, Responder};
-use rocket::{Request, Response};
+use rocket::{Request, Response, fairing};
 use serde_json;
 use byteorder::{BigEndian, ReadBytesExt};
 
@@ -98,4 +98,38 @@ pub fn read_str<'a>(rdr: &'a mut Cursor<&[u8]>) -> Result<&'a str> {
         .chain_err(|| "String is not valid UTF-8")?;
     rdr.consume(len);
     Ok(slice)
+}
+
+
+// GZip compression fairing
+pub struct GZip;
+
+impl fairing::Fairing for GZip {
+    fn info(&self) -> fairing::Info {
+        fairing::Info {
+            name: "GZip compression",
+            kind: fairing::Kind::Response,
+        }
+    }
+
+    fn on_response(&self, request: &Request, response: &mut Response) {
+        use flate2::{Compression, FlateReadExt};
+        use std::io::{Cursor, Read};
+        let headers = request.headers();
+        if headers
+            .get("Accept-Encoding")
+            .any(|e| e.to_lowercase().contains("gzip"))
+            {
+                response.body_bytes().and_then(|body| {
+                    let mut enc = body.gz_encode(Compression::Default);
+                    let mut buf = Vec::with_capacity(body.len());
+                    enc.read_to_end(&mut buf)
+                        .map(|_| {
+                            response.set_sized_body(Cursor::new(buf));
+                            response.set_raw_header("Content-Encoding", "gzip");
+                        })
+                        .map_err(|e| eprintln!("{}", e)).ok()
+                });
+            }
+    }
 }

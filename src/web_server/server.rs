@@ -11,6 +11,7 @@ use cache::Cache;
 use config::Config;
 use metadata::ClusterId;
 use live_consumer::{self, LiveConsumerStore};
+use utils::GZip;
 
 use std::path::{Path, PathBuf};
 use std;
@@ -65,7 +66,6 @@ impl<'a> Responder<'a> for CachedFile {
         let inner_response = self.file.respond_to(request).unwrap(); // fixme
         response::Response::build_from(inner_response)
             .raw_header("Cache-Control", format!("max-age={}, must-revalidate", self.ttl))
-            //.raw_header("Content-Encoding", "gzip")
             .ok()
     }
 }
@@ -83,6 +83,7 @@ pub fn run_server(executor: &ThreadPoolExecutor, cache: Cache, config: &Config) 
         .chain_err(|| "Invalid rocket configuration")?;
 
     rocket::custom(rocket_config, false)
+        .attach(GZip)
         .manage(cache)
         .manage(config.clone())
         .manage(LiveConsumerStore::new(executor.clone()))
