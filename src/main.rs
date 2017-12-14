@@ -2,7 +2,6 @@
 #![plugin(rocket_codegen)]
 
 extern crate alloc_system;  // Rust issue: 27389
-extern crate rocket;
 
 #[macro_use] extern crate error_chain;
 #[macro_use] extern crate log;
@@ -22,6 +21,7 @@ extern crate maud;
 extern crate rand;
 extern crate rdkafka;
 extern crate regex;
+extern crate rocket;
 extern crate scheduled_executor;
 extern crate serde;
 extern crate serde_yaml;

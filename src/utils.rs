@@ -67,6 +67,7 @@ pub fn insert_at<T: Copy>(vector: &mut Vec<T>, pos: usize, value: T, default: T)
 }
 
 /// Wraps a JSON value and implements a responder for it, with support for brotli compression.
+#[allow(dead_code)]
 pub struct CompressedJSON(pub serde_json::Value);
 
 impl Responder<'static> for CompressedJSON {
