@@ -1,16 +1,16 @@
 use brotli;
+use byteorder::{BigEndian, ReadBytesExt};
 use chrono::Local;
 use env_logger::LogBuilder;
 use log::{LogRecord, LogLevelFilter};
 use rocket::http::{ContentType, Status};
 use rocket::response::{self, Responder};
-use rocket::{Request, Response, fairing};
+use rocket::{Data, Request, Response, fairing};
 use serde_json;
-use byteorder::{BigEndian, ReadBytesExt};
 
-use std::thread;
 use std::io::{self, Cursor, BufRead};
 use std::str;
+use std::thread;
 
 use error::*;
 
@@ -132,5 +132,25 @@ impl fairing::Fairing for GZip {
                         .map_err(|e| eprintln!("{}", e)).ok()
                 });
             }
+    }
+}
+
+// Request logging
+pub struct RequestLogger;
+
+impl fairing::Fairing for RequestLogger {
+    // This is a request and response fairing named "GET/POST Counter".
+    fn info(&self) -> fairing::Info {
+        fairing::Info {
+            name: "User request logger",
+            kind: fairing::Kind::Request
+        }
+    }
+
+    fn on_request(&self, request: &mut Request, _: &Data) {
+        let uri = request.uri().as_str();
+        if !uri.starts_with("/api") && !uri.starts_with("/public") {
+            info!("User request: {}", uri);
+        }
     }
 }

@@ -11,7 +11,7 @@ use cache::Cache;
 use config::Config;
 use metadata::ClusterId;
 use live_consumer::{self, LiveConsumerStore};
-use utils::GZip;
+use utils::{GZip, RequestLogger};
 
 use std::path::{Path, PathBuf};
 use std;
@@ -77,13 +77,14 @@ pub fn run_server(executor: &ThreadPoolExecutor, cache: Cache, config: &Config) 
     let rocket_config = rocket::config::Config::build(rocket::config::Environment::Development)
         .address(config.listen_host.to_owned())
         .port(config.listen_port)
-        .workers(32)
+        .workers(4)
         .log_level(rocket::logger::LoggingLevel::Critical)
         .finalize()
         .chain_err(|| "Invalid rocket configuration")?;
 
     rocket::custom(rocket_config, false)
         .attach(GZip)
+        .attach(RequestLogger)
         .manage(cache)
         .manage(config.clone())
         .manage(LiveConsumerStore::new(executor.clone()))
