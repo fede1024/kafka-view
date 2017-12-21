@@ -114,13 +114,7 @@ impl Partition {
     fn new(id: i32, leader: BrokerId, mut replicas: Vec<BrokerId>, mut isr: Vec<BrokerId>, error: Option<String>) -> Partition {
         replicas.sort();
         isr.sort();
-        Partition {
-            id: id,
-            leader: leader,
-            replicas: replicas,
-            isr: isr,
-            error: error
-        }
+        Partition { id, leader, replicas, isr, error }
     }
 }
 
@@ -133,11 +127,7 @@ pub struct Broker {
 
 impl Broker {
     fn new(id: BrokerId, hostname: String, port: i32) -> Broker {
-        Broker {
-            id: id,
-            hostname: hostname,
-            port: port
-        }
+        Broker { id, hostname, port }
     }
 }
 
@@ -180,10 +170,7 @@ fn parse_member_assignment(payload_rdr: &mut Cursor<&[u8]>) -> Result<Vec<Member
             let partition = payload_rdr.read_i32::<BigEndian>().chain_err(|| "Failed to parse assignment partition")?;
             partitions.push(partition);
         }
-        assigns.push(MemberAssignment {
-            topic: topic,
-            partitions: partitions
-        })
+        assigns.push(MemberAssignment { topic, partitions })
     }
     Ok(assigns)
 }
@@ -214,7 +201,7 @@ fn fetch_groups(consumer: &MetadataConsumer, timeout_ms: i32) -> Result<Vec<Grou
         groups.push(Group {
             name: rd_group.name().to_owned(),
             state: rd_group.state().to_owned(),
-            members: members
+            members
         })
     }
     Ok(groups)

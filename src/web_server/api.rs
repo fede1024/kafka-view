@@ -193,7 +193,7 @@ pub fn group_offsets(cluster_id: ClusterId, group_name: &RawStr, cache: State<Ca
     let _ = timestamp;
     let offsets = cache.offsets_by_cluster_group(&cluster_id, group_name.as_str());
 
-    let wms = time!("fetch wms", fetch_watermarks(&cluster_id, &offsets));
+    let wms = time!("fetching wms", fetch_watermarks(&cluster_id, &offsets));
     let wms = match wms {
         Ok(wms) => wms,
         Err(e) => {
@@ -344,6 +344,19 @@ pub fn cache_metrics(cache: State<Cache>, timestamp: &str) -> String {
         metrics_cache_entry
             .map(|(&(ref cluster_id, ref topic_id), metrics)| {
                 (cluster_id.clone(), topic_id.clone(), metrics.brokers.len())
+            }).collect::<Vec<_>>()
+    });
+
+    json!({"data": result_data}).to_string()
+}
+
+#[get("/api/internals/cache/offsets?<timestamp>")]
+pub fn cache_offsets(cache: State<Cache>, timestamp: &str) -> String {
+    let _ = timestamp;
+    let result_data = cache.offsets.lock_iter(|offsets_cache_entry| {
+        offsets_cache_entry
+            .map(|(&(ref cluster_id, ref group_name, ref topic_id), partitions)| {
+                (cluster_id.clone(), group_name.clone(), topic_id.clone(), format!("{:?}", partitions))
             }).collect::<Vec<_>>()
     });
 

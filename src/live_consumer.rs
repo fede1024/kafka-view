@@ -43,9 +43,9 @@ impl LiveConsumer {
         debug!("Creating live consumer for {}", topic);
 
         Ok(LiveConsumer {
-            id: id,
+            id,
             cluster_id: cluster_config.cluster_id.clone().unwrap(),
-            consumer: consumer,
+            consumer,
             active: AtomicBool::new(false),
             last_poll: RwLock::new(Instant::now()),
             topic: topic.to_owned(),

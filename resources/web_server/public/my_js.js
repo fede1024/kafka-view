@@ -194,10 +194,10 @@ $(document).ready(function() {
             "ajax": $(this).attr("data-url"),
             "lengthMenu": [ [10, 50, 200, -1], [10, 50, 200, "All"] ],
             "language": { "search": "Regex search:" },
-            "columnDefs": [
-                { "className": "dt-body-right", "targets": [ 1, 2, 3, 4, 5 ] },
-                { "type": "num-or-str", "targets": [ 5 ] }
-            ],
+//            "columnDefs": [
+//                { "className": "dt-body-right", "targets": [ 1, 2, 3, 4, 5 ] },
+//                { "type": "num-or-str", "targets": [ 5 ] }
+//            ],
             "processing": true,
             "deferRender": true,
             stateSave: true,
@@ -270,7 +270,20 @@ $(document).ready(function() {
         var table = $(this).DataTable({
             "ajax": $(this).attr("data-url"),
             "lengthMenu": [ [10, 50, 200, -1], [10, 50, 200, "All"] ],
-            "pageLength": 50,
+            "pageLength": 10,
+            "processing": true,
+            "deferRender": true,
+            "stateSave": true
+        });
+        setInterval( function () {
+            table.ajax.reload();
+        }, 20000 );
+    });
+    $('#datatable-internals-cache-offsets-ajax').each(function(index) {
+        var table = $(this).DataTable({
+            "ajax": $(this).attr("data-url"),
+            "lengthMenu": [ [10, 50, 200, -1], [10, 50, 200, "All"] ],
+            "pageLength": 10,
             "processing": true,
             "deferRender": true,
             "stateSave": true

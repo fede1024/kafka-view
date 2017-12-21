@@ -101,6 +101,10 @@ pub fn read_str<'a>(rdr: &'a mut Cursor<&[u8]>) -> Result<&'a str> {
     Ok(slice)
 }
 
+pub fn read_string(rdr: &mut Cursor<&[u8]>) -> Result<String> {
+    read_str(rdr).map(|str| str.to_string())
+}
+
 
 // GZip compression fairing
 pub struct GZip;

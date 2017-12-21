@@ -16,6 +16,12 @@ fn metrics_table() -> PreEscaped<String> {
     )
 }
 
+fn offsets_table() -> PreEscaped<String> {
+    layout::datatable_ajax("internals-cache-offsets-ajax", "/api/internals/cache/offsets", "",
+                           html! { tr { th "Cluster id" th "Consumer group" th "Topic name" th "Offsets" } }
+    )
+}
+
 fn cache_description_table(name: &str, key: &str, value: &str, count: usize) -> PreEscaped<String> {
     html! {
         table style="margin-top: 10px; margin-bottom: 10px" {
@@ -49,6 +55,9 @@ pub fn caches_page(cache: State<Cache>) -> Markup {
         h3 "Metrics"
         (cache_description_table("MetricsCache", "(ClusterId, TopicName)", "TopicMetrics", cache.metrics.keys().len()))
         div (metrics_table())
+        h3 "Offsets"
+        (cache_description_table("OffsetsCache", "(ClusterId, GroupName, TopicName)", "Vec<i64>", cache.offsets.keys().len()))
+        div (offsets_table())
     };
     layout::page("Caches", content)
 }

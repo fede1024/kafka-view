@@ -108,6 +108,7 @@ pub fn run_server(executor: &ThreadPoolExecutor, cache: Cache, config: &Config) 
             api::brokers,
             api::cache_brokers,
             api::cache_metrics,
+            api::cache_offsets,
             api::live_consumers,
             api::cluster_groups,
             api::cluster_topics,
