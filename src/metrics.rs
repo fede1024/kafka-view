@@ -1,4 +1,4 @@
-use curl::easy::Easy;
+use hyper::Client;
 use serde_json::Value;
 use chrono::{DateTime, Utc};
 use serde_json;
@@ -7,6 +7,7 @@ use scheduled_executor::TaskGroup;
 
 use std::collections::HashMap;
 use std::f64;
+use std::io::Read;
 
 use cache::Cache;
 use config::Config;
@@ -78,25 +79,20 @@ fn format_jolokia_path(hostname: &str, port: i32, filter: &str) -> String {
 }
 
 fn fetch_metrics_json(hostname: &str, port: i32, filter: &str) -> Result<Value> {
-    let mut req = Easy::new();
+    let client = Client::new();
     let url = format_jolokia_path(hostname, port, filter);
-    req.url(&url).chain_err(|| format!("Unable to parse url: '{}'", url))?;
+    let mut response = client
+        .get(&url)
+        .send()
+        .chain_err(|| "Connection error")?;
 
-    let mut buf = Vec::new();
-    {
-        let mut transfer = req.transfer();
-        transfer.write_function(|data| {
-            buf.extend_from_slice(data);
-            Ok(data.len())
-        }).chain_err(|| "Data transfer failure")?;
-        transfer.perform().chain_err(|| "Connection failure")?;
-    }
-    let string = String::from_utf8(buf)
-        .chain_err(|| "Failed to parse buffer as UTF-8")?;
-    let value = serde_json::from_str(&string).chain_err(|| "Failed to parse JSON")?;
-    // let value = String::from_utf8(buf)
-    //     .and_then(|string| serde_json::from_str(&string))
-    //     .chain_err(|| "Failed to parse JSON")?;
+    let mut body = String::new();
+    response
+        .read_to_string(&mut body)
+        .chain_err(|| "Could not read response to string")?;
+
+    let value = serde_json::from_str(&body).chain_err(|| "Failed to parse JSON")?;
+
     Ok(value)
 }
 
