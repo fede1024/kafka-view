@@ -11,6 +11,7 @@ use serde_json;
 use std::io::{self, Cursor, BufRead};
 use std::str;
 use std::thread;
+use std::env;
 
 use error::*;
 
@@ -28,6 +29,10 @@ pub fn setup_logger(log_thread: bool, rust_log: Option<&str>, date_format: &str)
 
     let mut builder = LogBuilder::new();
     builder.format(output_format).filter(None, LogLevelFilter::Info);
+    if env::var("ROCKET_ENV").map(|var| !var.starts_with("dev")).unwrap_or(false) {
+        // _ is used in Rocket as a special target for debugging purpose
+        builder.filter(Some("_"), LogLevelFilter::Error);
+    }
 
     rust_log.map(|conf| builder.parse(conf));
 

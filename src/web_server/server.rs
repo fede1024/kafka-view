@@ -80,7 +80,6 @@ pub fn run_server(executor: &ThreadPoolExecutor, cache: Cache, config: &Config) 
         .address(config.listen_host.to_owned())
         .port(config.listen_port)
         .workers(4)
-        .log_level(rocket::logger::LoggingLevel::Critical)
         .finalize()
         .chain_err(|| "Invalid rocket configuration")?;
 
