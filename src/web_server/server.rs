@@ -74,7 +74,9 @@ pub fn run_server(executor: &ThreadPoolExecutor, cache: Cache, config: &Config) 
     let version = option_env!("CARGO_PKG_VERSION").unwrap_or("?");
     info!("Starting kafka-view v{}, listening on {}:{}.", version, config.listen_host, config.listen_port);
 
-    let rocket_config = rocket::config::Config::build(rocket::config::Environment::Development)
+    let rocket_env = rocket::config::Environment::active()
+        .chain_err(|| "Invalid ROCKET_ENV environment variable")?;
+    let rocket_config = rocket::config::Config::build(rocket_env)
         .address(config.listen_host.to_owned())
         .port(config.listen_port)
         .workers(4)
