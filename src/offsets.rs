@@ -172,7 +172,7 @@ fn consume_offset_topic(
     Ok(())
 }
 
-pub fn vec_merge_in_place<F, T: Copy>(vec1: &mut Vec<T>, vec2: &Vec<T>, default: T, merge_fn: F)
+pub fn vec_merge_in_place<F, T: Copy>(vec1: &mut Vec<T>, vec2: &[T], default: T, merge_fn: F)
     where F: Fn(T, T) -> T
 {
     let new_len = cmp::max(vec1.len(), vec2.len());

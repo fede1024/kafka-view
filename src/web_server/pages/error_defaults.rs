@@ -7,7 +7,7 @@ pub fn warning_page(title: &str, message: &str) -> Markup {
                                        html! {
             div class="flex-container" {
                 span class="flex-item" style="padding: 0.3in; font-size: 16pt" {
-                    i class="fa fa-frown-o fa-3x" style="vertical-align: middle;" ""
+                    i class="fa fa-frown-o fa-3x" style="vertical-align: middle;" { "" }
                     " " (message)
                 }
             }

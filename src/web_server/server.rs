@@ -39,7 +39,7 @@ fn files(file: PathBuf) -> Option<CachedFile> {
 }
 
 #[get("/public/<file..>?<version>")]
-fn files_v(file: PathBuf, version: &str) -> Option<CachedFile> {
+fn files_v(file: PathBuf, version: &RawStr) -> Option<CachedFile> {
     let _ = version;  // just ignore version
     NamedFile::open(Path::new("resources/web_server/public/").join(file))
         .map(CachedFile::from)
@@ -83,7 +83,7 @@ pub fn run_server(executor: &ThreadPoolExecutor, cache: Cache, config: &Config) 
         .finalize()
         .chain_err(|| "Invalid rocket configuration")?;
 
-    rocket::custom(rocket_config, false)
+    rocket::custom(rocket_config)
         .attach(GZip)
         .attach(RequestLogger)
         .manage(cache)
