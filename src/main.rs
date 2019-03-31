@@ -43,6 +43,8 @@ use metrics::MetricsFetchTaskGroup;
 use metadata::MetadataFetchTaskGroup;
 use offsets::run_offset_consumer;
 
+include!(concat!(env!("OUT_DIR"), "/rust_version.rs"));
+
 
 fn run_kafka_web(config_path: &str) -> Result<()> {
     let config = config::read_config(config_path)

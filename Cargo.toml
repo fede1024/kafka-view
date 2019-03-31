@@ -3,6 +3,7 @@ name = "kafka-view"
 version = "0.1.1"
 authors = ["Federico Giraud <giraud.federico@gmail.com>"]
 license = "MIT"
+build = "build.rs"
 
 [dependencies]
 brotli = "1.0.0"

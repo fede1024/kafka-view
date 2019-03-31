@@ -1,5 +1,5 @@
 use maud::{self, PreEscaped, html};
-
+use crate::RUST_VERSION;
 
 pub fn search_form(action: &str, placeholder: &str, value: &str, regex: bool) -> PreEscaped<String> {
     html! {
@@ -237,7 +237,7 @@ fn body(page_title: &str, content: PreEscaped<String>) -> PreEscaped<String> {
                             "kafka-view " (option_env!("CARGO_PKG_VERSION").unwrap_or("")) }
                         }
                     div class="col-md-4" style="text-align: center;" {
-                        a href="https://www.rust-lang.org" { "Rust 1.22.0-nightly" }
+                        a href="https://www.rust-lang.org" { (RUST_VERSION) }
                     }
                     div class="col-md-4" style="text-align: center;" {
                         a class="github-button" href="https://github.com/fede1024/kafka-view"
