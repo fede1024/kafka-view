@@ -28,9 +28,8 @@ struct TopicDetails {
     m_rate_15: f64
 }
 
-#[get("/api/clusters/<cluster_id>/topics?<timestamp>")]
-pub fn cluster_topics(cluster_id: ClusterId, cache: State<Cache>, timestamp: &RawStr) -> String {
-    let _ = timestamp;
+#[get("/api/clusters/<cluster_id>/topics")]
+pub fn cluster_topics(cluster_id: ClusterId, cache: State<Cache>) -> String {
     let brokers = cache.brokers.get(&cluster_id);
     if brokers.is_none() {  // TODO: Improve here
         return json!({"data": []}).to_string();
@@ -61,9 +60,8 @@ pub fn cluster_topics(cluster_id: ClusterId, cache: State<Cache>, timestamp: &Ra
 // ********** BROKERS LIST **********
 //
 
-#[get("/api/clusters/<cluster_id>/brokers?<timestamp>")]
-pub fn brokers(cluster_id: ClusterId, cache: State<Cache>, timestamp: String) -> String {
-    let _ = timestamp;
+#[get("/api/clusters/<cluster_id>/brokers")]
+pub fn brokers(cluster_id: ClusterId, cache: State<Cache>) -> String {
     let brokers = cache.brokers.get(&cluster_id);
     if brokers.is_none() {  // TODO: Improve here
         return json!({"data": []}).to_string();
@@ -128,9 +126,8 @@ fn build_group_list<F>(cache: &Cache, filter: F) -> HashMap<(ClusterId, String),
     groups
 }
 
-#[get("/api/clusters/<cluster_id>/groups?<timestamp>")]
-pub fn cluster_groups(cluster_id: ClusterId, cache: State<Cache>, timestamp: &RawStr) -> String {
-    let _ = timestamp;
+#[get("/api/clusters/<cluster_id>/groups")]
+pub fn cluster_groups(cluster_id: ClusterId, cache: State<Cache>) -> String {
     let brokers = cache.brokers.get(&cluster_id);
     if brokers.is_none() {  // TODO: Improve here
         return json!({"data": []}).to_string();
@@ -146,9 +143,8 @@ pub fn cluster_groups(cluster_id: ClusterId, cache: State<Cache>, timestamp: &Ra
     json!({"data": result_data}).to_string()
 }
 
-#[get("/api/clusters/<cluster_id>/topics/<topic_name>/groups?<timestamp>")]
-pub fn topic_groups(cluster_id: ClusterId, topic_name: &RawStr, cache: State<Cache>, timestamp: &RawStr) -> String {
-    let _ = timestamp;
+#[get("/api/clusters/<cluster_id>/topics/<topic_name>/groups")]
+pub fn topic_groups(cluster_id: ClusterId, topic_name: &RawStr, cache: State<Cache>) -> String {
     let brokers = cache.brokers.get(&cluster_id);
     if brokers.is_none() {  // TODO: Improve here
         return json!({"data": []}).to_string();
@@ -167,9 +163,8 @@ pub fn topic_groups(cluster_id: ClusterId, topic_name: &RawStr, cache: State<Cac
     json!({"data": result_data}).to_string()
 }
 
-#[get("/api/clusters/<cluster_id>/groups/<group_name>/members?<timestamp>")]
-pub fn group_members(cluster_id: ClusterId, group_name: &RawStr, cache: State<Cache>, timestamp: &RawStr) -> String {
-    let _ = timestamp;
+#[get("/api/clusters/<cluster_id>/groups/<group_name>/members")]
+pub fn group_members(cluster_id: ClusterId, group_name: &RawStr, cache: State<Cache>) -> String {
     let group = cache.groups.get(&(cluster_id.clone(), group_name.to_string()));
     if group.is_none() {  // TODO: Improve here
         return json!({"data": []}).to_string();
@@ -188,9 +183,8 @@ pub fn group_members(cluster_id: ClusterId, group_name: &RawStr, cache: State<Ca
     json!({"data": result_data}).to_string()
 }
 
-#[get("/api/clusters/<cluster_id>/groups/<group_name>/offsets?<timestamp>")]
-pub fn group_offsets(cluster_id: ClusterId, group_name: &RawStr, cache: State<Cache>, timestamp: &RawStr) -> String {
-    let _ = timestamp;
+#[get("/api/clusters/<cluster_id>/groups/<group_name>/offsets")]
+pub fn group_offsets(cluster_id: ClusterId, group_name: &RawStr, cache: State<Cache>) -> String {
     let offsets = cache.offsets_by_cluster_group(&cluster_id, group_name.as_str());
 
     let wms = time!("fetching wms", fetch_watermarks(&cluster_id, &offsets));
@@ -252,9 +246,8 @@ fn fetch_watermarks(cluster_id: &ClusterId, offsets: &[((ClusterId, String, Topi
 // ********** TOPIC TOPOLOGY **********
 //
 
-#[get("/api/clusters/<cluster_id>/topics/<topic_name>/topology?<timestamp>")]
-pub fn topic_topology(cluster_id: ClusterId, topic_name: &RawStr, cache: State<Cache>, timestamp: &RawStr) -> String {
-    let _ = timestamp;
+#[get("/api/clusters/<cluster_id>/topics/<topic_name>/topology")]
+pub fn topic_topology(cluster_id: ClusterId, topic_name: &RawStr, cache: State<Cache>) -> String {
     let partitions = cache.topics.get(&(cluster_id.to_owned(), topic_name.to_string()));
     if partitions.is_none() {
         return json!({"data": []}).to_string();
@@ -324,9 +317,8 @@ pub fn topic_search(search: OmnisearchFormParams, cache: State<Cache>) -> String
 // ********** INTERNALS **********
 //
 
-#[get("/api/internals/cache/brokers?<timestamp>")]
-pub fn cache_brokers(cache: State<Cache>, timestamp: &RawStr) -> String {
-    let _ = timestamp;
+#[get("/api/internals/cache/brokers")]
+pub fn cache_brokers(cache: State<Cache>) -> String {
     let result_data = cache.brokers.lock_iter(|brokers_cache_entry| {
         brokers_cache_entry.map(|(cluster_id, brokers)| {
             (cluster_id.clone(), brokers.iter().map(|b| b.id).collect::<Vec<_>>())
@@ -337,9 +329,8 @@ pub fn cache_brokers(cache: State<Cache>, timestamp: &RawStr) -> String {
     json!({"data": result_data}).to_string()
 }
 
-#[get("/api/internals/cache/metrics?<timestamp>")]
-pub fn cache_metrics(cache: State<Cache>, timestamp: &RawStr) -> String {
-    let _ = timestamp;
+#[get("/api/internals/cache/metrics")]
+pub fn cache_metrics(cache: State<Cache>) -> String {
     let result_data = cache.metrics.lock_iter(|metrics_cache_entry| {
         metrics_cache_entry
             .map(|(&(ref cluster_id, ref topic_id), metrics)| {
@@ -350,9 +341,8 @@ pub fn cache_metrics(cache: State<Cache>, timestamp: &RawStr) -> String {
     json!({"data": result_data}).to_string()
 }
 
-#[get("/api/internals/cache/offsets?<timestamp>")]
-pub fn cache_offsets(cache: State<Cache>, timestamp: &RawStr) -> String {
-    let _ = timestamp;
+#[get("/api/internals/cache/offsets")]
+pub fn cache_offsets(cache: State<Cache>) -> String {
     let result_data = cache.offsets.lock_iter(|offsets_cache_entry| {
         offsets_cache_entry
             .map(|(&(ref cluster_id, ref group_name, ref topic_id), partitions)| {
@@ -363,9 +353,8 @@ pub fn cache_offsets(cache: State<Cache>, timestamp: &RawStr) -> String {
     json!({"data": result_data}).to_string()
 }
 
-#[get("/api/internals/live_consumers?<timestamp>")]
-pub fn live_consumers(live_consumers: State<LiveConsumerStore>, timestamp: &RawStr) -> String {
-    let _ = timestamp;
+#[get("/api/internals/live_consumers")]
+pub fn live_consumers(live_consumers: State<LiveConsumerStore>) -> String {
     let result_data = live_consumers.consumers().iter()
         .map(|consumer| (consumer.id(), consumer.cluster_id().to_owned(), consumer.topic().to_owned(),
                           consumer.last_poll().elapsed().as_secs()))
