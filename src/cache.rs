@@ -64,7 +64,7 @@ impl ReplicaWriter {
 
         let writer = ReplicaWriter {
             topic_name: topic_name.to_owned(),
-            producer: producer,
+            producer,
         };
 
         Ok(writer)
@@ -164,7 +164,7 @@ impl ReplicaReader {
             .chain_err(|| "Can't subscribe to specified topics")?;
 
         Ok(ReplicaReader {
-            consumer: consumer,
+            consumer,
             brokers: brokers.to_owned(),
             topic_name: topic_name.to_owned(),
             processed_messages: 0,
@@ -184,7 +184,7 @@ impl ReplicaReader {
                     let update = match message.payload() {
                         Some(payload) => ReplicaCacheUpdate::Set {
                             key: w_key.serialized_key(),
-                            payload: payload,
+                            payload,
                             timestamp: message.timestamp().to_millis()
                                 .unwrap_or_else(|| millis_to_epoch(SystemTime::now())) as u64,
                         },
@@ -227,11 +227,11 @@ impl ReplicaReader {
                 Ok(Ok(m)) => {
                     self.processed_messages += 1;
                     match parse_message_key(&m).chain_err(|| "Failed to parse message key") {
-                        Ok(wrapped_key) => { borrowed_state.insert(wrapped_key, m); () },
+                        Ok(wrapped_key) => { borrowed_state.insert(wrapped_key, m);},
                         Err(e) => format_error_chain!(e),
                     };
                 },
-                Ok(Err(KafkaError::PartitionEOF(p))) => { eof_set.insert(p); () },
+                Ok(Err(KafkaError::PartitionEOF(p))) => { eof_set.insert(p); },
                 Ok(Err(e)) => error!("Error while reading from Kafka: {}", e),
                 Err(_) => error!("Stream receive error"),
             };
@@ -279,14 +279,14 @@ struct ValueContainer<V> {
 impl<V> ValueContainer<V> {
     fn new(value: V) -> ValueContainer<V> {
         ValueContainer {
-            value: value,
+            value,
             updated: millis_to_epoch(SystemTime::now()) as u64,
         }
     }
 
     fn new_with_timestamp(value: V, timestamp: u64) -> ValueContainer<V> {
         ValueContainer {
-            value: value,
+            value,
             updated: timestamp,
         }
     }
@@ -307,7 +307,7 @@ impl<K, V> ReplicatedMap<K, V>
         ReplicatedMap {
             name: name.to_owned(),
             map: Arc::new(RwLock::new(HashMap::new())),
-            replica_writer: replica_writer,
+            replica_writer,
         }
     }
 
@@ -462,7 +462,7 @@ impl<'a, K, V> ReplicatedMapIter<'a, K, V>
     where K: 'a, V: 'a {
 
     fn new(inner: hash_map::Iter<'a, K, ValueContainer<V>>) -> ReplicatedMapIter<'a, K, V> {
-        ReplicatedMapIter { inner: inner }
+        ReplicatedMapIter { inner }
     }
 }
 
@@ -535,7 +535,7 @@ impl Cache {
 
 impl UpdateReceiver for Cache {
     fn receive_update(&self, cache_name: &str, update: ReplicaCacheUpdate) -> Result<()> {
-        match cache_name.as_ref() {
+        match cache_name {
             "metrics" => self.metrics.receive_update(update),
             "offsets" => self.offsets.receive_update(update),
             "brokers" => self.brokers.receive_update(update),

@@ -13,11 +13,11 @@ use rocket::State;
 fn broker_table(cluster_id: &ClusterId) -> PreEscaped<String> {
     let api_url = format!("/api/clusters/{}/brokers", cluster_id);
     layout::datatable_ajax("brokers-ajax", &api_url, cluster_id.name(),
-        html! { tr { th "Broker id" th "Hostname"
+        html! { tr { th { "Broker id" } th { "Hostname" }
             th data-toggle="tooltip" data-container="body"
-                title="Total average over the last 15 minutes" "Total byte rate"
+                title="Total average over the last 15 minutes" { "Total byte rate" }
             th data-toggle="tooltip" data-container="body"
-                title="Total average over the last 15 minutes" "Total msg rate"
+                title="Total average over the last 15 minutes" { "Total msg rate" }
             }
         }
     )
@@ -26,9 +26,9 @@ fn broker_table(cluster_id: &ClusterId) -> PreEscaped<String> {
 fn topic_table(cluster_id: &ClusterId) -> PreEscaped<String> {
     let api_url = format!("/api/clusters/{}/topics", cluster_id);
     layout::datatable_ajax("topics-ajax", &api_url, cluster_id.name(),
-               html! { tr { th "Topic name" th "#Partitions" th "Status"
-                     th data-toggle="tooltip" data-container="body" title="Average over the last 15 minutes" "Byte rate"
-                     th data-toggle="tooltip" data-container="body" title="Average over the last 15 minutes" "Msg rate"
+               html! { tr { th { "Topic name" } th { "#Partitions" } th { "Status" }
+                     th data-toggle="tooltip" data-container="body" title="Average over the last 15 minutes" { "Byte rate" }
+                     th data-toggle="tooltip" data-container="body" title="Average over the last 15 minutes" { "Msg rate" }
                    }
               },
     )
@@ -37,7 +37,7 @@ fn topic_table(cluster_id: &ClusterId) -> PreEscaped<String> {
 fn groups_table(cluster_id: &ClusterId) -> PreEscaped<String> {
     let api_url = format!("/api/clusters/{}/groups", cluster_id);
     layout::datatable_ajax("groups-ajax", &api_url, cluster_id.name(),
-        html! { tr { th "Group name" th "Status" th "Registered members" th "Stored topic offsets" } },
+        html! { tr { th { "Group name" } th { "Status" } th { "Registered members" } th { "Stored topic offsets" } } },
     )
 }
 
@@ -51,22 +51,22 @@ pub fn cluster_page(cluster_id: ClusterId, cache: State<Cache>, config: State<Co
 
     let cluster_config = config.clusters.get(&cluster_id);
     let content = html! {
-        h3 style="margin-top: 0px" "Information"
+        h3 style="margin-top: 0px" { "Information" }
         dl class="dl-horizontal" {
-            dt "Cluster name: " dd (cluster_id.name())
+            dt { "Cluster name: " } dd { (cluster_id.name()) }
             @if cluster_config.is_some() {
-                dt "Bootstrap list: " dd (cluster_config.unwrap().broker_list.join(", "))
-                dt "Zookeeper: " dd (cluster_config.unwrap().zookeeper)
+                dt { "Bootstrap list: " } dd { (cluster_config.unwrap().broker_list.join(", ")) }
+                dt { "Zookeeper: " } dd { (cluster_config.unwrap().zookeeper) }
             } @else {
-                dt "Bootstrap list: " dd "Cluster configuration is missing"
-                dt "Zookeeper: " dd "Cluster configuration is missing"
+                dt { "Bootstrap list: " } dd { "Cluster configuration is missing" }
+                dt { "Zookeeper: " } dd { "Cluster configuration is missing" }
             }
         }
-        h3 "Brokers"
-        div (broker_table(&cluster_id))
-        h3 "Topics"
+        h3 { "Brokers" }
+        div { (broker_table(&cluster_id)) }
+        h3 { "Topics" }
         (topic_table(&cluster_id))
-        h3 "Consumer groups"
+        h3 { "Consumer groups" }
         (groups_table(&cluster_id))
     };
     layout::page(&format!("Cluster: {}", cluster_id), content)
@@ -91,13 +91,13 @@ pub fn broker_page(cluster_id: ClusterId, broker_id: BrokerId, cache: State<Cach
         .unwrap_or_default()
         .aggregate_broker_metrics();
     let content = html! {
-        h3 style="margin-top: 0px" "Information"
+        h3 style="margin-top: 0px" { "Information" }
         dl class="dl-horizontal" {
-            dt "Cluster name: " dd (cluster_id.name())
-            dt "Bootstrap list: " dd (cluster_config.unwrap().broker_list.join(", "))
-            dt "Zookeeper: " dd (cluster_config.unwrap().zookeeper)
-            dt "Hostname" dd (broker.hostname)
-            dt "Traffic" dd (format!("{:.1} KB/s  {:.0} msg/s", metrics.b_rate_15 / 1000f64, metrics.m_rate_15))
+            dt { "Cluster name: " } dd { (cluster_id.name()) }
+            dt { "Bootstrap list: " } dd { (cluster_config.unwrap().broker_list.join(", ")) }
+            dt { "Zookeeper: " } dd { (cluster_config.unwrap().zookeeper) }
+            dt { "Hostname" } dd { (broker.hostname) }
+            dt { "Traffic" } dd { (format!("{:.1} KB/s  {:.0} msg/s", metrics.b_rate_15 / 1000f64, metrics.m_rate_15)) }
         }
     };
     layout::page(&format!("Broker: {}", cluster_id), content)

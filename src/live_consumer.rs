@@ -133,7 +133,7 @@ impl LiveConsumerStore {
             }
         );
         LiveConsumerStore {
-            consumers: consumers,
+            consumers,
             _executor: executor,
         }
     }
@@ -181,7 +181,7 @@ pub fn test_live_consumer_api(
 ) -> Result<String> {
     let cluster_config = config.clusters.get(&cluster_id);
 
-    if cluster_config.is_none() || cluster_config.unwrap().enable_tailing == false {
+    if cluster_config.is_none() || !cluster_config.unwrap().enable_tailing {
         return Ok("[]".to_owned());
     }
     let cluster_config = cluster_config.unwrap();

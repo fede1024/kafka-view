@@ -65,7 +65,7 @@ macro_rules! time {
 /// Given a vector, will insert `value` at the desired position `pos`, filling the items
 /// with `default`s if needed.
 pub fn insert_at<T: Copy>(vector: &mut Vec<T>, pos: usize, value: T, default: T) {
-    for _ in vector.len()..(pos+1) {
+    for _ in vector.len()..=pos {
         vector.push(default);
     }
     vector[pos] = value;
@@ -157,7 +157,7 @@ impl fairing::Fairing for RequestLogger {
     }
 
     fn on_request(&self, request: &mut Request, _: &Data) {
-        let uri = request.uri().as_str();
+        let uri = request.uri().path();
         if !uri.starts_with("/api") && !uri.starts_with("/public") {
             info!("User request: {}", uri);
         }

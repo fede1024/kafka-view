@@ -1,7 +1,4 @@
-#![feature(alloc_system, custom_derive, plugin, conservative_impl_trait, proc_macro, global_allocator, allocator_api)]
-#![plugin(rocket_codegen)]
-
-extern crate alloc_system;  // Rust issue: 27389
+#![feature(plugin, proc_macro_hygiene, decl_macro)]
 
 #[macro_use] extern crate error_chain;
 #[macro_use] extern crate log;
@@ -21,7 +18,7 @@ extern crate maud;
 extern crate rand;
 extern crate rdkafka;
 extern crate regex;
-extern crate rocket;
+#[macro_use] extern crate rocket;
 extern crate scheduled_executor;
 extern crate serde;
 extern crate serde_yaml;
@@ -46,12 +43,7 @@ use metrics::MetricsFetchTaskGroup;
 use metadata::MetadataFetchTaskGroup;
 use offsets::run_offset_consumer;
 
-// Use system allocator instead of jemalloc
-// Rust issue: 27389
-use alloc_system::System;
-
-#[global_allocator]
-static A: System = System;
+include!(concat!(env!("OUT_DIR"), "/rust_version.rs"));
 
 
 fn run_kafka_web(config_path: &str) -> Result<()> {

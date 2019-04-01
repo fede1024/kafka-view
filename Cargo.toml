@@ -3,6 +3,7 @@ name = "kafka-view"
 version = "0.1.1"
 authors = ["Federico Giraud <giraud.federico@gmail.com>"]
 license = "MIT"
+build = "build.rs"
 
 [dependencies]
 brotli = "1.0.0"
@@ -17,13 +18,13 @@ futures-cpupool = "0.1.0"
 hyper = "0.10"
 lazy_static = "1.0.0"
 log = "0.3.0"
-maud = { version = "0.17.0", features = ["rocket"] }
+maud = { version = "0.20.0", features = ["rocket"] }
 rand = "0.3"
 rdkafka = "0.13.0"
 regex = "0.2"
-rocket = "0.3.4"
-rocket_codegen = "0.3.4"
-rocket_contrib = "0.3.4"
+rocket = "0.4.0"
+rocket_codegen = "0.4.0"
+rocket_contrib = "0.4.0"
 scheduled-executor = "0.4.0"
 serde = "1.0.0"
 serde-transcode = "1.0.0"

@@ -11,15 +11,15 @@ use rocket::State;
 fn group_members_table(cluster_id: &ClusterId, group_name: &str) -> PreEscaped<String> {
     let api_url = format!("/api/clusters/{}/groups/{}/members", cluster_id, group_name);
     layout::datatable_ajax("group-members-ajax", &api_url, cluster_id.name(),
-           html! { tr { th "Member id" th "Client id" th "Hostname" th "Assignments" } },
+           html! { tr { th { "Member id" } th { "Client id" } th { "Hostname" } th { "Assignments" } } },
     )
 }
 
 fn group_offsets_table(cluster_id: &ClusterId, group_name: &str) -> PreEscaped<String> {
     let api_url = format!("/api/clusters/{}/groups/{}/offsets", cluster_id, group_name);
     layout::datatable_ajax("group-offsets-ajax", &api_url, cluster_id.name(),
-        html! { tr { th "Topic" th "Partition" th "Size" th "Low mark" th "High mark"
-                     th "Current offset" th "Lag" th "Lag %"} },
+        html! { tr { th { "Topic" } th { "Partition" } th { "Size" } th { "Low mark" } th { "High mark" }
+                     th { "Current offset" } th { "Lag" } th { "Lag %" }} },
     )
 }
 
@@ -36,16 +36,16 @@ pub fn group_page(cluster_id: ClusterId, group_name: &RawStr, cache: State<Cache
 
     let cluster_link = format!("/clusters/{}/", cluster_id.name());
     let content = html! {
-        h3 style="margin-top: 0px" "Information"
+        h3 style="margin-top: 0px" { "Information" }
         dl class="dl-horizontal" {
-            dt "Cluster name:" dd { a href=(cluster_link) (cluster_id) }
-            dt "Group name: " dd (group_name)
-            dt "Group state: " dd (group_state)
+            dt { "Cluster name:" } dd { a href=(cluster_link) { (cluster_id) } }
+            dt { "Group name: " } dd { (group_name) }
+            dt { "Group state: " } dd { (group_state) }
         }
-        h3 "Members"
-        div (group_members_table(&cluster_id, group_name))
-        h3 "Offsets"
-        div (group_offsets_table(&cluster_id, group_name))
+        h3 { "Members" }
+        div { (group_members_table(&cluster_id, group_name)) }
+        h3 { "Offsets" }
+        div { (group_offsets_table(&cluster_id, group_name)) }
     };
 
     layout::page(&format!("Group: {}", group_name), content)
