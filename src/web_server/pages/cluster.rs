@@ -41,6 +41,13 @@ fn groups_table(cluster_id: &ClusterId) -> PreEscaped<String> {
     )
 }
 
+fn reassignment_table(cluster_id: &ClusterId) -> PreEscaped<String> {
+    let api_url = format!("/api/clusters/{}/reassignment", cluster_id);
+    layout::datatable_ajax("reassignment-ajax", &api_url, cluster_id.name(),
+        html! { tr { th { "Topic" } th { "Partition" } th { "Reassigned replicas" } } },
+    )
+}
+
 #[get("/clusters/<cluster_id>")]
 pub fn cluster_page(cluster_id: ClusterId, cache: State<Cache>, config: State<Config>) -> Markup {
     if cache.brokers.get(&cluster_id).is_none() {
@@ -68,6 +75,11 @@ pub fn cluster_page(cluster_id: ClusterId, cache: State<Cache>, config: State<Co
         (topic_table(&cluster_id))
         h3 { "Consumer groups" }
         (groups_table(&cluster_id))
+
+        @if cluster_config.map(|c| c.show_zk_reassignments).unwrap_or(false) {
+            h3 { "Reassignment" }
+            (reassignment_table(&cluster_id))
+        }
     };
     layout::page(&format!("Cluster: {}", cluster_id), content)
 }

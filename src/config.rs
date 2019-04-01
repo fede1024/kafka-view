@@ -19,6 +19,8 @@ pub struct ClusterConfig {
     pub graph_url: Option<String>,
     #[serde(default = "default_true")]
     pub enable_tailing: bool,
+    #[serde(default = "default_true")]
+    pub show_zk_reassignments: bool,
 }
 
 impl ClusterConfig {
@@ -64,6 +66,8 @@ pub fn read_config(path: &str) -> Result<Config> {
     for (cluster_id, cluster) in &mut config.clusters {
         cluster.cluster_id = Some(cluster_id.clone());
     }
+
+    info!("Configuration: {:?}", config);
 
     Ok(config)
 }

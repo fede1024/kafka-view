@@ -158,6 +158,21 @@ $(document).ready(function() {
             }
         });
     });
+    $('#datatable-reassignment-ajax').each(function(index) {
+        $(this).DataTable({
+            "search": { "regex": true},
+            "ajax": $(this).attr("data-url"),
+            "lengthMenu": [ [10, 50, 200, -1], [10, 50, 200, "All"] ],
+            "language": { "search": "Regex search:" },
+            "processing": true,
+            "deferRender": true,
+            "stateSave": true,
+            "createdRow": function(row, data, index) {
+                var cluster_id = $(this).attr("data-param");
+                topic_to_url(cluster_id, $(row).children()[0]);
+            }
+        });
+    });
     $('#datatable-topology-ajax').each(function(index) {
         $(this).DataTable({
             "search": { "regex": true},

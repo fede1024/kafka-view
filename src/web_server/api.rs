@@ -7,11 +7,13 @@ use rocket::State;
 use rocket::http::RawStr;
 
 use cache::Cache;
+use config::Config;
 use error::*;
 use live_consumer::LiveConsumerStore;
 use metadata::{CONSUMERS, ClusterId, TopicName};
 use offsets::OffsetStore;
 use web_server::pages::omnisearch::OmnisearchFormParams;
+use zk::ZK;
 
 use std::collections::{HashMap, HashSet};
 
@@ -32,7 +34,7 @@ struct TopicDetails {
 pub fn cluster_topics(cluster_id: ClusterId, cache: State<Cache>) -> String {
     let brokers = cache.brokers.get(&cluster_id);
     if brokers.is_none() {  // TODO: Improve here
-        return json!({"data": []}).to_string();
+        return empty();
     }
 
     let result_data = cache.topics
@@ -64,7 +66,7 @@ pub fn cluster_topics(cluster_id: ClusterId, cache: State<Cache>) -> String {
 pub fn brokers(cluster_id: ClusterId, cache: State<Cache>) -> String {
     let brokers = cache.brokers.get(&cluster_id);
     if brokers.is_none() {  // TODO: Improve here
-        return json!({"data": []}).to_string();
+        return empty();
     }
 
     let brokers = brokers.unwrap();
@@ -130,7 +132,7 @@ fn build_group_list<F>(cache: &Cache, filter: F) -> HashMap<(ClusterId, String),
 pub fn cluster_groups(cluster_id: ClusterId, cache: State<Cache>) -> String {
     let brokers = cache.brokers.get(&cluster_id);
     if brokers.is_none() {  // TODO: Improve here
-        return json!({"data": []}).to_string();
+        return empty();
     }
 
     let groups = build_group_list(cache.inner(), |c, _| c == &cluster_id);
@@ -147,7 +149,7 @@ pub fn cluster_groups(cluster_id: ClusterId, cache: State<Cache>) -> String {
 pub fn topic_groups(cluster_id: ClusterId, topic_name: &RawStr, cache: State<Cache>) -> String {
     let brokers = cache.brokers.get(&cluster_id);
     if brokers.is_none() {  // TODO: Improve here
-        return json!({"data": []}).to_string();
+        return empty();
     }
 
     let groups = build_group_list(cache.inner(), |c, _| c == &cluster_id);
@@ -167,7 +169,7 @@ pub fn topic_groups(cluster_id: ClusterId, topic_name: &RawStr, cache: State<Cac
 pub fn group_members(cluster_id: ClusterId, group_name: &RawStr, cache: State<Cache>) -> String {
     let group = cache.groups.get(&(cluster_id.clone(), group_name.to_string()));
     if group.is_none() {  // TODO: Improve here
-        return json!({"data": []}).to_string();
+        return empty();
     }
 
     let group = group.unwrap();
@@ -192,7 +194,7 @@ pub fn group_offsets(cluster_id: ClusterId, group_name: &RawStr, cache: State<Ca
         Ok(wms) => wms,
         Err(e) => {
             error!("Error while fetching watermarks: {}", e);
-            return json!({"data": []}).to_string();
+            return empty();
         }
     };
 
@@ -250,7 +252,7 @@ fn fetch_watermarks(cluster_id: &ClusterId, offsets: &[((ClusterId, String, Topi
 pub fn topic_topology(cluster_id: ClusterId, topic_name: &RawStr, cache: State<Cache>) -> String {
     let partitions = cache.topics.get(&(cluster_id.to_owned(), topic_name.to_string()));
     if partitions.is_none() {
-        return json!({"data": []}).to_string();
+        return empty();
     }
 
     let topic_metrics = cache.metrics.get(&(cluster_id.clone(), topic_name.to_string()))
@@ -314,6 +316,42 @@ pub fn topic_search(search: OmnisearchFormParams, cache: State<Cache>) -> String
 }
 
 //
+// ********** ZOOKEEPER **********
+// 
+
+#[get("/api/clusters/<cluster_id>/reassignment")]
+pub fn cluster_reassignment(cluster_id: ClusterId, cache: State<Cache>, config: State<Config>) -> String {
+    if cache.brokers.get(&cluster_id).is_none() {
+        return empty();
+    }
+
+    let zk_url = &config
+        .clusters
+        .get(&cluster_id)
+        .unwrap()
+        .zookeeper;
+
+    let zk = match ZK::new(zk_url) {  // TODO: cache ZK clients
+        Ok(zk) => zk,
+        Err(_) => {
+            error!("Error connecting to {:?}", zk_url);
+            return empty()
+        }
+    };
+
+    let reassignment = match zk.pending_reassignment() {
+        Some(reassignment) => reassignment,
+        None => return empty(),
+    };
+
+    let result_data = reassignment.partitions.into_iter()
+        .map(|p| json!((p.topic, p.partition, p.replicas)))
+        .collect::<Vec<_>>();
+
+    json!({"data": result_data}).to_string()
+}
+
+//
 // ********** INTERNALS **********
 //
 
@@ -360,4 +398,8 @@ pub fn live_consumers(live_consumers: State<LiveConsumerStore>) -> String {
                           consumer.last_poll().elapsed().as_secs()))
         .collect::<Vec<_>>();
     json!({"data": result_data}).to_string()
+}
+
+fn empty() -> String {
+    json!({"data": []}).to_string()
 }

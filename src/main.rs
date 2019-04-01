@@ -22,6 +22,7 @@ extern crate regex;
 extern crate scheduled_executor;
 extern crate serde;
 extern crate serde_yaml;
+extern crate zookeeper;
 
 #[macro_use] mod utils;
 mod cache;
@@ -32,6 +33,7 @@ mod metadata;
 mod metrics;
 mod web_server;
 mod offsets;
+mod zk;
 
 use clap::{App, Arg, ArgMatches};
 use scheduled_executor::{ThreadPoolExecutor, TaskGroupScheduler};

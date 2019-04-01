@@ -133,6 +133,24 @@ impl Broker {
 
 
 //
+// ********** REASSIGNMENT **********
+//
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct Reassignment {
+    pub partitions: Vec<PartitionReassignment>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct PartitionReassignment {
+    pub topic: String,
+    pub partition: i32,
+    pub replicas: Vec<BrokerId>,
+    // replicas: &'a [BrokerId],  // This cannot be deserialized with zero-copy :(
+}
+
+
+//
 // ********** GROUPS **********
 //
 
