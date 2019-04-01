@@ -1,12 +1,15 @@
-use maud::{Markup, PreEscaped, html};
+use maud::{html, Markup, PreEscaped};
 use rocket::State;
 
-use web_server::view::layout;
-use cache::{Cache, BrokerCache, TopicCache};
+use cache::{BrokerCache, Cache, TopicCache};
 use metadata::ClusterId;
+use web_server::view::layout;
 
-
-fn cluster_pane_layout(cluster_id: &ClusterId, brokers: usize, topics: usize) -> PreEscaped<String> {
+fn cluster_pane_layout(
+    cluster_id: &ClusterId,
+    brokers: usize,
+    topics: usize,
+) -> PreEscaped<String> {
     let link = format!("/clusters/{}/", cluster_id.name());
     html! {
         div class="col-lg-4 col-md-6" {
@@ -36,7 +39,11 @@ fn cluster_pane_layout(cluster_id: &ClusterId, brokers: usize, topics: usize) ->
     }
 }
 
-fn cluster_pane(cluster_id: &ClusterId, broker_cache: &BrokerCache, topic_cache: &TopicCache) -> PreEscaped<String> {
+fn cluster_pane(
+    cluster_id: &ClusterId,
+    broker_cache: &BrokerCache,
+    topic_cache: &TopicCache,
+) -> PreEscaped<String> {
     let broker_count = broker_cache.get(cluster_id).unwrap_or_default().len();
     let topics_count = topic_cache.count(|&(ref c, _)| c == cluster_id);
     cluster_pane_layout(cluster_id, broker_count, topics_count)

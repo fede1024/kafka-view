@@ -5,8 +5,10 @@ rust:
 before_install:
   - sudo apt-get update -q || true
   - sudo apt-get -y -o Dpkg::Options::="--force-confnew" install docker-ce
+  - rustup component add rustfmt
 script:
   - cargo build
+  - cargo fmt -- --check
   - export DOCKER_REPO=fede1024/kafka-view
 
 after_success:

@@ -1,49 +1,60 @@
-use maud::{PreEscaped, Markup, html};
+use maud::{html, Markup, PreEscaped};
 
+use metadata::{BrokerId, ClusterId};
 use web_server::pages;
 use web_server::view::layout;
-use metadata::{BrokerId, ClusterId};
 
 use cache::Cache;
 use config::Config;
 
 use rocket::State;
 
-
 fn broker_table(cluster_id: &ClusterId) -> PreEscaped<String> {
     let api_url = format!("/api/clusters/{}/brokers", cluster_id);
-    layout::datatable_ajax("brokers-ajax", &api_url, cluster_id.name(),
+    layout::datatable_ajax(
+        "brokers-ajax",
+        &api_url,
+        cluster_id.name(),
         html! { tr { th { "Broker id" } th { "Hostname" }
             th data-toggle="tooltip" data-container="body"
                 title="Total average over the last 15 minutes" { "Total byte rate" }
             th data-toggle="tooltip" data-container="body"
                 title="Total average over the last 15 minutes" { "Total msg rate" }
             }
-        }
+        },
     )
 }
 
 fn topic_table(cluster_id: &ClusterId) -> PreEscaped<String> {
     let api_url = format!("/api/clusters/{}/topics", cluster_id);
-    layout::datatable_ajax("topics-ajax", &api_url, cluster_id.name(),
-               html! { tr { th { "Topic name" } th { "#Partitions" } th { "Status" }
-                     th data-toggle="tooltip" data-container="body" title="Average over the last 15 minutes" { "Byte rate" }
-                     th data-toggle="tooltip" data-container="body" title="Average over the last 15 minutes" { "Msg rate" }
-                   }
-              },
+    layout::datatable_ajax(
+        "topics-ajax",
+        &api_url,
+        cluster_id.name(),
+        html! { tr { th { "Topic name" } th { "#Partitions" } th { "Status" }
+               th data-toggle="tooltip" data-container="body" title="Average over the last 15 minutes" { "Byte rate" }
+               th data-toggle="tooltip" data-container="body" title="Average over the last 15 minutes" { "Msg rate" }
+             }
+        },
     )
 }
 
 fn groups_table(cluster_id: &ClusterId) -> PreEscaped<String> {
     let api_url = format!("/api/clusters/{}/groups", cluster_id);
-    layout::datatable_ajax("groups-ajax", &api_url, cluster_id.name(),
+    layout::datatable_ajax(
+        "groups-ajax",
+        &api_url,
+        cluster_id.name(),
         html! { tr { th { "Group name" } th { "Status" } th { "Registered members" } th { "Stored topic offsets" } } },
     )
 }
 
 fn reassignment_table(cluster_id: &ClusterId) -> PreEscaped<String> {
     let api_url = format!("/api/clusters/{}/reassignment", cluster_id);
-    layout::datatable_ajax("reassignment-ajax", &api_url, cluster_id.name(),
+    layout::datatable_ajax(
+        "reassignment-ajax",
+        &api_url,
+        cluster_id.name(),
         html! { tr { th { "Topic" } th { "Partition" } th { "Reassigned replicas" } } },
     )
 }
@@ -53,7 +64,8 @@ pub fn cluster_page(cluster_id: ClusterId, cache: State<Cache>, config: State<Co
     if cache.brokers.get(&cluster_id).is_none() {
         return pages::warning_page(
             &format!("Cluster: {}", cluster_id),
-            "The specified cluster doesn't exist.")
+            "The specified cluster doesn't exist.",
+        );
     }
 
     let cluster_config = config.clusters.get(&cluster_id);
@@ -85,21 +97,29 @@ pub fn cluster_page(cluster_id: ClusterId, cache: State<Cache>, config: State<Co
 }
 
 #[get("/clusters/<cluster_id>/brokers/<broker_id>")]
-pub fn broker_page(cluster_id: ClusterId, broker_id: BrokerId, cache: State<Cache>, config: State<Config>) -> Markup {
-    let broker = cache.brokers.get(&cluster_id)
-        .and_then(|brokers| brokers.iter()
-            .find(|b| b.id == broker_id)
-            .cloned());
+pub fn broker_page(
+    cluster_id: ClusterId,
+    broker_id: BrokerId,
+    cache: State<Cache>,
+    config: State<Config>,
+) -> Markup {
+    let broker = cache
+        .brokers
+        .get(&cluster_id)
+        .and_then(|brokers| brokers.iter().find(|b| b.id == broker_id).cloned());
     let cluster_config = config.clusters.get(&cluster_id);
 
     if broker.is_none() || cluster_config.is_none() {
         return pages::warning_page(
             &format!("Broker: {}", broker_id),
-            "The specified broker doesn't exist.")
+            "The specified broker doesn't exist.",
+        );
     }
 
     let broker = broker.unwrap();
-    let metrics = cache.metrics.get(&(cluster_id.to_owned(), "__TOTAL__".to_owned()))
+    let metrics = cache
+        .metrics
+        .get(&(cluster_id.to_owned(), "__TOTAL__".to_owned()))
         .unwrap_or_default()
         .aggregate_broker_metrics();
     let content = html! {

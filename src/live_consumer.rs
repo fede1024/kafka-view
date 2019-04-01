@@ -1,21 +1,20 @@
-use rdkafka::Message;
-use rdkafka::message::BorrowedMessage;
-use rdkafka::consumer::{BaseConsumer, Consumer, EmptyConsumerContext};
 use rdkafka::config::ClientConfig;
-use rocket::State;
+use rdkafka::consumer::{BaseConsumer, Consumer, EmptyConsumerContext};
+use rdkafka::message::BorrowedMessage;
+use rdkafka::Message;
 use rocket::http::RawStr;
+use rocket::State;
 use scheduled_executor::ThreadPoolExecutor;
 
 use config::{ClusterConfig, Config};
-use metadata::ClusterId;
 use error::*;
+use metadata::ClusterId;
 
-use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::{Duration, Instant};
 use std::borrow::Cow;
-
+use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, RwLock};
+use std::time::{Duration, Instant};
 
 pub struct LiveConsumer {
     id: u64,
@@ -57,7 +56,8 @@ impl LiveConsumer {
         debug!("Activating live consumer for {}", self.topic);
 
         // TODO: use assign instead
-        self.consumer.subscribe(vec![self.topic.as_str()].as_slice())
+        self.consumer
+            .subscribe(vec![self.topic.as_str()].as_slice())
             .chain_err(|| "Can't subscribe to specified topics")?;
         self.active.store(true, Ordering::Relaxed);
         Ok(())
@@ -90,15 +90,19 @@ impl LiveConsumer {
 
         while Instant::elapsed(&start_time) < timeout && buffer.len() < max_msg {
             match self.consumer.poll(100) {
-                None => {},
+                None => {}
                 Some(Ok(m)) => buffer.push(m),
                 Some(Err(e)) => {
                     error!("Error while receiving message {:?}", e);
-                },
+                }
             };
         }
 
-        debug!("{} messages received in {:?}", buffer.len(), Instant::elapsed(&start_time));
+        debug!(
+            "{} messages received in {:?}",
+            buffer.len(),
+            Instant::elapsed(&start_time)
+        );
         buffer
     }
 }
@@ -130,7 +134,7 @@ impl LiveConsumerStore {
             move |_handle| {
                 let mut consumers = consumers_clone.write().unwrap();
                 remove_idle_consumers(&mut *consumers);
-            }
+            },
         );
         LiveConsumerStore {
             consumers,
@@ -143,7 +147,12 @@ impl LiveConsumerStore {
         (*consumers).get(&id).cloned()
     }
 
-    fn add_consumer(&self, id: u64, cluster_config: &ClusterConfig, topic: &str) -> Result<Arc<LiveConsumer>> {
+    fn add_consumer(
+        &self,
+        id: u64,
+        cluster_config: &ClusterConfig,
+        topic: &str,
+    ) -> Result<Arc<LiveConsumer>> {
         let live_consumer = LiveConsumer::new(id, cluster_config, topic)
             .chain_err(|| "Failed to create live consumer")?;
 
@@ -152,22 +161,25 @@ impl LiveConsumerStore {
         // Add consumer immediately to the store, to prevent other threads from adding it again.
         match self.consumers.write() {
             Ok(mut consumers) => (*consumers).insert(id, live_consumer_arc.clone()),
-            Err(_) => panic!("Poison error while writing consumer to cache")
+            Err(_) => panic!("Poison error while writing consumer to cache"),
         };
 
-        live_consumer_arc.activate()
+        live_consumer_arc
+            .activate()
             .chain_err(|| "Failed to activate live consumer")?;
 
         Ok(live_consumer_arc)
     }
 
     pub fn consumers(&self) -> Vec<Arc<LiveConsumer>> {
-        self.consumers.read().unwrap().iter()
+        self.consumers
+            .read()
+            .unwrap()
+            .iter()
             .map(|(_, consumer)| consumer.clone())
             .collect::<Vec<_>>()
     }
 }
-
 
 // TODO: check log in case of error
 
@@ -188,8 +200,14 @@ pub fn test_live_consumer_api(
 
     let consumer = match live_consumers_store.get_consumer(id) {
         Some(consumer) => consumer,
-        None => live_consumers_store.add_consumer(id, cluster_config, topic)
-            .chain_err(|| format!("Error while creating live consumer for {} {}", cluster_id, topic))?,
+        None => live_consumers_store
+            .add_consumer(id, cluster_config, topic)
+            .chain_err(|| {
+                format!(
+                    "Error while creating live consumer for {} {}",
+                    cluster_id, topic
+                )
+            })?,
     };
 
     if !consumer.is_active() {
@@ -199,14 +217,15 @@ pub fn test_live_consumer_api(
 
     let mut output = Vec::new();
     for message in consumer.poll(100, Duration::from_secs(3)) {
-        let payload = message.payload()
+        let payload = message
+            .payload()
             .map(|bytes| String::from_utf8_lossy(bytes))
             .unwrap_or(Cow::Borrowed(""));
         if payload.len() > 1024 {
             let truncated = format!("{}...", payload.chars().take(1024).collect::<String>());
-            output.push(json!{(message.partition(), message.offset(), truncated)});
+            output.push(json! {(message.partition(), message.offset(), truncated)});
         } else {
-            output.push(json!{(message.partition(), message.offset(), payload)});
+            output.push(json! {(message.partition(), message.offset(), payload)});
         };
     }
 

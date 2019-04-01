@@ -1,14 +1,15 @@
 use serde_yaml;
 
-use metadata::ClusterId;
 use error::*;
+use metadata::ClusterId;
 
 use std::collections::HashMap;
-use std::io::prelude::*;
 use std::fs::File;
+use std::io::prelude::*;
 
-
-fn default_true() -> bool { true }
+fn default_true() -> bool {
+    true
+}
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ClusterConfig {
@@ -54,14 +55,13 @@ impl Config {
 }
 
 pub fn read_config(path: &str) -> Result<Config> {
-    let mut f = File::open(path)
-        .chain_err(|| "Unable to open configuration file")?;;
+    let mut f = File::open(path).chain_err(|| "Unable to open configuration file")?;;
     let mut s = String::new();
     f.read_to_string(&mut s)
         .chain_err(|| "Unable to read configuration file")?;
 
-    let mut config: Config = serde_yaml::from_str(&s)
-        .chain_err(|| "Unable to parse configuration file")?;
+    let mut config: Config =
+        serde_yaml::from_str(&s).chain_err(|| "Unable to parse configuration file")?;
 
     for (cluster_id, cluster) in &mut config.clusters {
         cluster.cluster_id = Some(cluster_id.clone());

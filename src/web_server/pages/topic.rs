@@ -1,4 +1,4 @@
-use maud::{PreEscaped, Markup, html};
+use maud::{html, Markup, PreEscaped};
 use rand::random;
 use rocket::http::RawStr;
 
@@ -10,18 +10,26 @@ use web_server::view::layout;
 
 use rocket::State;
 
-
 fn topic_table(cluster_id: &ClusterId, topic_name: &str) -> PreEscaped<String> {
-    let api_url = format!("/api/clusters/{}/topics/{}/topology", cluster_id, topic_name);
-    layout::datatable_ajax("topology-ajax", &api_url, cluster_id.name(),
-        html! { tr { th { "Id" } th { "Size" } th { "Leader" } th { "Replicas" } th { "ISR" } th { "Status" } } }
+    let api_url = format!(
+        "/api/clusters/{}/topics/{}/topology",
+        cluster_id, topic_name
+    );
+    layout::datatable_ajax(
+        "topology-ajax",
+        &api_url,
+        cluster_id.name(),
+        html! { tr { th { "Id" } th { "Size" } th { "Leader" } th { "Replicas" } th { "ISR" } th { "Status" } } },
     )
 }
 
 fn consumer_groups_table(cluster_id: &ClusterId, topic_name: &str) -> PreEscaped<String> {
     let api_url = format!("/api/clusters/{}/topics/{}/groups", cluster_id, topic_name);
-    layout::datatable_ajax("groups-ajax", &api_url, cluster_id.name(),
-           html! { tr { th { "Group name" } th { "Status" } th { "Registered members" } th { "Stored topic offsets" } } },
+    layout::datatable_ajax(
+        "groups-ajax",
+        &api_url,
+        cluster_id.name(),
+        html! { tr { th { "Group name" } th { "Status" } th { "Registered members" } th { "Stored topic offsets" } } },
     )
 }
 
@@ -45,20 +53,34 @@ fn topic_tailer_panel(cluster_id: &ClusterId, topic: &str, tailer_id: u64) -> Pr
 }
 
 #[get("/clusters/<cluster_id>/topics/<topic_name>")]
-pub fn topic_page(cluster_id: ClusterId, topic_name: &RawStr, cache: State<Cache>, config: State<Config>) -> Markup {
-    let partitions = match cache.topics.get(&(cluster_id.clone(), topic_name.to_string())) {
+pub fn topic_page(
+    cluster_id: ClusterId,
+    topic_name: &RawStr,
+    cache: State<Cache>,
+    config: State<Config>,
+) -> Markup {
+    let partitions = match cache
+        .topics
+        .get(&(cluster_id.clone(), topic_name.to_string()))
+    {
         Some(partitions) => partitions,
         None => {
             return pages::warning_page(
                 &format!("Topic: {}", cluster_id),
-                "The specified cluster doesn't exist.")
+                "The specified cluster doesn't exist.",
+            )
         }
     };
 
     let cluster_config = config.clusters.get(&cluster_id).unwrap();
-    let _ = cache.brokers.get(&cluster_id).expect("Cluster should exist");  // TODO: handle better
+    let _ = cache
+        .brokers
+        .get(&cluster_id)
+        .expect("Cluster should exist"); // TODO: handle better
 
-    let metrics = cache.metrics.get(&(cluster_id.clone(), topic_name.to_string()))
+    let metrics = cache
+        .metrics
+        .get(&(cluster_id.clone(), topic_name.to_string()))
         .unwrap_or_default()
         .aggregate_broker_metrics();
 
@@ -90,4 +112,3 @@ pub fn topic_page(cluster_id: ClusterId, topic_name: &RawStr, cache: State<Cache
 
     layout::page(&format!("Topic: {}", topic_name), content)
 }
-

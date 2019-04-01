@@ -1,24 +1,33 @@
-use maud::{Markup, PreEscaped, html};
+use maud::{html, Markup, PreEscaped};
 use rocket::State;
 
 use cache::Cache;
 use web_server::view::layout;
 
 fn broker_table() -> PreEscaped<String> {
-    layout::datatable_ajax("internals-cache-brokers-ajax", "/api/internals/cache/brokers", "",
-        html! { tr { th { "Cluster id" } th { "Broker ids" } } }
+    layout::datatable_ajax(
+        "internals-cache-brokers-ajax",
+        "/api/internals/cache/brokers",
+        "",
+        html! { tr { th { "Cluster id" } th { "Broker ids" } } },
     )
 }
 
 fn metrics_table() -> PreEscaped<String> {
-    layout::datatable_ajax("internals-cache-metrics-ajax", "/api/internals/cache/metrics", "",
-        html! { tr { th { "Cluster id" } th { "Topic name" } th { "Brokers" } } }
+    layout::datatable_ajax(
+        "internals-cache-metrics-ajax",
+        "/api/internals/cache/metrics",
+        "",
+        html! { tr { th { "Cluster id" } th { "Topic name" } th { "Brokers" } } },
     )
 }
 
 fn offsets_table() -> PreEscaped<String> {
-    layout::datatable_ajax("internals-cache-offsets-ajax", "/api/internals/cache/offsets", "",
-                           html! { tr { th { "Cluster id" } th { "Consumer group" } th { "Topic name" } th { "Offsets" } } }
+    layout::datatable_ajax(
+        "internals-cache-offsets-ajax",
+        "/api/internals/cache/offsets",
+        "",
+        html! { tr { th { "Cluster id" } th { "Consumer group" } th { "Topic name" } th { "Offsets" } } },
     )
 }
 
@@ -62,10 +71,12 @@ pub fn caches_page(cache: State<Cache>) -> Markup {
     layout::page("Caches", content)
 }
 
-
 fn live_consumers_table() -> PreEscaped<String> {
-    layout::datatable_ajax("internals-live-consumers-ajax", "/api/internals/live_consumers", "",
-       html! { tr { th { "Id" } th { "Cluster id" } th { "Topic name" } th { "Last poll" } } }
+    layout::datatable_ajax(
+        "internals-live-consumers-ajax",
+        "/api/internals/live_consumers",
+        "",
+        html! { tr { th { "Id" } th { "Cluster id" } th { "Topic name" } th { "Last poll" } } },
     )
 }
 

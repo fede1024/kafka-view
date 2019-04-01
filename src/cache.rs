@@ -1,20 +1,20 @@
 use futures::stream::Stream;
+use rand::random;
 use rdkafka::client::EmptyContext;
 use rdkafka::config::{ClientConfig, TopicConfig};
 use rdkafka::consumer::stream_consumer::StreamConsumer;
 use rdkafka::consumer::{Consumer, EmptyConsumerContext};
-use rdkafka::producer::FutureProducer;
 use rdkafka::error::KafkaError;
-use rdkafka::message::{Message, BorrowedMessage, OwnedMessage};
-use rdkafka::util::{millis_to_epoch, duration_to_millis};
+use rdkafka::message::{BorrowedMessage, Message, OwnedMessage};
+use rdkafka::producer::FutureProducer;
+use rdkafka::util::{duration_to_millis, millis_to_epoch};
 use serde::de::{Deserialize, DeserializeOwned};
 use serde::ser::Serialize;
 use serde_json;
-use rand::random;
 
 use std::borrow::Borrow;
-use std::collections::{HashMap, HashSet};
 use std::collections::hash_map;
+use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, SystemTime};
@@ -23,14 +23,15 @@ use error::*;
 use metadata::{Broker, ClusterId, Group, Partition, TopicName};
 use metrics::TopicMetrics;
 
-
 #[derive(Serialize, Deserialize, Debug, Hash, Eq, PartialEq)]
 struct WrappedKey(String, String);
 
 impl WrappedKey {
     fn new<'de, K>(cache_name: String, key: &'de K) -> WrappedKey
-            where K: Serialize + Deserialize<'de> {
-        WrappedKey(cache_name, serde_json::to_string(key).unwrap())  //TODO: error handling
+    where
+        K: Serialize + Deserialize<'de>,
+    {
+        WrappedKey(cache_name, serde_json::to_string(key).unwrap()) //TODO: error handling
     }
 
     pub fn cache_name(&self) -> &str {
@@ -41,7 +42,6 @@ impl WrappedKey {
         &self.1
     }
 }
-
 
 //
 // ********* REPLICA WRITER **********
@@ -74,14 +74,19 @@ impl ReplicaWriter {
     /// Writes a new update into the topic. The name of the replicated map and the key will be
     /// serialized together as key of the message, and the value will be serialized in the payload.
     pub fn update<'de, K, V>(&self, name: &str, key: &'de K, value: &'de V) -> Result<()>
-            where K: Serialize + Deserialize<'de> + Clone,
-                  V: Serialize + Deserialize<'de> {
+    where
+        K: Serialize + Deserialize<'de> + Clone,
+        V: Serialize + Deserialize<'de>,
+    {
         let serialized_key = serde_json::to_vec(&WrappedKey::new(name.to_owned(), key))
             .chain_err(|| "Failed to serialize key")?;
-        let serialized_value = serde_json::to_vec(&value)
-            .chain_err(|| "Failed to serialize value")?;
-        trace!("Serialized update size: key={:.3}KB value={:.3}KB",
-            (serialized_key.len() as f64 / 1000f64), (serialized_value.len() as f64 / 1000f64));
+        let serialized_value =
+            serde_json::to_vec(&value).chain_err(|| "Failed to serialize value")?;
+        trace!(
+            "Serialized update size: key={:.3}KB value={:.3}KB",
+            (serialized_key.len() as f64 / 1000f64),
+            (serialized_value.len() as f64 / 1000f64)
+        );
         let ts = millis_to_epoch(SystemTime::now());
         let _f = self.producer.send_copy(
             self.topic_name.as_str(),
@@ -97,7 +102,9 @@ impl ReplicaWriter {
 
     /// Deletes an element from the specified cache
     pub fn delete<'de, K>(&self, name: &str, key: &'de K) -> Result<()>
-            where K: Serialize + Deserialize<'de> + Clone {
+    where
+        K: Serialize + Deserialize<'de> + Clone,
+    {
         let serialized_key = serde_json::to_vec(&WrappedKey::new(name.to_owned(), key))
             .chain_err(|| "Failed to serialize key")?;
         self.write_tombstone(&serialized_key)
@@ -112,7 +119,7 @@ impl ReplicaWriter {
             None,
             Some(&message_key),
             Some(ts),
-            1000
+            1000,
         );
         Ok(())
     }
@@ -124,8 +131,14 @@ impl ReplicaWriter {
 
 #[derive(Debug)]
 pub enum ReplicaCacheUpdate<'a> {
-    Set { key: &'a str, payload: &'a[u8], timestamp: u64 },
-    Delete { key: &'a str }
+    Set {
+        key: &'a str,
+        payload: &'a [u8],
+        timestamp: u64,
+    },
+    Delete {
+        key: &'a str,
+    },
 }
 
 pub trait UpdateReceiver: Send + 'static {
@@ -144,7 +157,10 @@ pub struct ReplicaReader {
 impl ReplicaReader {
     pub fn new(brokers: &str, topic_name: &str) -> Result<ReplicaReader> {
         let consumer: ReplicaConsumer = ClientConfig::new()
-            .set("group.id", &format!("kafka_web_cache_reader_{}", random::<i64>()))
+            .set(
+                "group.id",
+                &format!("kafka_web_cache_reader_{}", random::<i64>()),
+            )
             .set("bootstrap.servers", brokers)
             .set("session.timeout.ms", "6000")
             .set("enable.auto.commit", "false")
@@ -153,14 +169,16 @@ impl ReplicaReader {
             .set("api.version.request", "true")
             .set_default_topic_config(
                 TopicConfig::new()
-                .set("auto.offset.reset", "smallest")
-                .finalize())
+                    .set("auto.offset.reset", "smallest")
+                    .finalize(),
+            )
             .create()
             .chain_err(|| "Consumer creation failed")?;
 
         //let topic_partition = TopicPartitionList::with_topics(&vec![topic_name]);
         // consumer.assign(&topic_partition)
-        consumer.subscribe(&[topic_name])
+        consumer
+            .subscribe(&[topic_name])
             .chain_err(|| "Can't subscribe to specified topics")?;
 
         Ok(ReplicaReader {
@@ -185,11 +203,14 @@ impl ReplicaReader {
                         Some(payload) => ReplicaCacheUpdate::Set {
                             key: w_key.serialized_key(),
                             payload,
-                            timestamp: message.timestamp().to_millis()
-                                .unwrap_or_else(|| millis_to_epoch(SystemTime::now())) as u64,
+                            timestamp: message
+                                .timestamp()
+                                .to_millis()
+                                .unwrap_or_else(|| millis_to_epoch(SystemTime::now()))
+                                as u64,
                         },
                         None => ReplicaCacheUpdate::Delete {
-                            key: w_key.serialized_key()
+                            key: w_key.serialized_key(),
                         },
                     };
                     if let Err(e) = receiver.receive_update(w_key.cache_name(), update) {
@@ -208,16 +229,21 @@ impl ReplicaReader {
         let mut state = HashMap::new();
 
         let topic_name = &self.topic_name;
-        let metadata = self.consumer.fetch_metadata(Some(topic_name), 30000)
+        let metadata = self
+            .consumer
+            .fetch_metadata(Some(topic_name), 30000)
             .chain_err(|| "Failed to fetch metadata")?;
 
         if metadata.topics().is_empty() {
-            warn!("No replicator topic found ({} {})", self.brokers, self.topic_name);
+            warn!(
+                "No replicator topic found ({} {})",
+                self.brokers, self.topic_name
+            );
             return Ok(HashMap::new());
         }
         let topic_metadata = &metadata.topics()[0];
         if topic_metadata.partitions().is_empty() {
-            return Ok(state);  // Topic is empty and auto created
+            return Ok(state); // Topic is empty and auto created
         }
 
         let message_stream = self.consumer.start();
@@ -227,11 +253,15 @@ impl ReplicaReader {
                 Ok(Ok(m)) => {
                     self.processed_messages += 1;
                     match parse_message_key(&m).chain_err(|| "Failed to parse message key") {
-                        Ok(wrapped_key) => { borrowed_state.insert(wrapped_key, m);},
+                        Ok(wrapped_key) => {
+                            borrowed_state.insert(wrapped_key, m);
+                        }
                         Err(e) => format_error_chain!(e),
                     };
-                },
-                Ok(Err(KafkaError::PartitionEOF(p))) => { eof_set.insert(p); },
+                }
+                Ok(Err(KafkaError::PartitionEOF(p))) => {
+                    eof_set.insert(p);
+                }
                 Ok(Err(e)) => error!("Error while reading from Kafka: {}", e),
                 Err(_) => error!("Stream receive error"),
             };
@@ -265,7 +295,6 @@ fn parse_message_key(message: &BorrowedMessage) -> Result<WrappedKey> {
     Ok(wrapped_key)
 }
 
-
 //
 // ********** REPLICATED MAP **********
 //
@@ -273,7 +302,7 @@ fn parse_message_key(message: &BorrowedMessage) -> Result<WrappedKey> {
 #[derive(Clone)]
 struct ValueContainer<V> {
     value: V,
-    updated: u64,  // millis since epoch
+    updated: u64, // millis since epoch
 }
 
 impl<V> ValueContainer<V> {
@@ -293,16 +322,20 @@ impl<V> ValueContainer<V> {
 }
 
 pub struct ReplicatedMap<K, V>
-        where K: Eq + Hash + Clone + Serialize + DeserializeOwned,
-              V: Clone + PartialEq + Serialize + DeserializeOwned {
+where
+    K: Eq + Hash + Clone + Serialize + DeserializeOwned,
+    V: Clone + PartialEq + Serialize + DeserializeOwned,
+{
     name: String,
     map: Arc<RwLock<HashMap<K, ValueContainer<V>>>>,
     replica_writer: Arc<ReplicaWriter>,
 }
 
 impl<K, V> ReplicatedMap<K, V>
-        where K: Eq + Hash + Clone + Serialize + DeserializeOwned,
-              V: Clone + PartialEq + Serialize + DeserializeOwned {
+where
+    K: Eq + Hash + Clone + Serialize + DeserializeOwned,
+    V: Clone + PartialEq + Serialize + DeserializeOwned,
+{
     pub fn new(name: &str, replica_writer: Arc<ReplicaWriter>) -> ReplicatedMap<K, V> {
         ReplicatedMap {
             name: name.to_owned(),
@@ -328,16 +361,18 @@ impl<K, V> ReplicatedMap<K, V>
 
     fn receive_update(&self, update: ReplicaCacheUpdate) -> Result<()> {
         match update {
-            ReplicaCacheUpdate::Set { key, payload, timestamp } => {
-                let key = serde_json::from_str::<K>(key)
-                    .chain_err(|| "Failed to parse key")?;
-                let value = serde_json::from_slice::<V>(payload)
-                    .chain_err(|| "Failed to parse payload")?;
+            ReplicaCacheUpdate::Set {
+                key,
+                payload,
+                timestamp,
+            } => {
+                let key = serde_json::from_str::<K>(key).chain_err(|| "Failed to parse key")?;
+                let value =
+                    serde_json::from_slice::<V>(payload).chain_err(|| "Failed to parse payload")?;
                 self.local_update(key, value, Some(timestamp));
-            },
+            }
             ReplicaCacheUpdate::Delete { key } => {
-                let key = serde_json::from_str::<K>(key)
-                    .chain_err(|| "Failed to parse key")?;
+                let key = serde_json::from_str::<K>(key).chain_err(|| "Failed to parse key")?;
                 self.local_remove(&key);
             }
         }
@@ -366,7 +401,8 @@ impl<K, V> ReplicatedMap<K, V>
     pub fn insert(&self, key: K, new_value: V) -> Result<()> {
         let current_value = self.get(&key);
         if current_value.is_none() || current_value.unwrap() != new_value {
-            self.replica_writer.update(&self.name, &key, &new_value)
+            self.replica_writer
+                .update(&self.name, &key, &new_value)
                 .chain_err(|| "Failed to write cache update")?;
         }
         self.local_update(key, new_value, None);
@@ -374,7 +410,8 @@ impl<K, V> ReplicatedMap<K, V>
     }
 
     pub fn remove(&self, key: &K) -> Result<()> {
-        self.replica_writer.delete(&self.name, key)
+        self.replica_writer
+            .delete(&self.name, key)
             .chain_err(|| "Failed to write cache delete")?;
         self.local_remove(key);
         Ok(())
@@ -385,7 +422,8 @@ impl<K, V> ReplicatedMap<K, V>
             let cache = self.map.read().unwrap();
             let max_ms = duration_to_millis(max_age) as i64;
             let current_ms = millis_to_epoch(SystemTime::now());
-            cache.iter()
+            cache
+                .iter()
                 .filter(|&(_, v)| (current_ms as i64) - (v.updated as i64) > max_ms)
                 .map(|(k, _)| k.clone())
                 .collect::<Vec<_>>()
@@ -399,8 +437,9 @@ impl<K, V> ReplicatedMap<K, V>
     }
 
     pub fn get<Q: ?Sized>(&self, key: &Q) -> Option<V>
-        where K: Borrow<Q>,
-              Q: Hash + Eq
+    where
+        K: Borrow<Q>,
+        Q: Hash + Eq,
     {
         match self.map.read() {
             Ok(cache) => (*cache).get(key).map(|v| v.value.clone()),
@@ -410,23 +449,29 @@ impl<K, V> ReplicatedMap<K, V>
 
     // TODO: add doc
     pub fn lock_iter<F, R>(&self, f: F) -> R
-            where for <'a> F: Fn(ReplicatedMapIter<'a, K, V>) -> R {
+    where
+        for<'a> F: Fn(ReplicatedMapIter<'a, K, V>) -> R,
+    {
         match self.map.read() {
             Ok(cache) => {
                 let iter = ReplicatedMapIter::new(cache.iter());
                 f(iter)
-            },
+            }
             Err(_) => panic!("Poison error"),
         }
     }
 
     pub fn count<F>(&self, f: F) -> usize
-            where F: Fn(&K) -> bool {
+    where
+        F: Fn(&K) -> bool,
+    {
         self.lock_iter(|iter| iter.filter(|&(k, _)| f(k)).count())
     }
 
     pub fn filter_clone<F>(&self, f: F) -> Vec<(K, V)>
-            where F: Fn(&K) -> bool {
+    where
+        F: Fn(&K) -> bool,
+    {
         self.lock_iter(|iter| {
             iter.filter(|&(k, _)| f(k))
                 .map(|(k, v)| (k.clone(), v.clone()))
@@ -434,17 +479,19 @@ impl<K, V> ReplicatedMap<K, V>
         })
     }
 
-//    pub fn filter_clone_v<F>(&self, f: F) -> Vec<V>
-//            where F: Fn(&K) -> bool {
-//        self.lock_iter(|iter| {
-//            iter.filter(|&(k, _)| f(k))
-//                .map(|(_, v)| v.clone())
-//                .collect::<Vec<V>>()
-//        })
-//    }
+    //    pub fn filter_clone_v<F>(&self, f: F) -> Vec<V>
+    //            where F: Fn(&K) -> bool {
+    //        self.lock_iter(|iter| {
+    //            iter.filter(|&(k, _)| f(k))
+    //                .map(|(_, v)| v.clone())
+    //                .collect::<Vec<V>>()
+    //        })
+    //    }
 
     pub fn filter_clone_k<F>(&self, f: F) -> Vec<K>
-            where F: Fn(&K) -> bool {
+    where
+        F: Fn(&K) -> bool,
+    {
         self.lock_iter(|iter| {
             iter.filter(|&(k, _)| f(k))
                 .map(|(k, _)| k.clone())
@@ -454,13 +501,18 @@ impl<K, V> ReplicatedMap<K, V>
 }
 
 pub struct ReplicatedMapIter<'a, K, V>
-        where K: 'a, V: 'a {
-    inner: hash_map::Iter<'a, K, ValueContainer<V>>
+where
+    K: 'a,
+    V: 'a,
+{
+    inner: hash_map::Iter<'a, K, ValueContainer<V>>,
 }
 
 impl<'a, K, V> ReplicatedMapIter<'a, K, V>
-    where K: 'a, V: 'a {
-
+where
+    K: 'a,
+    V: 'a,
+{
     fn new(inner: hash_map::Iter<'a, K, ValueContainer<V>>) -> ReplicatedMapIter<'a, K, V> {
         ReplicatedMapIter { inner }
     }
@@ -470,11 +522,9 @@ impl<'a, K, V> Iterator for ReplicatedMapIter<'a, K, V> {
     type Item = (&'a K, &'a V);
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.inner.next()
-            .map(|(k, v)| (k, &v.value))
+        self.inner.next().map(|(k, v)| (k, &v.value))
     }
 }
-
 
 //
 // ********** CACHE **********
@@ -498,7 +548,6 @@ pub type OffsetsCache = ReplicatedMap<(ClusterId, String, TopicName), Vec<i64>>;
 /// Offsets for the internal consumers of the __consumer_offsets topic
 pub type InternalConsumerOffsetCache = ReplicatedMap<ClusterId, Vec<i64>>;
 
-
 pub struct Cache {
     pub metrics: MetricsCache,
     pub offsets: OffsetsCache,
@@ -517,7 +566,7 @@ impl Cache {
             brokers: ReplicatedMap::new("brokers", replica_writer_arc.clone()),
             topics: ReplicatedMap::new("topics", replica_writer_arc.clone()),
             groups: ReplicatedMap::new("groups", replica_writer_arc.clone()),
-            internal_offsets: ReplicatedMap::new("internal_offsets", replica_writer_arc)
+            internal_offsets: ReplicatedMap::new("internal_offsets", replica_writer_arc),
         }
     }
 

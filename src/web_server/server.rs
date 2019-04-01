@@ -1,21 +1,20 @@
-use rocket::request::{FromParam, Request};
-use rocket::response::{self, Redirect, Responder, NamedFile};
 use rocket;
 use rocket::http::RawStr;
+use rocket::request::{FromParam, Request};
+use rocket::response::{self, NamedFile, Redirect, Responder};
 use scheduled_executor::ThreadPoolExecutor;
 
-use error::*;
-use web_server::pages;
-use web_server::api;
 use cache::Cache;
 use config::Config;
-use metadata::ClusterId;
+use error::*;
 use live_consumer::{self, LiveConsumerStore};
+use metadata::ClusterId;
 use utils::{GZip, RequestLogger};
+use web_server::api;
+use web_server::pages;
 
-use std::path::{Path, PathBuf};
 use std;
-
+use std::path::{Path, PathBuf};
 
 #[get("/")]
 fn index() -> Redirect {
@@ -40,7 +39,7 @@ fn files(file: PathBuf) -> Option<CachedFile> {
 
 #[get("/public/<file..>?<version>")]
 fn files_v(file: PathBuf, version: &RawStr) -> Option<CachedFile> {
-    let _ = version;  // just ignore version
+    let _ = version; // just ignore version
     NamedFile::open(Path::new("resources/web_server/public/").join(file))
         .map(CachedFile::from)
         .ok()
@@ -65,14 +64,20 @@ impl<'a> Responder<'a> for CachedFile {
     fn respond_to(self, request: &Request) -> response::Result<'a> {
         let inner_response = self.file.respond_to(request).unwrap(); // fixme
         response::Response::build_from(inner_response)
-            .raw_header("Cache-Control", format!("max-age={}, must-revalidate", self.ttl))
+            .raw_header(
+                "Cache-Control",
+                format!("max-age={}, must-revalidate", self.ttl),
+            )
             .ok()
     }
 }
 
 pub fn run_server(executor: &ThreadPoolExecutor, cache: Cache, config: &Config) -> Result<()> {
     let version = option_env!("CARGO_PKG_VERSION").unwrap_or("?");
-    info!("Starting kafka-view v{}, listening on {}:{}.", version, config.listen_host, config.listen_port);
+    info!(
+        "Starting kafka-view v{}, listening on {}:{}.",
+        version, config.listen_host, config.listen_port
+    );
 
     let rocket_env = rocket::config::Environment::active()
         .chain_err(|| "Invalid ROCKET_ENV environment variable")?;
@@ -89,41 +94,43 @@ pub fn run_server(executor: &ThreadPoolExecutor, cache: Cache, config: &Config) 
         .manage(cache)
         .manage(config.clone())
         .manage(LiveConsumerStore::new(executor.clone()))
-        .mount("/", routes![
-            index,
-            files,
-            files_v,
-            pages::cluster::cluster_page,
-            pages::cluster::broker_page,
-            pages::clusters::clusters_page,
-            pages::group::group_page,
-            pages::internals::caches_page,
-            pages::internals::live_consumers_page,
-            pages::omnisearch::consumer_search,
-            pages::omnisearch::consumer_search_p,
-            pages::omnisearch::omnisearch,
-            pages::omnisearch::omnisearch_p,
-            pages::omnisearch::topic_search,
-            pages::omnisearch::topic_search_p,
-            pages::topic::topic_page,
-            api::brokers,
-            api::cache_brokers,
-            api::cache_metrics,
-            api::cache_offsets,
-            api::cluster_reassignment,
-            api::live_consumers,
-            api::cluster_groups,
-            api::cluster_topics,
-            api::consumer_search,
-            api::group_members,
-            api::group_offsets,
-            api::topic_groups,
-            api::topic_search,
-            api::topic_topology,
-            live_consumer::test_live_consumer_api,
-        ])
+        .mount(
+            "/",
+            routes![
+                index,
+                files,
+                files_v,
+                pages::cluster::cluster_page,
+                pages::cluster::broker_page,
+                pages::clusters::clusters_page,
+                pages::group::group_page,
+                pages::internals::caches_page,
+                pages::internals::live_consumers_page,
+                pages::omnisearch::consumer_search,
+                pages::omnisearch::consumer_search_p,
+                pages::omnisearch::omnisearch,
+                pages::omnisearch::omnisearch_p,
+                pages::omnisearch::topic_search,
+                pages::omnisearch::topic_search_p,
+                pages::topic::topic_page,
+                api::brokers,
+                api::cache_brokers,
+                api::cache_metrics,
+                api::cache_offsets,
+                api::cluster_reassignment,
+                api::live_consumers,
+                api::cluster_groups,
+                api::cluster_topics,
+                api::consumer_search,
+                api::group_members,
+                api::group_offsets,
+                api::topic_groups,
+                api::topic_search,
+                api::topic_topology,
+                live_consumer::test_live_consumer_api,
+            ],
+        )
         .launch();
 
     Ok(())
 }
-
