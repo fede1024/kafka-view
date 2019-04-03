@@ -463,7 +463,27 @@ pub fn cluster_reassignment(
     let result_data = reassignment
         .partitions
         .into_iter()
-        .map(|p| json!((p.topic, p.partition, p.replicas)))
+        .map(|p| {
+            let topic_metrics = cache
+                .metrics
+                .get(&(cluster_id.clone(), p.topic.to_owned()))
+                .unwrap_or_default();
+
+            let replica_metrics = p.replicas
+                .iter()
+                .map(|ref r| {
+                    topic_metrics
+                        .brokers
+                        .get(&r)
+                        .and_then(|b| b.partitions.get(p.partition as usize))
+                        .cloned()
+                        .unwrap_or_default()
+                        .size_bytes
+                })
+                .collect::<Vec<_>>();
+
+            json!((p.topic, p.partition, p.replicas, replica_metrics))
+        })
         .collect::<Vec<_>>();
 
     json!({ "data": result_data }).to_string()

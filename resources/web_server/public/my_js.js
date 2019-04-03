@@ -29,17 +29,32 @@ function formatToHuman(value, decimals, suffix, k, sizes) {
        var i = Math.floor(Math.log(value) / Math.log(k));
        var result = parseFloat((value / Math.pow(k, i)).toFixed(decimals));
    }
+//    return result + sizes[i] + suffix;
    return $('<span>', { text: result + sizes[i] + suffix, title: value }).tooltip();
 }
 
-function bytes_to_human(cell, suffix) {
-    var bytes = parseInt(cell.innerHTML);
+function _bytes_to_human(value, suffix) {
+    var bytes = parseInt(value);
     var sizes = [' B', ' KiB', ' MiB', ' GiB', ' TiB', ' PiB'];
     if (bytes == -1) {
-        $(cell).html("Unknown");
+        return "Unknown";
     } else {
-        $(cell).html(formatToHuman(bytes, 1, suffix, 1024, sizes));
+        return formatToHuman(bytes, 1, suffix, 1024, sizes);
     }
+}
+
+function bytes_to_human(cell, suffix) {
+    var values = cell.innerHTML.split(",");
+    cell.innerHTML = "";
+
+    values.forEach(function(value, i) {
+        var bytes = _bytes_to_human(value, suffix);
+        $(cell).append(bytes);
+
+        if (i < values.length - 1) {
+            cell.innerHTML += ",";
+        }
+    });
 }
 
 function big_num_to_human(cell, suffix) {
@@ -170,6 +185,7 @@ $(document).ready(function() {
             "createdRow": function(row, data, index) {
                 var cluster_id = $(this).attr("data-param");
                 topic_to_url(cluster_id, $(row).children()[0]);
+                bytes_to_human($(row).children()[3], "");
             }
         });
     });

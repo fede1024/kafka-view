@@ -55,7 +55,7 @@ fn reassignment_table(cluster_id: &ClusterId) -> PreEscaped<String> {
         "reassignment-ajax",
         &api_url,
         cluster_id.name(),
-        html! { tr { th { "Topic" } th { "Partition" } th { "Reassigned replicas" } } },
+        html! { tr { th { "Topic" } th { "Partition" } th { "Reassigned replicas" } th { "Replica sizes" } } },
     )
 }
 
