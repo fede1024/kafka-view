@@ -236,7 +236,7 @@ pub fn group_members(cluster_id: ClusterId, group_name: &RawStr, cache: State<Ca
                     assign
                         .partitions
                         .iter()
-                        .map(|x| x.to_string())
+                        .map(i32::to_string)
                         .collect::<Vec<_>>()
                         .join(",")
                 )
@@ -469,7 +469,8 @@ pub fn cluster_reassignment(
                 .get(&(cluster_id.clone(), p.topic.to_owned()))
                 .unwrap_or_default();
 
-            let replica_metrics = p.replicas
+            let replica_metrics = p
+                .replicas
                 .iter()
                 .map(|ref r| {
                     topic_metrics

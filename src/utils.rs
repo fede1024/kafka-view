@@ -126,7 +126,7 @@ pub fn read_str<'a>(rdr: &'a mut Cursor<&[u8]>) -> Result<&'a str> {
 }
 
 pub fn read_string(rdr: &mut Cursor<&[u8]>) -> Result<String> {
-    read_str(rdr).map(|str| str.to_string())
+    read_str(rdr).map(str::to_string)
 }
 
 // GZip compression fairing

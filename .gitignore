@@ -3,3 +3,4 @@ target
 .idea
 kafka-web.iml
 config.yaml
+precommit_venv/

@@ -313,7 +313,7 @@ pub trait OffsetStore {
     fn offsets_by_cluster_topic(
         &self,
         cluster_id: &ClusterId,
-        topic_name: &TopicName,
+        topic_name: &str,
     ) -> Vec<((ClusterId, String, TopicName), Vec<i64>)>;
     fn offsets_by_cluster_group(
         &self,
@@ -333,7 +333,7 @@ impl OffsetStore for Cache {
     fn offsets_by_cluster_topic(
         &self,
         cluster: &ClusterId,
-        topic: &TopicName,
+        topic: &str,
     ) -> Vec<((ClusterId, String, TopicName), Vec<i64>)> {
         self.offsets
             .filter_clone(|&(ref c, _, ref t)| c == cluster && t == topic)
