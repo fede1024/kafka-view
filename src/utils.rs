@@ -2,16 +2,16 @@ use brotli;
 use byteorder::{BigEndian, ReadBytesExt};
 use chrono::Local;
 use env_logger::LogBuilder;
-use log::{LogRecord, LogLevelFilter};
+use log::{LogLevelFilter, LogRecord};
 use rocket::http::{ContentType, Status};
 use rocket::response::{self, Responder};
-use rocket::{Data, Request, Response, fairing};
+use rocket::{fairing, Data, Request, Response};
 use serde_json;
 
-use std::io::{self, Cursor, BufRead};
+use std::env;
+use std::io::{self, BufRead, Cursor};
 use std::str;
 use std::thread;
-use std::env;
 
 use error::*;
 
@@ -24,12 +24,24 @@ pub fn setup_logger(log_thread: bool, rust_log: Option<&str>, date_format: &str)
             "".to_string()
         };
         let date = Local::now().format(&date_format).to_string();
-        format!("{}: {}{} - {} - {}", date, thread_name, record.level(), record.target(), record.args())
+        format!(
+            "{}: {}{} - {} - {}",
+            date,
+            thread_name,
+            record.level(),
+            record.target(),
+            record.args()
+        )
     };
 
     let mut builder = LogBuilder::new();
-    builder.format(output_format).filter(None, LogLevelFilter::Info);
-    if env::var("ROCKET_ENV").map(|var| !var.starts_with("dev")).unwrap_or(false) {
+    builder
+        .format(output_format)
+        .filter(None, LogLevelFilter::Info);
+    if env::var("ROCKET_ENV")
+        .map(|var| !var.starts_with("dev"))
+        .unwrap_or(false)
+    {
         // _ is used in Rocket as a special target for debugging purpose
         builder.filter(Some("_"), LogLevelFilter::Error);
     }
@@ -48,7 +60,7 @@ macro_rules! format_error_chain {
         if let Some(backtrace) = $err.backtrace() {
             error!("backtrace: {:?}", backtrace);
         }
-    }}
+    }};
 }
 
 macro_rules! time {
@@ -56,8 +68,15 @@ macro_rules! time {
         use chrono;
         let start_time = chrono::Utc::now();
         let ret = $msg;
-        let elapsed_micros = chrono::Utc::now().signed_duration_since(start_time).num_microseconds().unwrap() as f32;
-        debug!("Elapsed time while {}: {:.3}ms", $title, elapsed_micros / 1000f32);
+        let elapsed_micros = chrono::Utc::now()
+            .signed_duration_since(start_time)
+            .num_microseconds()
+            .unwrap() as f32;
+        debug!(
+            "Elapsed time while {}: {:.3}ms",
+            $title,
+            elapsed_micros / 1000f32
+        );
         ret
     }};
 }
@@ -100,7 +119,7 @@ impl Responder<'static> for CompressedJSON {
 pub fn read_str<'a>(rdr: &'a mut Cursor<&[u8]>) -> Result<&'a str> {
     let len = (rdr.read_i16::<BigEndian>()).chain_err(|| "Failed to parse string len")? as usize;
     let pos = rdr.position() as usize;
-    let slice = str::from_utf8(&rdr.get_ref()[pos..(pos+len)])
+    let slice = str::from_utf8(&rdr.get_ref()[pos..(pos + len)])
         .chain_err(|| "String is not valid UTF-8")?;
     rdr.consume(len);
     Ok(slice)
@@ -109,7 +128,6 @@ pub fn read_str<'a>(rdr: &'a mut Cursor<&[u8]>) -> Result<&'a str> {
 pub fn read_string(rdr: &mut Cursor<&[u8]>) -> Result<String> {
     read_str(rdr).map(|str| str.to_string())
 }
-
 
 // GZip compression fairing
 pub struct GZip;
@@ -129,18 +147,19 @@ impl fairing::Fairing for GZip {
         if headers
             .get("Accept-Encoding")
             .any(|e| e.to_lowercase().contains("gzip"))
-            {
-                response.body_bytes().and_then(|body| {
-                    let mut enc = body.gz_encode(Compression::Default);
-                    let mut buf = Vec::with_capacity(body.len());
-                    enc.read_to_end(&mut buf)
-                        .map(|_| {
-                            response.set_sized_body(Cursor::new(buf));
-                            response.set_raw_header("Content-Encoding", "gzip");
-                        })
-                        .map_err(|e| eprintln!("{}", e)).ok()
-                });
-            }
+        {
+            response.body_bytes().and_then(|body| {
+                let mut enc = body.gz_encode(Compression::Default);
+                let mut buf = Vec::with_capacity(body.len());
+                enc.read_to_end(&mut buf)
+                    .map(|_| {
+                        response.set_sized_body(Cursor::new(buf));
+                        response.set_raw_header("Content-Encoding", "gzip");
+                    })
+                    .map_err(|e| eprintln!("{}", e))
+                    .ok()
+            });
+        }
     }
 }
 
@@ -152,7 +171,7 @@ impl fairing::Fairing for RequestLogger {
     fn info(&self) -> fairing::Info {
         fairing::Info {
             name: "User request logger",
-            kind: fairing::Kind::Request
+            kind: fairing::Kind::Request,
         }
     }
 

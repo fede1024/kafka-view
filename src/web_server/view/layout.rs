@@ -1,7 +1,12 @@
-use maud::{self, PreEscaped, html};
 use crate::RUST_VERSION;
+use maud::{self, html, PreEscaped};
 
-pub fn search_form(action: &str, placeholder: &str, value: &str, regex: bool) -> PreEscaped<String> {
+pub fn search_form(
+    action: &str,
+    placeholder: &str,
+    value: &str,
+    regex: bool,
+) -> PreEscaped<String> {
     html! {
         form action=(action) {
             div class="row" {
@@ -24,7 +29,7 @@ pub fn search_form(action: &str, placeholder: &str, value: &str, regex: bool) ->
                 div class="col-md-2" {}
             }
             div class="row" {
-                div class="col-md-2" { "" } 
+                div class="col-md-2" { "" }
                 div class="col-md-8" style="margin-top: 10pt" {
                     strong { "Search options:" }
                     label class="checkbox-inline" style="margin-left: 10pt" {
@@ -54,8 +59,12 @@ pub fn notification(n_type: &str, content: PreEscaped<String>) -> PreEscaped<Str
     }
 }
 
-pub fn datatable_ajax(id: &str, url: &str, param: &str,
-                      table_header: PreEscaped<String>) -> PreEscaped<String> {
+pub fn datatable_ajax(
+    id: &str,
+    url: &str,
+    param: &str,
+    table_header: PreEscaped<String>,
+) -> PreEscaped<String> {
     let table_id = format!("datatable-{}", id);
     html! {
         table id=(table_id) data-url=(url) data-param=(param) width="100%" class="table table-striped table-bordered table-hover" {

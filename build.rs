@@ -13,10 +13,8 @@ fn main() -> Result<(), std::io::Error> {
     let version = String::from_utf8_lossy(&output.stdout);
 
     let mut output_file = File::create(rust_version_file)?;
-    output_file.write_all(format!(
-        "const RUST_VERSION: &str = \"{}\";",
-        version.trim()
-    ).as_bytes())?;
+    output_file
+        .write_all(format!("const RUST_VERSION: &str = \"{}\";", version.trim()).as_bytes())?;
 
     Ok(())
 }

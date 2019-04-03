@@ -1,10 +1,15 @@
 #![feature(plugin, proc_macro_hygiene, decl_macro)]
 
-#[macro_use] extern crate error_chain;
-#[macro_use] extern crate log;
-#[macro_use] extern crate serde_derive;
-#[macro_use] extern crate serde_json;
-#[macro_use] extern crate lazy_static;
+#[macro_use]
+extern crate error_chain;
+#[macro_use]
+extern crate log;
+#[macro_use]
+extern crate serde_derive;
+#[macro_use]
+extern crate serde_json;
+#[macro_use]
+extern crate lazy_static;
 extern crate brotli;
 extern crate byteorder;
 extern crate chrono;
@@ -18,35 +23,36 @@ extern crate maud;
 extern crate rand;
 extern crate rdkafka;
 extern crate regex;
-#[macro_use] extern crate rocket;
+#[macro_use]
+extern crate rocket;
 extern crate scheduled_executor;
 extern crate serde;
 extern crate serde_yaml;
 extern crate zookeeper;
 
-#[macro_use] mod utils;
+#[macro_use]
+mod utils;
 mod cache;
 mod config;
 mod error;
 mod live_consumer;
 mod metadata;
 mod metrics;
-mod web_server;
 mod offsets;
+mod web_server;
 mod zk;
 
 use clap::{App, Arg, ArgMatches};
-use scheduled_executor::{ThreadPoolExecutor, TaskGroupScheduler};
+use scheduled_executor::{TaskGroupScheduler, ThreadPoolExecutor};
 use std::time::Duration;
 
 use cache::{Cache, ReplicaReader, ReplicaWriter};
 use error::*;
-use metrics::MetricsFetchTaskGroup;
 use metadata::MetadataFetchTaskGroup;
+use metrics::MetricsFetchTaskGroup;
 use offsets::run_offset_consumer;
 
 include!(concat!(env!("OUT_DIR"), "/rust_version.rs"));
-
 
 fn run_kafka_web(config_path: &str) -> Result<()> {
     let config = config::read_config(config_path)
@@ -57,36 +63,57 @@ fn run_kafka_web(config_path: &str) -> Result<()> {
         None => bail!("Can't find cache cluster {}", config.caching.cluster),
     };
     let topic_name = &config.caching.topic;
-    let replica_writer = ReplicaWriter::new(&replicator_bootstrap_servers, topic_name)
-        .chain_err(|| format!("Replica writer creation failed (brokers: {}, topic: {})", replicator_bootstrap_servers, topic_name))?;
+    let replica_writer =
+        ReplicaWriter::new(&replicator_bootstrap_servers, topic_name).chain_err(|| {
+            format!(
+                "Replica writer creation failed (brokers: {}, topic: {})",
+                replicator_bootstrap_servers, topic_name
+            )
+        })?;
     let mut replica_reader = ReplicaReader::new(&replicator_bootstrap_servers, topic_name)
-        .chain_err(|| format!("Replica reader creation failed (brokers: {}, topic: {})", replicator_bootstrap_servers, topic_name))?;
+        .chain_err(|| {
+            format!(
+                "Replica reader creation failed (brokers: {}, topic: {})",
+                replicator_bootstrap_servers, topic_name
+            )
+        })?;
 
     let cache = Cache::new(replica_writer);
 
     // Load all the state from Kafka
     let start_time = chrono::Utc::now();
-    replica_reader.load_state(cache.alias())
-        .chain_err(|| format!("State load failed (brokers: {}, topic: {})", replicator_bootstrap_servers, topic_name))?;
-    let elapsed_sec = chrono::Utc::now().signed_duration_since(start_time).num_milliseconds() as f32 / 1000f32;
-    info!("Processed {} messages in {:.3} seconds ({:.0} msg/s).",
-        replica_reader.processed_messages(), elapsed_sec, replica_reader.processed_messages() as f32 / elapsed_sec);
+    replica_reader.load_state(cache.alias()).chain_err(|| {
+        format!(
+            "State load failed (brokers: {}, topic: {})",
+            replicator_bootstrap_servers, topic_name
+        )
+    })?;
+    let elapsed_sec = chrono::Utc::now()
+        .signed_duration_since(start_time)
+        .num_milliseconds() as f32
+        / 1000f32;
+    info!(
+        "Processed {} messages in {:.3} seconds ({:.0} msg/s).",
+        replica_reader.processed_messages(),
+        elapsed_sec,
+        replica_reader.processed_messages() as f32 / elapsed_sec
+    );
 
-    let executor = ThreadPoolExecutor::new(4)
-        .chain_err(|| "Failed to start thread pool executor")?;
+    let executor =
+        ThreadPoolExecutor::new(4).chain_err(|| "Failed to start thread pool executor")?;
 
     // Metadata fetch
     executor.schedule(
         MetadataFetchTaskGroup::new(&cache, &config),
         Duration::from_secs(0),
-        Duration::from_secs(config.metadata_refresh)
+        Duration::from_secs(config.metadata_refresh),
     );
 
     // Metrics fetch
     executor.schedule(
         MetricsFetchTaskGroup::new(&cache, &config),
         Duration::from_secs(0),
-        Duration::from_secs(config.metrics_refresh)
+        Duration::from_secs(config.metrics_refresh),
     );
 
     // Consumer offsets
@@ -103,10 +130,16 @@ fn run_kafka_web(config_path: &str) -> Result<()> {
         Duration::from_secs(config.metadata_refresh * 2),
         Duration::from_secs(config.metadata_refresh),
         move |_| {
-            cache_clone.topics.remove_expired(Duration::from_secs(metadata_expiration));
-            cache_clone.brokers.remove_expired(Duration::from_secs(metadata_expiration));
-            cache_clone.groups.remove_expired(Duration::from_secs(metadata_expiration));
-        }
+            cache_clone
+                .topics
+                .remove_expired(Duration::from_secs(metadata_expiration));
+            cache_clone
+                .brokers
+                .remove_expired(Duration::from_secs(metadata_expiration));
+            cache_clone
+                .groups
+                .remove_expired(Duration::from_secs(metadata_expiration));
+        },
     );
 
     let cache_clone = cache.alias();
@@ -115,8 +148,10 @@ fn run_kafka_web(config_path: &str) -> Result<()> {
         Duration::from_secs(config.metrics_refresh * 2),
         Duration::from_secs(config.metrics_refresh),
         move |_| {
-            cache_clone.metrics.remove_expired(Duration::from_secs(metrics_expiration));
-        }
+            cache_clone
+                .metrics
+                .remove_expired(Duration::from_secs(metrics_expiration));
+        },
     );
 
     let cache_clone = cache.alias();
@@ -125,8 +160,10 @@ fn run_kafka_web(config_path: &str) -> Result<()> {
         Duration::from_secs(10),
         Duration::from_secs(120),
         move |_| {
-            cache_clone.offsets.remove_expired(Duration::from_secs(offsets_store_duration));
-        }
+            cache_clone
+                .offsets
+                .remove_expired(Duration::from_secs(offsets_store_duration));
+        },
     );
 
     web_server::server::run_server(&executor, cache.alias(), &config)
@@ -139,16 +176,20 @@ fn setup_args<'a>() -> ArgMatches<'a> {
     App::new("kafka web interface")
         .version(option_env!("CARGO_PKG_VERSION").unwrap_or(""))
         .about("Kafka web interface")
-        .arg(Arg::with_name("conf")
-            .short("c")
-            .long("conf")
-            .help("Configuration file")
-            .takes_value(true)
-            .required(true))
-        .arg(Arg::with_name("log-conf")
-            .long("log-conf")
-            .help("Configure the logging format (example: 'rdkafka=trace')")
-            .takes_value(true))
+        .arg(
+            Arg::with_name("conf")
+                .short("c")
+                .long("conf")
+                .help("Configuration file")
+                .takes_value(true)
+                .required(true),
+        )
+        .arg(
+            Arg::with_name("log-conf")
+                .long("log-conf")
+                .help("Configure the logging format (example: 'rdkafka=trace')")
+                .takes_value(true),
+        )
         .get_matches()
 }
 

@@ -1,16 +1,16 @@
 use futures::{future, Future};
 use futures_cpupool::Builder;
-use rdkafka::error::KafkaResult;
 use rdkafka::consumer::Consumer;
+use rdkafka::error::KafkaResult;
 use regex::Regex;
-use rocket::State;
 use rocket::http::RawStr;
+use rocket::State;
 
 use cache::Cache;
 use config::Config;
 use error::*;
 use live_consumer::LiveConsumerStore;
-use metadata::{CONSUMERS, ClusterId, TopicName};
+use metadata::{ClusterId, TopicName, CONSUMERS};
 use offsets::OffsetStore;
 use web_server::pages::omnisearch::OmnisearchFormParams;
 use zk::ZK;
@@ -27,35 +27,42 @@ struct TopicDetails {
     partition_count: usize,
     errors: String,
     b_rate_15: f64,
-    m_rate_15: f64
+    m_rate_15: f64,
 }
 
 #[get("/api/clusters/<cluster_id>/topics")]
 pub fn cluster_topics(cluster_id: ClusterId, cache: State<Cache>) -> String {
     let brokers = cache.brokers.get(&cluster_id);
-    if brokers.is_none() {  // TODO: Improve here
+    if brokers.is_none() {
+        // TODO: Improve here
         return empty();
     }
 
-    let result_data = cache.topics
+    let result_data = cache
+        .topics
         .filter_clone(|&(ref c, _)| c == &cluster_id)
         .into_iter()
         .map(|((_, topic_name), partitions)| {
-            let metrics = cache.metrics.get(&(cluster_id.clone(), topic_name.to_owned()))
+            let metrics = cache
+                .metrics
+                .get(&(cluster_id.clone(), topic_name.to_owned()))
                 .unwrap_or_default()
                 .aggregate_broker_metrics();
             TopicDetails {
                 topic_name,
                 partition_count: partitions.len(),
-                errors: partitions.into_iter().filter_map(|p| p.error)
-                    .collect::<Vec<_>>().join(","),
+                errors: partitions
+                    .into_iter()
+                    .filter_map(|p| p.error)
+                    .collect::<Vec<_>>()
+                    .join(","),
                 b_rate_15: metrics.b_rate_15.round(),
                 m_rate_15: metrics.m_rate_15.round(),
             }
         })
         .collect::<Vec<_>>();
 
-    json!({"data": result_data}).to_string()
+    json!({ "data": result_data }).to_string()
 }
 
 //
@@ -65,23 +72,32 @@ pub fn cluster_topics(cluster_id: ClusterId, cache: State<Cache>) -> String {
 #[get("/api/clusters/<cluster_id>/brokers")]
 pub fn brokers(cluster_id: ClusterId, cache: State<Cache>) -> String {
     let brokers = cache.brokers.get(&cluster_id);
-    if brokers.is_none() {  // TODO: Improve here
+    if brokers.is_none() {
+        // TODO: Improve here
         return empty();
     }
 
     let brokers = brokers.unwrap();
-    let broker_metrics = cache.metrics.get(&(cluster_id.to_owned(), "__TOTAL__".to_owned()))
+    let broker_metrics = cache
+        .metrics
+        .get(&(cluster_id.to_owned(), "__TOTAL__".to_owned()))
         .unwrap_or_default();
     let mut result_data = Vec::with_capacity(brokers.len());
     for broker in brokers {
-        let metric = broker_metrics.brokers
+        let metric = broker_metrics
+            .brokers
             .get(&broker.id)
             .cloned()
             .unwrap_or_default();
-        result_data.push(json!((broker.id, broker.hostname, metric.b_rate_15.round(), metric.m_rate_15.round())));
+        result_data.push(json!((
+            broker.id,
+            broker.hostname,
+            metric.b_rate_15.round(),
+            metric.m_rate_15.round()
+        )));
     }
 
-    json!({"data": result_data}).to_string()
+    json!({ "data": result_data }).to_string()
 }
 
 //
@@ -97,11 +113,19 @@ struct GroupInfo {
 
 impl GroupInfo {
     fn new(state: String, members: usize) -> GroupInfo {
-        GroupInfo { state, members, topics: HashSet::new() }
+        GroupInfo {
+            state,
+            members,
+            topics: HashSet::new(),
+        }
     }
 
     fn new_empty() -> GroupInfo {
-        GroupInfo { state: "Offsets only".to_owned(), members: 0, topics: HashSet::new() }
+        GroupInfo {
+            state: "Offsets only".to_owned(),
+            members: 0,
+            topics: HashSet::new(),
+        }
     }
 
     fn add_topic(&mut self, topic_name: TopicName) {
@@ -112,17 +136,28 @@ impl GroupInfo {
 // TODO: add doc
 // TODO: add limit
 fn build_group_list<F>(cache: &Cache, filter: F) -> HashMap<(ClusterId, String), GroupInfo>
-        where F: Fn(&ClusterId, &String) -> bool {
-    let mut groups: HashMap<(ClusterId, String), GroupInfo> = cache.groups
-        .lock_iter(|iter| {
-            iter.filter(|&(&(ref c, ref g), _)| filter(c, g))
-                .map(|(&(ref c, _), g)| ((c.clone(), g.name.clone()), GroupInfo::new(g.state.clone(), g.members.len())))
-                .collect()
-        });
+where
+    F: Fn(&ClusterId, &String) -> bool,
+{
+    let mut groups: HashMap<(ClusterId, String), GroupInfo> = cache.groups.lock_iter(|iter| {
+        iter.filter(|&(&(ref c, ref g), _)| filter(c, g))
+            .map(|(&(ref c, _), g)| {
+                (
+                    (c.clone(), g.name.clone()),
+                    GroupInfo::new(g.state.clone(), g.members.len()),
+                )
+            })
+            .collect()
+    });
 
-    let offsets = cache.offsets.filter_clone_k(|&(ref c, ref g, _)| filter(c, g));
+    let offsets = cache
+        .offsets
+        .filter_clone_k(|&(ref c, ref g, _)| filter(c, g));
     for (cluster_id, group, t) in offsets {
-        groups.entry((cluster_id, group)).or_insert_with(GroupInfo::new_empty).add_topic(t);
+        groups
+            .entry((cluster_id, group))
+            .or_insert_with(GroupInfo::new_empty)
+            .add_topic(t);
     }
 
     groups
@@ -131,7 +166,8 @@ fn build_group_list<F>(cache: &Cache, filter: F) -> HashMap<(ClusterId, String),
 #[get("/api/clusters/<cluster_id>/groups")]
 pub fn cluster_groups(cluster_id: ClusterId, cache: State<Cache>) -> String {
     let brokers = cache.brokers.get(&cluster_id);
-    if brokers.is_none() {  // TODO: Improve here
+    if brokers.is_none() {
+        // TODO: Improve here
         return empty();
     }
 
@@ -139,16 +175,22 @@ pub fn cluster_groups(cluster_id: ClusterId, cache: State<Cache>) -> String {
 
     let mut result_data = Vec::with_capacity(groups.len());
     for ((_cluster_id, group_name), info) in groups {
-        result_data.push(json!((group_name, info.state, info.members, info.topics.len())));
+        result_data.push(json!((
+            group_name,
+            info.state,
+            info.members,
+            info.topics.len()
+        )));
     }
 
-    json!({"data": result_data}).to_string()
+    json!({ "data": result_data }).to_string()
 }
 
 #[get("/api/clusters/<cluster_id>/topics/<topic_name>/groups")]
 pub fn topic_groups(cluster_id: ClusterId, topic_name: &RawStr, cache: State<Cache>) -> String {
     let brokers = cache.brokers.get(&cluster_id);
-    if brokers.is_none() {  // TODO: Improve here
+    if brokers.is_none() {
+        // TODO: Improve here
         return empty();
     }
 
@@ -159,16 +201,24 @@ pub fn topic_groups(cluster_id: ClusterId, topic_name: &RawStr, cache: State<Cac
         if !info.topics.contains(&topic_name.to_string()) {
             continue;
         }
-        result_data.push(json!((group_name, info.state, info.members, info.topics.len())));
+        result_data.push(json!((
+            group_name,
+            info.state,
+            info.members,
+            info.topics.len()
+        )));
     }
 
-    json!({"data": result_data}).to_string()
+    json!({ "data": result_data }).to_string()
 }
 
 #[get("/api/clusters/<cluster_id>/groups/<group_name>/members")]
 pub fn group_members(cluster_id: ClusterId, group_name: &RawStr, cache: State<Cache>) -> String {
-    let group = cache.groups.get(&(cluster_id.clone(), group_name.to_string()));
-    if group.is_none() {  // TODO: Improve here
+    let group = cache
+        .groups
+        .get(&(cluster_id.clone(), group_name.to_string()));
+    if group.is_none() {
+        // TODO: Improve here
         return empty();
     }
 
@@ -176,13 +226,32 @@ pub fn group_members(cluster_id: ClusterId, group_name: &RawStr, cache: State<Ca
 
     let mut result_data = Vec::with_capacity(group.members.len());
     for member in group.members {
-        let assigns = member.assignments.iter().map(|assign| {
-            format!("{}/{}", assign.topic, assign.partitions.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(","))
-        }).collect::<Vec<_>>().join("\n");
-        result_data.push(json!((member.id, member.client_id, member.client_host, assigns)));
+        let assigns = member
+            .assignments
+            .iter()
+            .map(|assign| {
+                format!(
+                    "{}/{}",
+                    assign.topic,
+                    assign
+                        .partitions
+                        .iter()
+                        .map(|x| x.to_string())
+                        .collect::<Vec<_>>()
+                        .join(",")
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        result_data.push(json!((
+            member.id,
+            member.client_id,
+            member.client_host,
+            assigns
+        )));
     }
 
-    json!({"data": result_data}).to_string()
+    json!({ "data": result_data }).to_string()
 }
 
 #[get("/api/clusters/<cluster_id>/groups/<group_name>/offsets")]
@@ -208,17 +277,31 @@ pub fn group_offsets(cluster_id: ClusterId, group_name: &RawStr, cache: State<Ca
             let (lag_shown, percentage_shown) = match (high - low, high - curr_offset) {
                 (0, _) => ("Empty topic".to_owned(), "0.0%".to_owned()),
                 (size, lag) if lag > size => ("Out of retention".to_owned(), "".to_owned()),
-                (size, lag) => (lag.to_string(), format!("{:.1}%", (lag as f64) / (size as f64) * 100.0))
+                (size, lag) => (
+                    lag.to_string(),
+                    format!("{:.1}%", (lag as f64) / (size as f64) * 100.0),
+                ),
             };
-            result_data.push(json!((topic.clone(), partition_id, high-low, low, high, curr_offset, lag_shown, percentage_shown)));
+            result_data.push(json!((
+                topic.clone(),
+                partition_id,
+                high - low,
+                low,
+                high,
+                curr_offset,
+                lag_shown,
+                percentage_shown
+            )));
         }
     }
 
-    json!({"data": result_data}).to_string()
+    json!({ "data": result_data }).to_string()
 }
 
-fn fetch_watermarks(cluster_id: &ClusterId, offsets: &[((ClusterId, String, TopicName), Vec<i64>)])
-        -> Result<HashMap<(TopicName, i32), KafkaResult<(i64, i64)>>> {
+fn fetch_watermarks(
+    cluster_id: &ClusterId,
+    offsets: &[((ClusterId, String, TopicName), Vec<i64>)],
+) -> Result<HashMap<(TopicName, i32), KafkaResult<(i64, i64)>>> {
     let consumer = CONSUMERS.get_err(cluster_id)?;
 
     let cpu_pool = Builder::new().pool_size(32).create();
@@ -231,13 +314,15 @@ fn fetch_watermarks(cluster_id: &ClusterId, offsets: &[((ClusterId, String, Topi
             let topic_clone = topic.clone();
             let wm_future = cpu_pool.spawn_fn(move || {
                 let wms = consumer_clone.fetch_watermarks(&topic_clone, partition_id as i32, 10000);
-                Ok::<_, ()>(((topic_clone, partition_id as i32), wms))  // never fail
+                Ok::<_, ()>(((topic_clone, partition_id as i32), wms)) // never fail
             });
             futures.push(wm_future);
         }
     }
 
-    let watermarks = future::join_all(futures).wait().unwrap()
+    let watermarks = future::join_all(futures)
+        .wait()
+        .unwrap()
         .into_iter()
         .collect::<HashMap<_, _>>();
 
@@ -250,25 +335,38 @@ fn fetch_watermarks(cluster_id: &ClusterId, offsets: &[((ClusterId, String, Topi
 
 #[get("/api/clusters/<cluster_id>/topics/<topic_name>/topology")]
 pub fn topic_topology(cluster_id: ClusterId, topic_name: &RawStr, cache: State<Cache>) -> String {
-    let partitions = cache.topics.get(&(cluster_id.to_owned(), topic_name.to_string()));
+    let partitions = cache
+        .topics
+        .get(&(cluster_id.to_owned(), topic_name.to_string()));
     if partitions.is_none() {
         return empty();
     }
 
-    let topic_metrics = cache.metrics.get(&(cluster_id.clone(), topic_name.to_string()))
+    let topic_metrics = cache
+        .metrics
+        .get(&(cluster_id.clone(), topic_name.to_string()))
         .unwrap_or_default();
     let partitions = partitions.unwrap();
 
     let mut result_data = Vec::with_capacity(partitions.len());
     for p in partitions {
-        let partition_metrics = topic_metrics.brokers.get(&p.leader)
+        let partition_metrics = topic_metrics
+            .brokers
+            .get(&p.leader)
             .and_then(|broker_metrics| broker_metrics.partitions.get(p.id as usize))
             .cloned()
             .unwrap_or_default();
-        result_data.push(json!((p.id, partition_metrics.size_bytes, p.leader, p.replicas, p.isr, p.error)));
+        result_data.push(json!((
+            p.id,
+            partition_metrics.size_bytes,
+            p.leader,
+            p.replicas,
+            p.isr,
+            p.error
+        )));
     }
 
-    json!({"data": result_data}).to_string()
+    json!({ "data": result_data }).to_string()
 }
 
 //
@@ -287,10 +385,16 @@ pub fn consumer_search(search: OmnisearchFormParams, cache: State<Cache>) -> Str
 
     let mut result_data = Vec::with_capacity(groups.len());
     for ((cluster_id, group_name), info) in groups {
-        result_data.push(json!((cluster_id, group_name, info.state, info.members, info.topics.len())));
+        result_data.push(json!((
+            cluster_id,
+            group_name,
+            info.state,
+            info.members,
+            info.topics.len()
+        )));
     }
 
-    json!({"data": result_data}).to_string()
+    json!({ "data": result_data }).to_string()
 }
 
 #[get("/api/search/topic?<search..>")]
@@ -300,42 +404,54 @@ pub fn topic_search(search: OmnisearchFormParams, cache: State<Cache>) -> String
             .map(|r| cache.topics.filter_clone(|&(_, ref name)| r.is_match(name)))
             .unwrap_or_default()
     } else {
-        cache.topics.filter_clone(|&(_, ref name)| name.contains(&search.string))
+        cache
+            .topics
+            .filter_clone(|&(_, ref name)| name.contains(&search.string))
     };
 
     let mut result_data = Vec::new();
     for ((cluster_id, topic_name), partitions) in topics {
-        let metrics = cache.metrics.get(&(cluster_id.clone(), topic_name.clone()))
+        let metrics = cache
+            .metrics
+            .get(&(cluster_id.clone(), topic_name.clone()))
             .unwrap_or_default()
             .aggregate_broker_metrics();
         let errors = partitions.iter().find(|p| p.error.is_some());
-        result_data.push(json!((cluster_id, topic_name, partitions.len(), errors, metrics.b_rate_15, metrics.m_rate_15)));
+        result_data.push(json!((
+            cluster_id,
+            topic_name,
+            partitions.len(),
+            errors,
+            metrics.b_rate_15,
+            metrics.m_rate_15
+        )));
     }
 
-    json!({"data": result_data}).to_string()
+    json!({ "data": result_data }).to_string()
 }
 
 //
 // ********** ZOOKEEPER **********
-// 
+//
 
 #[get("/api/clusters/<cluster_id>/reassignment")]
-pub fn cluster_reassignment(cluster_id: ClusterId, cache: State<Cache>, config: State<Config>) -> String {
+pub fn cluster_reassignment(
+    cluster_id: ClusterId,
+    cache: State<Cache>,
+    config: State<Config>,
+) -> String {
     if cache.brokers.get(&cluster_id).is_none() {
         return empty();
     }
 
-    let zk_url = &config
-        .clusters
-        .get(&cluster_id)
-        .unwrap()
-        .zookeeper;
+    let zk_url = &config.clusters.get(&cluster_id).unwrap().zookeeper;
 
-    let zk = match ZK::new(zk_url) {  // TODO: cache ZK clients
+    let zk = match ZK::new(zk_url) {
+        // TODO: cache ZK clients
         Ok(zk) => zk,
         Err(_) => {
             error!("Error connecting to {:?}", zk_url);
-            return empty()
+            return empty();
         }
     };
 
@@ -344,11 +460,13 @@ pub fn cluster_reassignment(cluster_id: ClusterId, cache: State<Cache>, config: 
         None => return empty(),
     };
 
-    let result_data = reassignment.partitions.into_iter()
+    let result_data = reassignment
+        .partitions
+        .into_iter()
         .map(|p| json!((p.topic, p.partition, p.replicas)))
         .collect::<Vec<_>>();
 
-    json!({"data": result_data}).to_string()
+    json!({ "data": result_data }).to_string()
 }
 
 //
@@ -358,13 +476,17 @@ pub fn cluster_reassignment(cluster_id: ClusterId, cache: State<Cache>, config: 
 #[get("/api/internals/cache/brokers")]
 pub fn cache_brokers(cache: State<Cache>) -> String {
     let result_data = cache.brokers.lock_iter(|brokers_cache_entry| {
-        brokers_cache_entry.map(|(cluster_id, brokers)| {
-            (cluster_id.clone(), brokers.iter().map(|b| b.id).collect::<Vec<_>>())
-        })
-        .collect::<Vec<_>>()
+        brokers_cache_entry
+            .map(|(cluster_id, brokers)| {
+                (
+                    cluster_id.clone(),
+                    brokers.iter().map(|b| b.id).collect::<Vec<_>>(),
+                )
+            })
+            .collect::<Vec<_>>()
     });
 
-    json!({"data": result_data}).to_string()
+    json!({ "data": result_data }).to_string()
 }
 
 #[get("/api/internals/cache/metrics")]
@@ -373,31 +495,48 @@ pub fn cache_metrics(cache: State<Cache>) -> String {
         metrics_cache_entry
             .map(|(&(ref cluster_id, ref topic_id), metrics)| {
                 (cluster_id.clone(), topic_id.clone(), metrics.brokers.len())
-            }).collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>()
     });
 
-    json!({"data": result_data}).to_string()
+    json!({ "data": result_data }).to_string()
 }
 
 #[get("/api/internals/cache/offsets")]
 pub fn cache_offsets(cache: State<Cache>) -> String {
     let result_data = cache.offsets.lock_iter(|offsets_cache_entry| {
         offsets_cache_entry
-            .map(|(&(ref cluster_id, ref group_name, ref topic_id), partitions)| {
-                (cluster_id.clone(), group_name.clone(), topic_id.clone(), format!("{:?}", partitions))
-            }).collect::<Vec<_>>()
+            .map(
+                |(&(ref cluster_id, ref group_name, ref topic_id), partitions)| {
+                    (
+                        cluster_id.clone(),
+                        group_name.clone(),
+                        topic_id.clone(),
+                        format!("{:?}", partitions),
+                    )
+                },
+            )
+            .collect::<Vec<_>>()
     });
 
-    json!({"data": result_data}).to_string()
+    json!({ "data": result_data }).to_string()
 }
 
 #[get("/api/internals/live_consumers")]
 pub fn live_consumers(live_consumers: State<LiveConsumerStore>) -> String {
-    let result_data = live_consumers.consumers().iter()
-        .map(|consumer| (consumer.id(), consumer.cluster_id().to_owned(), consumer.topic().to_owned(),
-                          consumer.last_poll().elapsed().as_secs()))
+    let result_data = live_consumers
+        .consumers()
+        .iter()
+        .map(|consumer| {
+            (
+                consumer.id(),
+                consumer.cluster_id().to_owned(),
+                consumer.topic().to_owned(),
+                consumer.last_poll().elapsed().as_secs(),
+            )
+        })
         .collect::<Vec<_>>();
-    json!({"data": result_data}).to_string()
+    json!({ "data": result_data }).to_string()
 }
 
 fn empty() -> String {

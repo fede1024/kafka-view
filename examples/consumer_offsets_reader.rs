@@ -1,22 +1,22 @@
-#[macro_use] extern crate log;
-extern crate env_logger;
+#[macro_use]
+extern crate log;
+extern crate byteorder;
 extern crate clap;
+extern crate env_logger;
 extern crate futures;
 extern crate rdkafka;
-extern crate byteorder;
 
 use byteorder::{BigEndian, ReadBytesExt};
 use clap::{App, Arg};
 use futures::stream::Stream;
 use rdkafka::config::{ClientConfig, TopicConfig};
-use rdkafka::consumer::Consumer;
 use rdkafka::consumer::stream_consumer::StreamConsumer;
+use rdkafka::consumer::Consumer;
 use rdkafka::message::Message;
 use rdkafka::util::get_rdkafka_version;
 
+use std::io::{self, BufRead, Cursor};
 use std::str;
-use std::io::{self, Cursor, BufRead};
-
 
 #[derive(Debug)]
 enum ParserError {
@@ -40,8 +40,17 @@ impl From<str::Utf8Error> for ParserError {
 #[derive(Debug)]
 enum ConsumerUpdate {
     Metadata,
-    SetCommit { group: String, topic: String, partition: i32, offset: i64 },
-    DeleteCommit { group: String, topic: String, partition: i32 },
+    SetCommit {
+        group: String,
+        topic: String,
+        partition: i32,
+        offset: i64,
+    },
+    DeleteCommit {
+        group: String,
+        topic: String,
+        partition: i32,
+    },
 }
 
 fn read_str<'a>(rdr: &'a mut Cursor<&[u8]>) -> Result<&'a str, ParserError> {
@@ -52,17 +61,28 @@ fn read_str<'a>(rdr: &'a mut Cursor<&[u8]>) -> Result<&'a str, ParserError> {
     Ok(slice)
 }
 
-fn parse_group_offset(key_rdr: &mut Cursor<&[u8]>,
-                      payload_rdr: &mut Cursor<&[u8]>) -> Result<ConsumerUpdate, ParserError> {
+fn parse_group_offset(
+    key_rdr: &mut Cursor<&[u8]>,
+    payload_rdr: &mut Cursor<&[u8]>,
+) -> Result<ConsumerUpdate, ParserError> {
     let group = read_str(key_rdr)?.to_owned();
     let topic = read_str(key_rdr)?.to_owned();
     let partition = key_rdr.read_i32::<BigEndian>()?;
     if !payload_rdr.get_ref().is_empty() {
         payload_rdr.read_i16::<BigEndian>()?;
         let offset = payload_rdr.read_i64::<BigEndian>()?;
-        Ok(ConsumerUpdate::SetCommit { group: group, topic: topic, partition: partition, offset: offset })
+        Ok(ConsumerUpdate::SetCommit {
+            group: group,
+            topic: topic,
+            partition: partition,
+            offset: offset,
+        })
     } else {
-        Ok(ConsumerUpdate::DeleteCommit { group: group, topic: topic, partition: partition })
+        Ok(ConsumerUpdate::DeleteCommit {
+            group: group,
+            topic: topic,
+            partition: partition,
+        })
     }
 }
 
@@ -84,20 +104,23 @@ fn consume_and_print(brokers: &str) {
         .set("enable.partition.eof", "false")
         .set("session.timeout.ms", "30000")
         .set("enable.auto.commit", "false")
-        .set_default_topic_config(TopicConfig::new()
-            .set("auto.offset.reset", "smallest")
-            .finalize())
+        .set_default_topic_config(
+            TopicConfig::new()
+                .set("auto.offset.reset", "smallest")
+                .finalize(),
+        )
         .create::<StreamConsumer<_>>()
         .expect("Consumer creation failed");
 
-    consumer.subscribe(&vec!["__consumer_offsets"])
+    consumer
+        .subscribe(&vec!["__consumer_offsets"])
         .expect("Can't subscribe to specified topics");
 
     for message in consumer.start().wait() {
         match message {
             Err(e) => {
                 warn!("Can't receive data from stream: {:?}", e);
-            },
+            }
             Ok(Ok(m)) => {
                 let key = match m.key_view::<[u8]>() {
                     None => &[],
@@ -105,7 +128,7 @@ fn consume_and_print(brokers: &str) {
                     Some(Err(e)) => {
                         println!("Error while deserializing message key: {:?}", e);
                         &[]
-                    },
+                    }
                 };
                 let payload = match m.payload_view::<[u8]>() {
                     None => &[],
@@ -113,17 +136,21 @@ fn consume_and_print(brokers: &str) {
                     Some(Err(e)) => {
                         println!("Error while deserializing message payload: {:?}", e);
                         &[]
-                    },
+                    }
                 };
-                println!("\n#### P:{}, o:{}, s:{:.3}KB", m.partition(), m.offset(),
-                         (m.payload_len() as f64 / 1000f64));
+                println!(
+                    "\n#### P:{}, o:{}, s:{:.3}KB",
+                    m.partition(),
+                    m.offset(),
+                    (m.payload_len() as f64 / 1000f64)
+                );
 
                 let msg = parse_message(key, payload);
                 println!("{:?}", msg);
-            },
+            }
             Ok(Err(e)) => {
                 warn!("Kafka error: {:?}", e);
-            },
+            }
         };
     }
 }
@@ -132,12 +159,14 @@ fn main() {
     let matches = App::new("consumer example")
         .version(option_env!("CARGO_PKG_VERSION").unwrap_or(""))
         .about("Simple command line consumer")
-        .arg(Arg::with_name("brokers")
-             .short("b")
-             .long("brokers")
-             .help("Broker list in kafka format")
-             .takes_value(true)
-             .default_value("localhost:9092"))
+        .arg(
+            Arg::with_name("brokers")
+                .short("b")
+                .long("brokers")
+                .help("Broker list in kafka format")
+                .takes_value(true)
+                .default_value("localhost:9092"),
+        )
         .get_matches();
 
     let (version_n, version_s) = get_rdkafka_version();
@@ -147,4 +176,3 @@ fn main() {
 
     consume_and_print(brokers);
 }
-
