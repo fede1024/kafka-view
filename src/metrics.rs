@@ -209,8 +209,10 @@ impl MetricsFetchTaskGroup {
             "kafka.server:name=BytesInPerSec,*,type=BrokerTopicMetrics/FifteenMinuteRate",
         )
         .chain_err(|| format!("Failed to fetch byte rate metrics from {}", broker.hostname))?;
+
         let byte_rate_metrics = parse_broker_rate_metrics(&byte_rate_json)
             .chain_err(|| "Failed to parse byte rate broker metrics")?;
+
         let msg_rate_json = fetch_metrics_json(
             &broker.hostname,
             port,
@@ -222,6 +224,7 @@ impl MetricsFetchTaskGroup {
                 broker.hostname
             )
         })?;
+
         let msg_rate_metrics = parse_broker_rate_metrics(&msg_rate_json)
             .chain_err(|| "Failed to parse message rate broker metrics")?;
         let partition_metrics_json = fetch_metrics_json(
@@ -235,19 +238,25 @@ impl MetricsFetchTaskGroup {
                 broker.hostname
             )
         })?;
+
         let pt_size_metrics = parse_partition_size_metrics(&partition_metrics_json)
             .chain_err(|| "Failed to parse partition size broker metrics")?;
-        for (topic, b_rate_15) in byte_rate_metrics {
+
+        let topics = byte_rate_metrics
+            .keys()
+            .chain(msg_rate_metrics.keys())
+            .chain(pt_size_metrics.keys());
+
+        for topic in topics {
             let mut topic_metrics = self
                 .cache
                 .metrics
                 .get(&(cluster_id.clone(), topic.clone()))
                 .unwrap_or_default();
-            let m_rate_15 = *msg_rate_metrics.get(&topic).unwrap_or(&-1f64);
-            let partitions = pt_size_metrics
-                .get(&topic)
-                .cloned()
-                .unwrap_or_else(Vec::new);
+
+            let b_rate_15 = *byte_rate_metrics.get(topic).unwrap_or(&-1f64);
+            let m_rate_15 = *msg_rate_metrics.get(topic).unwrap_or(&-1f64);
+            let partitions = pt_size_metrics.get(topic).cloned().unwrap_or_else(Vec::new);
             topic_metrics.brokers.insert(
                 broker.id,
                 TopicBrokerMetrics {
@@ -256,6 +265,7 @@ impl MetricsFetchTaskGroup {
                     partitions,
                 },
             );
+
             self.cache
                 .metrics
                 .insert((cluster_id.clone(), topic.clone()), topic_metrics)
