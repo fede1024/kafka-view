@@ -1,30 +1,32 @@
 use brotli;
 use byteorder::{BigEndian, ReadBytesExt};
 use chrono::Local;
-use env_logger::LogBuilder;
-use log::{LogLevelFilter, LogRecord};
+use env_logger::Builder;
+use log::{LevelFilter, Record};
 use rocket::http::{ContentType, Status};
 use rocket::response::{self, Responder};
 use rocket::{fairing, Data, Request, Response};
 use serde_json;
 
 use std::env;
-use std::io::{self, BufRead, Cursor};
+use std::io::{self, BufRead, Cursor, Write};
 use std::str;
 use std::thread;
 
+use env_logger::fmt::Formatter;
 use error::*;
 
 pub fn setup_logger(log_thread: bool, rust_log: Option<&str>, date_format: &str) {
     let date_format = date_format.to_owned();
-    let output_format = move |record: &LogRecord| {
+    let output_format = move |buffer: &mut Formatter, record: &Record| {
         let thread_name = if log_thread {
             format!("({}) ", thread::current().name().unwrap_or("unknown"))
         } else {
             "".to_string()
         };
         let date = Local::now().format(&date_format).to_string();
-        format!(
+        writeln!(
+            buffer,
             "{}: {}{} - {} - {}",
             date,
             thread_name,
@@ -34,21 +36,21 @@ pub fn setup_logger(log_thread: bool, rust_log: Option<&str>, date_format: &str)
         )
     };
 
-    let mut builder = LogBuilder::new();
+    let mut builder = Builder::new();
     builder
         .format(output_format)
-        .filter(None, LogLevelFilter::Info);
+        .filter(None, LevelFilter::Info);
     if env::var("ROCKET_ENV")
         .map(|var| !var.starts_with("dev"))
         .unwrap_or(false)
     {
         // _ is used in Rocket as a special target for debugging purpose
-        builder.filter(Some("_"), LogLevelFilter::Error);
+        builder.filter(Some("_"), LevelFilter::Error);
     }
 
-    rust_log.map(|conf| builder.parse(conf));
+    rust_log.map(|conf| builder.parse_filters(conf));
 
-    builder.init().unwrap();
+    builder.init();
 }
 
 macro_rules! format_error_chain {
