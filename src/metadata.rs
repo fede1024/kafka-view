@@ -73,6 +73,7 @@ impl MetadataConsumerCache {
 // TODO: Use structs?
 pub type BrokerId = i32;
 pub type TopicName = String;
+pub type TopicPartition = (TopicName, i32);
 
 #[derive(Eq, PartialEq, Hash, Clone, Debug, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct ClusterId(String);

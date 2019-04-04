@@ -10,7 +10,7 @@
     -   id: rust-clippy
         name: Rust clippy
         description: Run cargo clippy on files included in the commit. clippy should be installed before-hand.
-        entry: cargo clippy --all-features --all -- -A clippy::match_wild_err_arm
+        entry: cargo clippy --all-features -- -A clippy::match_wild_err_arm
         pass_filenames: false
         types: [file, rust]
         language: system
