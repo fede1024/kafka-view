@@ -5,7 +5,7 @@ use scheduled_executor::TaskGroup;
 use serde_json;
 use serde_json::Value;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::f64;
 use std::io::Read;
 
@@ -245,7 +245,8 @@ impl MetricsFetchTaskGroup {
         let topics = byte_rate_metrics
             .keys()
             .chain(msg_rate_metrics.keys())
-            .chain(pt_size_metrics.keys());
+            .chain(pt_size_metrics.keys())
+            .collect::<HashSet<_>>();
 
         for topic in topics {
             let mut topic_metrics = self
