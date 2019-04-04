@@ -10,7 +10,7 @@ use cache::Cache;
 use config::Config;
 use error::*;
 use live_consumer::LiveConsumerStore;
-use metadata::{ClusterId, TopicName, CONSUMERS};
+use metadata::{ClusterId, TopicName, TopicPartition, CONSUMERS};
 use offsets::OffsetStore;
 use web_server::pages::omnisearch::OmnisearchFormParams;
 use zk::ZK;
@@ -298,10 +298,12 @@ pub fn group_offsets(cluster_id: ClusterId, group_name: &RawStr, cache: State<Ca
     json!({ "data": result_data }).to_string()
 }
 
+type ClusterGroupOffsets = ((ClusterId, String, TopicName), Vec<i64>);
+
 fn fetch_watermarks(
     cluster_id: &ClusterId,
-    offsets: &[((ClusterId, String, TopicName), Vec<i64>)],
-) -> Result<HashMap<(TopicName, i32), KafkaResult<(i64, i64)>>> {
+    offsets: &[ClusterGroupOffsets],
+) -> Result<HashMap<TopicPartition, KafkaResult<(i64, i64)>>> {
     let consumer = CONSUMERS.get_err(cluster_id)?;
 
     let cpu_pool = Builder::new().pool_size(32).create();
