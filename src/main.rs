@@ -1,6 +1,8 @@
 #![feature(plugin, proc_macro_hygiene, decl_macro)]
 
 #[macro_use]
+extern crate rust_embed;
+#[macro_use]
 extern crate error_chain;
 #[macro_use]
 extern crate log;

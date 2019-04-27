@@ -1,7 +1,9 @@
 use rocket;
-use rocket::http::RawStr;
-use rocket::request::{FromParam, Request};
-use rocket::response::{self, NamedFile, Redirect, Responder};
+use rocket::http::hyper::header::CacheControl;
+use rocket::http::hyper::header::CacheDirective;
+use rocket::http::{ContentType, RawStr, Status};
+use rocket::request::FromParam;
+use rocket::response::{self, Redirect};
 use scheduled_executor::ThreadPoolExecutor;
 
 use cache::Cache;
@@ -9,12 +11,18 @@ use config::Config;
 use error::*;
 use live_consumer::{self, LiveConsumerStore};
 use metadata::ClusterId;
+use std::ffi::OsStr;
+use std::io::Cursor;
 use utils::{GZip, RequestLogger};
 use web_server::api;
 use web_server::pages;
 
 use std;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
+
+#[derive(RustEmbed)]
+#[folder = "resources/web_server/public/"]
+struct Asset;
 
 #[get("/")]
 fn index() -> Redirect {
@@ -31,45 +39,54 @@ impl<'a> FromParam<'a> for ClusterId {
 }
 
 #[get("/public/<file..>")]
-fn files(file: PathBuf) -> Option<CachedFile> {
-    NamedFile::open(Path::new("resources/web_server/public/").join(file))
-        .map(CachedFile::from)
-        .ok()
+fn files<'r>(file: PathBuf) -> response::Result<'r> {
+    let filename = file.display().to_string();
+    Asset::get(&filename).map_or_else(
+        || Err(Status::NotFound),
+        |d| {
+            let ext = file
+                .as_path()
+                .extension()
+                .and_then(OsStr::to_str)
+                .ok_or(Status::new(400, "Could not get file extension"))?;
+            let content_type = ContentType::from_extension(ext)
+                .ok_or(Status::new(400, "Could not get file content type"))?;
+            response::Response::build()
+                .header(content_type)
+                .header(CacheControl(vec![
+                    CacheDirective::MustRevalidate,
+                    CacheDirective::MaxAge(1800),
+                ]))
+                .sized_body(Cursor::new(d))
+                .ok()
+        },
+    )
 }
 
 #[get("/public/<file..>?<version>")]
-fn files_v(file: PathBuf, version: &RawStr) -> Option<CachedFile> {
+fn files_v<'r>(file: PathBuf, version: &RawStr) -> response::Result<'r> {
     let _ = version; // just ignore version
-    NamedFile::open(Path::new("resources/web_server/public/").join(file))
-        .map(CachedFile::from)
-        .ok()
-}
-
-pub struct CachedFile {
-    ttl: usize,
-    file: NamedFile,
-}
-
-impl CachedFile {
-    pub fn from(file: NamedFile) -> CachedFile {
-        CachedFile::with_ttl(1800, file)
-    }
-
-    pub fn with_ttl(ttl: usize, file: NamedFile) -> CachedFile {
-        CachedFile { ttl, file }
-    }
-}
-
-impl<'a> Responder<'a> for CachedFile {
-    fn respond_to(self, request: &Request) -> response::Result<'a> {
-        let inner_response = self.file.respond_to(request).unwrap(); // fixme
-        response::Response::build_from(inner_response)
-            .raw_header(
-                "Cache-Control",
-                format!("max-age={}, must-revalidate", self.ttl),
-            )
-            .ok()
-    }
+    let filename = file.display().to_string();
+    Asset::get(&filename).map_or_else(
+        || Err(Status::NotFound),
+        |d| {
+            let ext = file
+                .as_path()
+                .extension()
+                .and_then(OsStr::to_str)
+                .ok_or(Status::new(400, "Could not get file extension"))?;
+            let content_type = ContentType::from_extension(ext)
+                .ok_or(Status::new(400, "Could not get file content type"))?;
+            response::Response::build()
+                .header(content_type)
+                .header(CacheControl(vec![
+                    CacheDirective::MustRevalidate,
+                    CacheDirective::MaxAge(1800),
+                ]))
+                .sized_body(Cursor::new(d))
+                .ok()
+        },
+    )
 }
 
 pub fn run_server(executor: &ThreadPoolExecutor, cache: Cache, config: &Config) -> Result<()> {
