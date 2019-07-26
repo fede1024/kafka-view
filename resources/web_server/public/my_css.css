@@ -26,6 +26,14 @@ h3 {
     padding-bottom: 3px;
     margin-top: 0px;
     margin-bottom: 0px;
+    display: flex;
+}
+
+.message-key,
+.message-ts {
+    padding-right: 5px;
+    margin-right: 5px;
+    border-right: 1px solid #eee;
 }
 
 div.topic_tailer {

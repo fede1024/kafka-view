@@ -106,6 +106,23 @@ function error_to_graphic(cell) {
     $(cell).html(symbol);
 }
 
+function message_to_tailer_entry(msg) {
+    var ts_text;
+    if (msg["created_at"]) {
+        ts_text = (new Date(msg["created_at"])).toISOString() + " Created";
+    } else if (msg["appended_at"]) {
+        ts_text = (new Date(msg["appended_at"])).toISOString() + " Appended";
+    } else {
+        ts_text = "N/A";
+    }
+
+    var entry = $("<div>", {class: "message"});
+    entry.append($("<div>", { class: "message-key", text: msg["key"] ? msg["key"] : "N/A" }));
+    entry.append($("<div>", { class: "message-ts", text: ts_text }));
+    entry.append($("<div>", { class: "message-payload", text: msg["payload"] }));
+    return entry;
+}
+
 $(document).ready(function() {
     $('#datatable-brokers-ajax').each(function(index) {
         $(this).DataTable({
@@ -375,9 +392,7 @@ function background_tailer(cluster_id, topic_name, tailer_id) {
       messages = JSON.parse(data);
       for (var i = 0; i < messages.length; i++) {
         var message = messages[i];
-        var p = $("<p>", {class: "message"});
-        p.append(truncate(message["payload"], max_msg_length));
-        div_tailer.append(p);
+        div_tailer.append(message_to_tailer_entry(message));
       }
       if (bottom)
           scroll_to_bottom(div_tailer);
