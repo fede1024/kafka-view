@@ -1,7 +1,7 @@
 use rdkafka::config::ClientConfig;
 use rdkafka::consumer::{BaseConsumer, Consumer, EmptyConsumerContext};
-use rdkafka::message::Timestamp::*;
 use rdkafka::message::BorrowedMessage;
+use rdkafka::message::Timestamp::*;
 use rdkafka::Message;
 use rocket::http::RawStr;
 use rocket::State;
@@ -245,14 +245,16 @@ pub fn topic_tailer_api(
             .payload()
             .map(|bytes| String::from_utf8_lossy(bytes))
             .unwrap_or(Cow::Borrowed(""));
-        let payload =
-            if original_payload.len() > 1024 {
-                format!("{}...", original_payload.chars().take(1024).collect::<String>())
-            } else {
-                original_payload.into_owned()
-            };
+        let payload = if original_payload.len() > 1024 {
+            format!(
+                "{}...",
+                original_payload.chars().take(1024).collect::<String>()
+            )
+        } else {
+            original_payload.into_owned()
+        };
 
-        output.push(TailedMessage{
+        output.push(TailedMessage {
             partition: message.partition(),
             offset: message.offset(),
             key,
