@@ -127,7 +127,7 @@ pub fn run_server(executor: &ThreadPoolExecutor, cache: Cache, config: &Config) 
                 api::topic_groups,
                 api::topic_search,
                 api::topic_topology,
-                live_consumer::test_live_consumer_api,
+                live_consumer::topic_tailer_api,
             ],
         )
         .launch();

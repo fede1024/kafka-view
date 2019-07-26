@@ -1,5 +1,6 @@
 use rdkafka::config::ClientConfig;
 use rdkafka::consumer::{BaseConsumer, Consumer, EmptyConsumerContext};
+use rdkafka::message::Timestamp::*;
 use rdkafka::message::BorrowedMessage;
 use rdkafka::Message;
 use rocket::http::RawStr;
@@ -183,8 +184,18 @@ impl LiveConsumerStore {
 
 // TODO: check log in case of error
 
+#[derive(Serialize)]
+struct TailedMessage {
+    partition: i32,
+    offset: i64,
+    key: Option<String>,
+    created_at: Option<i64>,
+    appended_at: Option<i64>,
+    payload: String,
+}
+
 #[get("/api/tailer/<cluster_id>/<topic>/<id>")]
-pub fn test_live_consumer_api(
+pub fn topic_tailer_api(
     cluster_id: ClusterId,
     topic: &RawStr,
     id: u64,
@@ -217,16 +228,38 @@ pub fn test_live_consumer_api(
 
     let mut output = Vec::new();
     for message in consumer.poll(100, Duration::from_secs(3)) {
-        let payload = message
+        let key = message
+            .key()
+            .map(|bytes| String::from_utf8_lossy(bytes))
+            .map(|cow_str| cow_str.into_owned());
+
+        let mut created_at = None;
+        let mut appended_at = None;
+        match message.timestamp() {
+            CreateTime(ctime) => created_at = Some(ctime),
+            LogAppendTime(atime) => appended_at = Some(atime),
+            NotAvailable => (),
+        }
+
+        let original_payload = message
             .payload()
             .map(|bytes| String::from_utf8_lossy(bytes))
             .unwrap_or(Cow::Borrowed(""));
-        if payload.len() > 1024 {
-            let truncated = format!("{}...", payload.chars().take(1024).collect::<String>());
-            output.push(json! {(message.partition(), message.offset(), truncated)});
-        } else {
-            output.push(json! {(message.partition(), message.offset(), payload)});
-        };
+        let payload =
+            if original_payload.len() > 1024 {
+                format!("{}...", original_payload.chars().take(1024).collect::<String>())
+            } else {
+                original_payload.into_owned()
+            };
+
+        output.push(TailedMessage{
+            partition: message.partition(),
+            offset: message.offset(),
+            key,
+            created_at,
+            appended_at,
+            payload,
+        })
     }
 
     Ok(json!(output).to_string())

@@ -376,7 +376,7 @@ function background_tailer(cluster_id, topic_name, tailer_id) {
       for (var i = 0; i < messages.length; i++) {
         var message = messages[i];
         var p = $("<p>", {class: "message"});
-        p.append(truncate(message[2], max_msg_length));
+        p.append(truncate(message["payload"], max_msg_length));
         div_tailer.append(p);
       }
       if (bottom)
