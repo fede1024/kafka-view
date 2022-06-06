@@ -22,7 +22,7 @@ maud = { version = "0.20.0", features = ["rocket"] }
 rand = "0.6.5"
 rdkafka = "0.13.0"
 regex = "1.1.5"
-rocket = "0.4.0"
+rocket = "0.4.7"
 rocket_codegen = "0.4.0"
 rocket_contrib = "0.4.0"
 scheduled-executor = "0.4.0"
