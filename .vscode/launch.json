@@ -1,0 +1,82 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'kafka-view'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=kafka-view",
+                    "--package=kafka-view"
+                ],
+                "filter": {
+                    "name": "kafka-view",
+                    "kind": "bin"
+                }
+            },
+            "args": ["--conf", "config.yaml"],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'kafka-view'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=kafka-view",
+                    "--package=kafka-view"
+                ],
+                "filter": {
+                    "name": "kafka-view",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug example 'consumer_offsets_reader'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--example=consumer_offsets_reader",
+                    "--package=kafka-view"
+                ],
+                "filter": {
+                    "name": "consumer_offsets_reader",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in example 'consumer_offsets_reader'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--example=consumer_offsets_reader",
+                    "--package=kafka-view"
+                ],
+                "filter": {
+                    "name": "consumer_offsets_reader",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}

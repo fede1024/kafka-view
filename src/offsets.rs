@@ -1,16 +1,17 @@
 use byteorder::{BigEndian, ReadBytesExt};
-use futures::Stream;
-use rdkafka::config::{ClientConfig, TopicConfig};
+use rdkafka::config::{ClientConfig};
 use rdkafka::consumer::stream_consumer::StreamConsumer;
-use rdkafka::consumer::{Consumer, EmptyConsumerContext};
+use rdkafka::consumer::{Consumer, DefaultConsumerContext};
 use rdkafka::error::KafkaError;
-use rdkafka::{Message, Offset, TopicPartitionList};
 
-use cache::{Cache, OffsetsCache};
-use config::{ClusterConfig, Config};
-use error::*;
-use metadata::{ClusterId, TopicName};
-use utils::{insert_at, read_string};
+use rdkafka::{ Message, Offset, TopicPartitionList};
+use rocket::futures::StreamExt;
+
+use crate::cache::{Cache, OffsetsCache};
+use crate::config::{ClusterConfig, Config};
+use crate::error::*;
+use crate::metadata::{ClusterId, TopicName};
+use crate::utils::{insert_at, read_string};
 
 use std::cmp;
 use std::collections::HashMap;
@@ -84,10 +85,18 @@ fn create_consumer(
     brokers: &str,
     group_id: &str,
     start_offsets: Option<Vec<i64>>,
-) -> Result<StreamConsumer<EmptyConsumerContext>> {
+    config:ClusterConfig
+) -> Result<StreamConsumer<DefaultConsumerContext>> {
+
+    info!("security_protocol={}",&config.security_protocol.clone().unwrap_or("".to_owned()) );
     let consumer = ClientConfig::new()
         .set("group.id", group_id)
         .set("bootstrap.servers", brokers)
+        .set("security.protocol", &config.security_protocol.clone().unwrap_or("".to_owned()) )
+        .set("sasl.kerberos.service.name", &config.sasl_kerberos_service_name.clone().unwrap_or("".to_owned()) )
+        .set("sasl.mechanism", &config.sasl_mechanism.clone().unwrap_or("".to_owned()) )
+        .set("sasl.kerberos.principal", &config.sasl_kerberos_principal.clone().unwrap_or("".to_owned()) )
+        .set("sasl.kerberos.keytab", &config.sasl_kerberos_keytab.clone().unwrap_or("".to_owned()) )
         .set("enable.partition.eof", "false")
         .set("enable.auto.commit", "false")
         .set("session.timeout.ms", "30000")
@@ -95,11 +104,7 @@ fn create_consumer(
         //.set("fetch.message.max.bytes", "1024000") // Reduce memory usage
         .set("queued.min.messages", "10000") // Reduce memory usage
         .set("message.max.bytes", "10485760")
-        .set_default_topic_config(
-            TopicConfig::new()
-                .set("auto.offset.reset", "smallest")
-                .finalize(),
-        )
+        .set("auto.offset.reset", "smallest")
         .create::<StreamConsumer<_>>()
         .chain_err(|| format!("Consumer creation failed: {}", brokers))?;
 
@@ -172,14 +177,14 @@ fn commit_offset_position_to_array(tp_list: TopicPartitionList) -> Vec<i64> {
     let tp_elements = tp_list.elements_for_topic("__consumer_offsets");
     let mut offsets = vec![0; tp_elements.len()];
     for tp in &tp_elements {
-        offsets[tp.partition() as usize] = tp.offset().to_raw();
+        offsets[tp.partition() as usize] = tp.offset().to_raw().unwrap_or_default();
     }
     offsets
 }
 
-fn consume_offset_topic(
+async fn consume_offset_topic(
     cluster_id: ClusterId,
-    consumer: StreamConsumer<EmptyConsumerContext>,
+    consumer: StreamConsumer<DefaultConsumerContext>,
     cache: &Cache,
 ) -> Result<()> {
     let mut local_cache = HashMap::new();
@@ -187,11 +192,14 @@ fn consume_offset_topic(
 
     debug!("Starting offset consumer loop for {:?}", cluster_id);
 
-    for message in consumer.start_with(Duration::from_millis(200), true).wait() {
+    let mut stream = consumer.stream();
+    loop {
+        let message = stream.next().await;
         match message {
-            Ok(Ok(m)) => {
-                let key = m.key().unwrap_or(&[]);
-                let payload = m.payload().unwrap_or(&[]);
+            Some(Ok(m)) => {
+                let om = m.detach();
+                let key = om.key().unwrap_or(&[]);
+                let payload = om.payload().unwrap_or(&[]);
                 match parse_message(key, payload) {
                     Ok(ConsumerUpdate::OffsetCommit {
                         group,
@@ -208,9 +216,8 @@ fn consume_offset_topic(
                     Err(e) => format_error_chain!(e),
                 };
             }
-            Ok(Err(KafkaError::NoMessageReceived)) => {}
-            Ok(Err(e)) => warn!("Kafka error: {} {:?}", cluster_id, e),
-            Err(e) => warn!("Can't receive data from stream: {:?}", e),
+            Some(Err(e)) => { warn!("Kafka error: {} {:?}", cluster_id, e);break;},
+            None => {break;}
         };
         // Update the cache if needed
         if (Instant::now() - last_dump) > Duration::from_secs(10) {
@@ -234,7 +241,7 @@ fn consume_offset_topic(
                     vec_merge_in_place(
                         &mut current_position_vec,
                         &previous_position_vec,
-                        Offset::Invalid.to_raw(),
+                        Offset::Invalid.to_raw().unwrap_or_default(),
                         cmp::max,
                     );
                     cache
@@ -277,7 +284,7 @@ where
 //        .collect::<Vec<T>>()
 //}
 
-pub fn run_offset_consumer(
+pub   fn run_offset_consumer(
     cluster_id: &ClusterId,
     cluster_config: &ClusterConfig,
     config: &Config,
@@ -287,7 +294,7 @@ pub fn run_offset_consumer(
     let consumer = create_consumer(
         &cluster_config.bootstrap_servers(),
         &config.consumer_offsets_group_id,
-        start_position,
+        start_position,cluster_config.clone()
     )
     .chain_err(|| format!("Failed to create offset consumer for {}", cluster_id))?;
 
@@ -295,11 +302,11 @@ pub fn run_offset_consumer(
     let cache_alias = cache.alias();
     let _ = thread::Builder::new()
         .name("offset-consumer".to_owned())
-        .spawn(move || {
-            if let Err(e) = consume_offset_topic(cluster_id_clone, consumer, &cache_alias) {
+        .spawn(|| {async move  {
+            if let Err(e) = consume_offset_topic(cluster_id_clone, consumer, &cache_alias).await {
                 format_error_chain!(e);
             }
-        })
+        }})
         .chain_err(|| "Failed to start offset consumer thread")?;
 
     Ok(())

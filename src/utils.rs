@@ -6,15 +6,14 @@ use log::{LevelFilter, Record};
 use rocket::http::{ContentType, Status};
 use rocket::response::{self, Responder};
 use rocket::{fairing, Data, Request, Response};
-use serde_json;
 
 use std::env;
-use std::io::{self, BufRead, Cursor, Write};
+use std::io::{self, BufRead, Cursor, Read, Write};
 use std::str;
 use std::thread;
 
 use env_logger::fmt::Formatter;
-use error::*;
+use crate::error::*;
 
 pub fn setup_logger(log_thread: bool, rust_log: Option<&str>, date_format: &str) {
     let date_format = date_format.to_owned();
@@ -92,31 +91,6 @@ pub fn insert_at<T: Copy>(vector: &mut Vec<T>, pos: usize, value: T, default: T)
     vector[pos] = value;
 }
 
-/// Wraps a JSON value and implements a responder for it, with support for brotli compression.
-#[allow(dead_code)]
-pub struct CompressedJSON(pub serde_json::Value);
-
-impl Responder<'static> for CompressedJSON {
-    fn respond_to(self, req: &Request) -> response::Result<'static> {
-        let json = serde_json::to_vec(&self.0).unwrap();
-        let reader = io::Cursor::new(json);
-        let headers = req.headers();
-        if headers.contains("Accept") && headers.get("Accept-Encoding").any(|e| e.contains("br")) {
-            Ok(Response::build()
-                .status(Status::Ok)
-                .header(ContentType::JSON)
-                .raw_header("Content-Encoding", "br")
-                .streamed_body(brotli::CompressorReader::new(reader, 4096, 3, 20))
-                .finalize())
-        } else {
-            Ok(Response::build()
-                .status(Status::Ok)
-                .header(ContentType::JSON)
-                .streamed_body(reader)
-                .finalize())
-        }
-    }
-}
 
 pub fn read_str<'a>(rdr: &'a mut Cursor<&[u8]>) -> Result<&'a str> {
     let len = (rdr.read_i16::<BigEndian>()).chain_err(|| "Failed to parse string len")? as usize;
@@ -133,7 +107,7 @@ pub fn read_string(rdr: &mut Cursor<&[u8]>) -> Result<String> {
 
 // GZip compression fairing
 pub struct GZip;
-
+#[rocket::async_trait]
 impl fairing::Fairing for GZip {
     fn info(&self) -> fairing::Info {
         fairing::Info {
@@ -142,32 +116,34 @@ impl fairing::Fairing for GZip {
         }
     }
 
-    fn on_response(&self, request: &Request, response: &mut Response) {
-        use flate2::{Compression, FlateReadExt};
+    async fn on_response<'r>(&self, request: &'r Request<'_>, response: &mut Response<'r>) {
+        use flate2::{Compression,FlateReadExt};
         use std::io::{Cursor, Read};
         let headers = request.headers();
         if headers
             .get("Accept-Encoding")
             .any(|e| e.to_lowercase().contains("gzip"))
         {
-            response.body_bytes().and_then(|body| {
+            response.body_mut().to_bytes().await.and_then(|body| {
                 let mut enc = body.gz_encode(Compression::Default);
                 let mut buf = Vec::with_capacity(body.len());
                 enc.read_to_end(&mut buf)
                     .map(|_| {
-                        response.set_sized_body(Cursor::new(buf));
+                        response.set_sized_body(buf.len(),Cursor::new(buf));
                         response.set_raw_header("Content-Encoding", "gzip");
                     })
                     .map_err(|e| eprintln!("{}", e))
-                    .ok()
+                    .ok();
+
+                Ok(())
             });
         }
     }
-}
+    }
 
 // Request logging
 pub struct RequestLogger;
-
+#[rocket::async_trait]
 impl fairing::Fairing for RequestLogger {
     // This is a request and response fairing named "GET/POST Counter".
     fn info(&self) -> fairing::Info {
@@ -177,7 +153,7 @@ impl fairing::Fairing for RequestLogger {
         }
     }
 
-    fn on_request(&self, request: &mut Request, _: &Data) {
+    async fn on_request(&self, request: &mut Request<'_>, _: &mut Data<'_>) {
         let uri = request.uri().path();
         if !uri.starts_with("/api") && !uri.starts_with("/public") {
             info!("User request: {}", uri);

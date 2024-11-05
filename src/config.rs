@@ -1,7 +1,7 @@
 use serde_yaml;
 
-use error::*;
-use metadata::ClusterId;
+use crate::error::*;
+use crate::metadata::ClusterId;
 
 use std::collections::HashMap;
 use std::fs::File;
@@ -22,6 +22,11 @@ pub struct ClusterConfig {
     pub enable_tailing: bool,
     #[serde(default = "default_true")]
     pub show_zk_reassignments: bool,
+    pub security_protocol:Option<String>,
+    pub sasl_kerberos_service_name:Option<String>,
+    pub sasl_mechanism:Option<String>,
+    pub sasl_kerberos_principal:Option<String>,
+    pub sasl_kerberos_keytab:Option<String>,
 }
 
 impl ClusterConfig {
@@ -55,7 +60,7 @@ impl Config {
 }
 
 pub fn read_config(path: &str) -> Result<Config> {
-    let mut f = File::open(path).chain_err(|| "Unable to open configuration file")?;;
+    let mut f = File::open(path).chain_err(|| "Unable to open configuration file")?;
     let mut s = String::new();
     f.read_to_string(&mut s)
         .chain_err(|| "Unable to read configuration file")?;

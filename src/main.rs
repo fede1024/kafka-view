@@ -1,8 +1,7 @@
-#![feature(plugin, proc_macro_hygiene, decl_macro)]
+
 
 #[macro_use]
 extern crate error_chain;
-#[macro_use]
 extern crate log;
 #[macro_use]
 extern crate serde_derive;
@@ -43,34 +42,38 @@ mod web_server;
 mod zk;
 
 use clap::{App, Arg, ArgMatches};
+use rocket::tokio;
 use scheduled_executor::{TaskGroupScheduler, ThreadPoolExecutor};
 use std::time::Duration;
 
-use cache::{Cache, ReplicaReader, ReplicaWriter};
-use error::*;
-use metadata::MetadataFetchTaskGroup;
-use metrics::MetricsFetchTaskGroup;
-use offsets::run_offset_consumer;
+use crate::cache::{Cache, ReplicaReader, ReplicaWriter};
+use crate::error::*;
+use crate::metadata::MetadataFetchTaskGroup;
+use crate::metrics::MetricsFetchTaskGroup;
+use crate::offsets::run_offset_consumer;
 
 include!(concat!(env!("OUT_DIR"), "/rust_version.rs"));
 
-fn run_kafka_web(config_path: &str) -> Result<()> {
+async fn run_kafka_web(config_path: &str) -> Result<()> {
     let config = config::read_config(config_path)
         .chain_err(|| format!("Unable to load configuration from '{}'", config_path))?;
 
+    
     let replicator_bootstrap_servers = match config.cluster(&config.caching.cluster) {
         Some(cluster) => cluster.bootstrap_servers(),
         None => bail!("Can't find cache cluster {}", config.caching.cluster),
     };
+    let clusterConfig =config.cluster(&config.caching.cluster).unwrap();
     let topic_name = &config.caching.topic;
     let replica_writer =
-        ReplicaWriter::new(&replicator_bootstrap_servers, topic_name).chain_err(|| {
+        ReplicaWriter::new(&replicator_bootstrap_servers, topic_name,&clusterConfig).chain_err(|| {
             format!(
                 "Replica writer creation failed (brokers: {}, topic: {})",
                 replicator_bootstrap_servers, topic_name
             )
         })?;
-    let mut replica_reader = ReplicaReader::new(&replicator_bootstrap_servers, topic_name)
+    
+    let mut replica_reader = ReplicaReader::new(&replicator_bootstrap_servers, topic_name, &clusterConfig)
         .chain_err(|| {
             format!(
                 "Replica reader creation failed (brokers: {}, topic: {})",
@@ -82,7 +85,7 @@ fn run_kafka_web(config_path: &str) -> Result<()> {
 
     // Load all the state from Kafka
     let start_time = chrono::Utc::now();
-    replica_reader.load_state(cache.alias()).chain_err(|| {
+    replica_reader.load_state(cache.alias()).await.chain_err(|| {
         format!(
             "State load failed (brokers: {}, topic: {})",
             replicator_bootstrap_servers, topic_name
@@ -166,7 +169,7 @@ fn run_kafka_web(config_path: &str) -> Result<()> {
         },
     );
 
-    web_server::server::run_server(&executor, cache.alias(), &config)
+    web_server::server::run_server(&executor, cache.alias(), &config).await
         .chain_err(|| "Server initialization failed")?;
 
     Ok(())
@@ -192,8 +195,8 @@ fn setup_args<'a>() -> ArgMatches<'a> {
         )
         .get_matches()
 }
-
-fn main() {
+#[tokio::main]
+async fn main() {
     let matches = setup_args();
 
     utils::setup_logger(true, matches.value_of("log-conf"), "%F %T%z");
@@ -201,7 +204,7 @@ fn main() {
     let config_path = matches.value_of("conf").unwrap();
 
     info!("Kafka-view is starting up!");
-    if let Err(e) = run_kafka_web(config_path) {
+    if let Err(e) = run_kafka_web(config_path).await {
         format_error_chain!(e);
         std::process::exit(1);
     }

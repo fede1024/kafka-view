@@ -1,11 +1,11 @@
 use maud::{html, Markup, PreEscaped};
 
-use metadata::{BrokerId, ClusterId};
-use web_server::pages;
-use web_server::view::layout;
+use crate::metadata::{BrokerId, ClusterId};
+use crate::web_server::pages;
+use crate::web_server::view::layout;
 
-use cache::Cache;
-use config::Config;
+use crate::cache::Cache;
+use crate::config::Config;
 
 use rocket::State;
 
@@ -60,7 +60,7 @@ fn reassignment_table(cluster_id: &ClusterId) -> PreEscaped<String> {
 }
 
 #[get("/clusters/<cluster_id>")]
-pub fn cluster_page(cluster_id: ClusterId, cache: State<Cache>, config: State<Config>) -> Markup {
+pub fn cluster_page(cluster_id: ClusterId, cache: &State<Cache>, config: &State<Config>) -> Markup {
     if cache.brokers.get(&cluster_id).is_none() {
         return pages::warning_page(
             &format!("Cluster: {}", cluster_id),
@@ -100,8 +100,8 @@ pub fn cluster_page(cluster_id: ClusterId, cache: State<Cache>, config: State<Co
 pub fn broker_page(
     cluster_id: ClusterId,
     broker_id: BrokerId,
-    cache: State<Cache>,
-    config: State<Config>,
+    cache: &State<Cache>,
+    config: &State<Config>,
 ) -> Markup {
     let broker = cache
         .brokers

@@ -1,10 +1,10 @@
 use maud::{html, Markup, PreEscaped};
 use rocket::http::RawStr;
 
-use cache::Cache;
-use metadata::ClusterId;
-use web_server::pages;
-use web_server::view::layout;
+use crate::cache::Cache;
+use crate::metadata::ClusterId;
+use crate::web_server::pages;
+use crate::web_server::view::layout;
 
 use rocket::State;
 
@@ -30,7 +30,7 @@ fn group_offsets_table(cluster_id: &ClusterId, group_name: &str) -> PreEscaped<S
 }
 
 #[get("/clusters/<cluster_id>/groups/<group_name>")]
-pub fn group_page(cluster_id: ClusterId, group_name: &RawStr, cache: State<Cache>) -> Markup {
+pub fn group_page<'a>(cluster_id: ClusterId, group_name: &'a str, cache: &State<Cache>) -> Markup {
     if cache.brokers.get(&cluster_id).is_none() {
         return pages::warning_page(group_name, "The specified cluster doesn't exist.");
     }

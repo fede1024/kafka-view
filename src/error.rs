@@ -1,4 +1,4 @@
-use metadata::ClusterId;
+use crate::metadata::ClusterId;
 
 error_chain! {
     errors {

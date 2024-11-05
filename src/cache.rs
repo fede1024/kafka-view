@@ -1,13 +1,13 @@
-use futures::stream::Stream;
 use rand::random;
-use rdkafka::client::EmptyContext;
-use rdkafka::config::{ClientConfig, TopicConfig};
+use rdkafka::client::DefaultClientContext;
+use rdkafka::config::{ClientConfig};
+use crate::config::ClusterConfig;
 use rdkafka::consumer::stream_consumer::StreamConsumer;
-use rdkafka::consumer::{Consumer, EmptyConsumerContext};
+use rdkafka::consumer::{Consumer, DefaultConsumerContext};
 use rdkafka::error::KafkaError;
 use rdkafka::message::{BorrowedMessage, Message, OwnedMessage};
-use rdkafka::producer::FutureProducer;
-use rdkafka::util::{duration_to_millis, millis_to_epoch};
+use rdkafka::producer::{FutureProducer, FutureRecord};
+use rdkafka::util::{ millis_to_epoch, Timeout};
 use serde::de::{Deserialize, DeserializeOwned};
 use serde::ser::Serialize;
 use serde_json;
@@ -19,9 +19,9 @@ use std::hash::Hash;
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, SystemTime};
 
-use error::*;
-use metadata::{Broker, ClusterId, Group, Partition, TopicName};
-use metrics::TopicMetrics;
+use crate::error::*;
+use crate::metadata::{Broker, ClusterId, Group, Partition, TopicName};
+use crate::metrics::TopicMetrics;
 
 #[derive(Serialize, Deserialize, Debug, Hash, Eq, PartialEq)]
 struct WrappedKey(String, String);
@@ -49,13 +49,19 @@ impl WrappedKey {
 
 pub struct ReplicaWriter {
     topic_name: String,
-    producer: FutureProducer<EmptyContext>,
+    producer: FutureProducer<DefaultClientContext>,
 }
 
 impl ReplicaWriter {
-    pub fn new(brokers: &str, topic_name: &str) -> Result<ReplicaWriter> {
+    pub fn new(brokers: &str, topic_name: &str,config :&ClusterConfig) -> Result<ReplicaWriter> {
         let producer = ClientConfig::new()
             .set("bootstrap.servers", brokers)
+            .set("security.protocol", &config.security_protocol.clone().unwrap_or("".to_owned()) )
+            .set("sasl.kerberos.service.name", &config.sasl_kerberos_service_name.clone().unwrap_or("".to_owned()) )
+            .set("sasl.mechanism", &config.sasl_mechanism.clone().unwrap_or("".to_owned()) )
+            .set("sasl.kerberos.principal", &config.sasl_kerberos_principal.clone().unwrap_or("".to_owned()) )
+            .set("sasl.kerberos.keytab", &config.sasl_kerberos_keytab.clone().unwrap_or("".to_owned()) )
+            
             .set("compression.codec", "gzip")
             .set("message.max.bytes", "10000000")
             .set("api.version.request", "true")
@@ -88,13 +94,16 @@ impl ReplicaWriter {
             (serialized_value.len() as f64 / 1000f64)
         );
         let ts = millis_to_epoch(SystemTime::now());
-        let _f = self.producer.send_copy(
-            self.topic_name.as_str(),
-            None,
-            Some(&serialized_value),
-            Some(&serialized_key),
-            Some(ts),
-            1000,
+        let _f = self.producer.send::<[u8], [u8],Timeout>(
+            FutureRecord{
+                topic: self.topic_name.as_str(),
+                partition: None,
+                key: Some(&serialized_key),
+                timestamp:Some(ts),
+                headers:None,
+                payload:Some(&serialized_value)
+            }  ,
+            Timeout::After(Duration::from_millis(1000)),
         );
         // _f.wait();  // Uncomment to make production synchronous
         Ok(())
@@ -113,13 +122,16 @@ impl ReplicaWriter {
     /// Writes a tombstone for the specified message key.
     fn write_tombstone(&self, message_key: &[u8]) -> Result<()> {
         let ts = millis_to_epoch(SystemTime::now());
-        let _f = self.producer.send_copy::<[u8], [u8]>(
-            self.topic_name.as_str(),
-            None,
-            None,
-            Some(&message_key),
-            Some(ts),
-            1000,
+        let _f = self.producer.send::<[u8], [u8],Timeout>(
+            FutureRecord{
+                topic: self.topic_name.as_str(),
+                partition: None,
+                key: Some(message_key),
+                timestamp:Some(ts),
+                headers:None,
+                payload:None
+            }  ,
+            Timeout::After(Duration::from_millis(1000)),
         );
         Ok(())
     }
@@ -145,7 +157,7 @@ pub trait UpdateReceiver: Send + 'static {
     fn receive_update(&self, name: &str, update: ReplicaCacheUpdate) -> Result<()>;
 }
 
-type ReplicaConsumer = StreamConsumer<EmptyConsumerContext>;
+type ReplicaConsumer = StreamConsumer<DefaultConsumerContext>;
 
 pub struct ReplicaReader {
     consumer: ReplicaConsumer,
@@ -155,23 +167,25 @@ pub struct ReplicaReader {
 }
 
 impl ReplicaReader {
-    pub fn new(brokers: &str, topic_name: &str) -> Result<ReplicaReader> {
+    pub fn new(brokers: &str, topic_name: &str ,config :&ClusterConfig) -> Result<ReplicaReader> {
         let consumer: ReplicaConsumer = ClientConfig::new()
             .set(
                 "group.id",
                 &format!("kafka_web_cache_reader_{}", random::<i64>()),
             )
             .set("bootstrap.servers", brokers)
+            .set("security.protocol", &config.security_protocol.clone().unwrap_or("".to_owned()) )
+            .set("sasl.kerberos.service.name", &config.sasl_kerberos_service_name.clone().unwrap_or("".to_owned()) )
+            .set("sasl.mechanism", &config.sasl_mechanism.clone().unwrap_or("".to_owned()) )
+            .set("sasl.kerberos.principal", &config.sasl_kerberos_principal.clone().unwrap_or("".to_owned()) )
+            .set("sasl.kerberos.keytab", &config.sasl_kerberos_keytab.clone().unwrap_or("".to_owned()) )
+            
             .set("session.timeout.ms", "6000")
             .set("enable.auto.commit", "false")
             .set("queued.min.messages", "10000") // Reduce memory usage
             //.set("fetch.message.max.bytes", "102400")
             .set("api.version.request", "true")
-            .set_default_topic_config(
-                TopicConfig::new()
-                    .set("auto.offset.reset", "smallest")
-                    .finalize(),
-            )
+            .set("auto.offset.reset", "smallest")
             .create()
             .chain_err(|| "Consumer creation failed")?;
 
@@ -193,9 +207,9 @@ impl ReplicaReader {
         self.processed_messages
     }
 
-    pub fn load_state<R: UpdateReceiver>(&mut self, receiver: R) -> Result<()> {
+    pub async fn load_state<R: UpdateReceiver>(&mut self, receiver: R) -> Result<()> {
         info!("Started creating state");
-        match self.last_message_per_key() {
+        match self.last_message_per_key().await {
             Err(e) => format_error_chain!(e),
             Ok(state) => {
                 for (w_key, message) in state {
@@ -223,7 +237,7 @@ impl ReplicaReader {
         Ok(())
     }
 
-    fn last_message_per_key(&mut self) -> Result<HashMap<WrappedKey, OwnedMessage>> {
+    async fn last_message_per_key(&mut self) -> Result<HashMap<WrappedKey, OwnedMessage>> {
         let mut eof_set = HashSet::new();
         let mut borrowed_state = HashMap::new();
         let mut state = HashMap::new();
@@ -231,7 +245,7 @@ impl ReplicaReader {
         let topic_name = &self.topic_name;
         let metadata = self
             .consumer
-            .fetch_metadata(Some(topic_name), 30000)
+            .fetch_metadata(Some(topic_name), Timeout::After(Duration::from_millis(30000)) )
             .chain_err(|| "Failed to fetch metadata")?;
 
         if metadata.topics().is_empty() {
@@ -246,11 +260,12 @@ impl ReplicaReader {
             return Ok(state); // Topic is empty and auto created
         }
 
-        let message_stream = self.consumer.start();
+        
 
-        for message in message_stream.wait() {
+        loop {
+            let message = self.consumer.recv().await;
             match message {
-                Ok(Ok(m)) => {
+                Ok(m) => {
                     self.processed_messages += 1;
                     match parse_message_key(&m).chain_err(|| "Failed to parse message key") {
                         Ok(wrapped_key) => {
@@ -259,11 +274,11 @@ impl ReplicaReader {
                         Err(e) => format_error_chain!(e),
                     };
                 }
-                Ok(Err(KafkaError::PartitionEOF(p))) => {
+                Err(KafkaError::PartitionEOF(p)) => {
                     eof_set.insert(p);
                 }
-                Ok(Err(e)) => error!("Error while reading from Kafka: {}", e),
-                Err(_) => error!("Stream receive error"),
+                Err(e) => {error!("Error while reading from Kafka: {}", e);break;},
+                Err(_) => {error!("Stream receive error");break;},
             };
             if borrowed_state.len() >= 10000 {
                 for (key, message) in borrowed_state {
@@ -278,7 +293,7 @@ impl ReplicaReader {
         for (key, message) in borrowed_state {
             state.insert(key, message.detach());
         }
-        self.consumer.stop();
+        //self.consumer.stop();
         info!("Total unique items in caches: {}", state.len());
         Ok(state)
     }
@@ -419,8 +434,8 @@ where
 
     pub fn remove_expired(&self, max_age: Duration) -> Vec<K> {
         let to_remove = {
-            let cache = self.map.read().unwrap();
-            let max_ms = duration_to_millis(max_age) as i64;
+            let cache: std::sync::RwLockReadGuard<'_, HashMap<K, ValueContainer<V>>> = self.map.read().unwrap();
+            let max_ms = max_age.as_millis() as i64;
             let current_ms = millis_to_epoch(SystemTime::now());
             cache
                 .iter()

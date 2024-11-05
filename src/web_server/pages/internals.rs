@@ -1,8 +1,8 @@
 use maud::{html, Markup, PreEscaped};
 use rocket::State;
 
-use cache::Cache;
-use web_server::view::layout;
+use crate::cache::Cache;
+use crate::web_server::view::layout;
 
 fn broker_table() -> PreEscaped<String> {
     layout::datatable_ajax(
@@ -55,7 +55,7 @@ fn cache_description_table(name: &str, key: &str, value: &str, count: usize) -> 
 }
 
 #[get("/internals/caches")]
-pub fn caches_page(cache: State<Cache>) -> Markup {
+pub fn caches_page(cache: &State<Cache>) -> Markup {
     let content = html! {
         h3 style="margin-top: 0px" { "Information" }
         h3 { "Brokers" }

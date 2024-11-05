@@ -1,21 +1,24 @@
 use byteorder::{BigEndian, ReadBytesExt};
+use rdkafka::bindings::rd_kafka_err2str;
 use rdkafka::config::ClientConfig;
-use rdkafka::consumer::{BaseConsumer, Consumer, EmptyConsumerContext};
+use rdkafka::consumer::{BaseConsumer, Consumer, DefaultConsumerContext};
 use rdkafka::error as rderror;
 use scheduled_executor::TaskGroup;
 
-use cache::Cache;
-use config::{ClusterConfig, Config};
-use error::*;
-use utils::read_str;
+use crate::cache::Cache;
+use crate::config::{ClusterConfig, Config};
+use crate::error::*;
+use crate::utils::read_str;
 
 use std::collections::HashMap;
 use std::error::Error;
 use std::fmt;
 use std::io::Cursor;
 use std::sync::{Arc, RwLock};
+use std::time::Duration;
+use rdkafka::util::{cstr_to_owned, Timeout};
 
-pub type MetadataConsumer = BaseConsumer<EmptyConsumerContext>;
+pub type MetadataConsumer = BaseConsumer<DefaultConsumerContext>;
 
 lazy_static! {
     pub static ref CONSUMERS: MetadataConsumerCache = MetadataConsumerCache::new();
@@ -54,8 +57,16 @@ impl MetadataConsumerCache {
         }
 
         debug!("Creating metadata consumer for {}", cluster_id);
+        info!("security_protocol={}",&config.security_protocol.clone().unwrap_or("".to_owned()) );
+
         let consumer = ClientConfig::new()
             .set("bootstrap.servers", &config.bootstrap_servers())
+            .set("security.protocol", &config.security_protocol.clone().unwrap_or("".to_owned()) )
+            .set("sasl.kerberos.service.name", &config.sasl_kerberos_service_name.clone().unwrap_or("".to_owned()) )
+            .set("sasl.mechanism", &config.sasl_mechanism.clone().unwrap_or("".to_owned()) )
+            .set("sasl.kerberos.principal", &config.sasl_kerberos_principal.clone().unwrap_or("".to_owned()) )
+            .set("sasl.kerberos.keytab", &config.sasl_kerberos_keytab.clone().unwrap_or("".to_owned()) )
+            
             .set("api.version.request", "true")
             .create::<MetadataConsumer>()
             .chain_err(|| format!("Consumer creation failed for {}", cluster_id))?;
@@ -220,9 +231,9 @@ fn parse_member_assignment(payload_rdr: &mut Cursor<&[u8]>) -> Result<Vec<Member
 
 fn fetch_groups(consumer: &MetadataConsumer, timeout_ms: i32) -> Result<Vec<Group>> {
     let group_list = consumer
-        .fetch_group_list(None, timeout_ms)
+        .fetch_group_list(None,Timeout::After(Duration::from_millis(timeout_ms as u64)))
         .chain_err(|| "Failed to fetch consumer group list")?;
-
+    info!("groups size={}",group_list.groups().len());
     let mut groups = Vec::new();
     for rd_group in group_list.groups() {
         let members = rd_group
@@ -269,7 +280,7 @@ impl MetadataFetchTaskGroup {
 
     fn fetch_data(&self, consumer: Arc<MetadataConsumer>, cluster_id: &ClusterId) -> Result<()> {
         let metadata = consumer
-            .fetch_metadata(None, 120_000)
+            .fetch_metadata(None,   Timeout::After(Duration::from_millis(120_000)))
             .chain_err(|| format!("Failed to fetch metadata from {}", cluster_id))?;
 
         // Brokers
@@ -292,7 +303,7 @@ impl MetadataFetchTaskGroup {
             for p in topic.partitions() {
                 let err_descr = p
                     .error()
-                    .map(|e| rderror::RDKafkaError::from(e).description().to_owned());
+                    .map(|e| unsafe { std::ffi::CStr::from_ptr( rd_kafka_err2str(e)).to_str().unwrap_or_default().to_owned()});
                 let partition = Partition::new(
                     p.id(),
                     p.leader(),

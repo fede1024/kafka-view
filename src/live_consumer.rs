@@ -1,15 +1,14 @@
 use rdkafka::config::ClientConfig;
-use rdkafka::consumer::{BaseConsumer, Consumer, EmptyConsumerContext};
+use rdkafka::consumer::{BaseConsumer, Consumer, DefaultConsumerContext};
 use rdkafka::message::BorrowedMessage;
 use rdkafka::message::Timestamp::*;
 use rdkafka::Message;
-use rocket::http::RawStr;
 use rocket::State;
 use scheduled_executor::ThreadPoolExecutor;
 
-use config::{ClusterConfig, Config};
-use error::*;
-use metadata::ClusterId;
+use crate::config::{ClusterConfig, Config};
+use crate::error::*;
+use crate::metadata::ClusterId;
 
 use std::borrow::Cow;
 use std::collections::HashMap;
@@ -22,14 +21,20 @@ pub struct LiveConsumer {
     cluster_id: ClusterId,
     topic: String,
     last_poll: RwLock<Instant>,
-    consumer: BaseConsumer<EmptyConsumerContext>,
+    consumer: BaseConsumer<DefaultConsumerContext>,
     active: AtomicBool,
 }
 
 impl LiveConsumer {
     fn new(id: u64, cluster_config: &ClusterConfig, topic: &str) -> Result<LiveConsumer> {
+        info!("security_protocol={}",&cluster_config.security_protocol.clone().unwrap_or("".to_owned()) );
         let consumer = ClientConfig::new()
             .set("bootstrap.servers", &cluster_config.bootstrap_servers())
+            .set("security.protocol", &cluster_config.security_protocol.clone().unwrap_or("".to_owned()) )
+            .set("sasl.kerberos.service.name", &cluster_config.sasl_kerberos_service_name.clone().unwrap_or("".to_owned()) )
+            .set("sasl.mechanism", &cluster_config.sasl_mechanism.clone().unwrap_or("".to_owned()) )
+            .set("sasl.kerberos.principal", &cluster_config.sasl_kerberos_principal.clone().unwrap_or("".to_owned()) )
+            .set("sasl.kerberos.keytab", &cluster_config.sasl_kerberos_keytab.clone().unwrap_or("".to_owned()) )
             .set("group.id", &format!("kafka_view_live_consumer_{}", id))
             .set("enable.partition.eof", "false")
             .set("api.version.request", "true")
@@ -90,7 +95,7 @@ impl LiveConsumer {
         *self.last_poll.write().unwrap() = Instant::now();
 
         while Instant::elapsed(&start_time) < timeout && buffer.len() < max_msg {
-            match self.consumer.poll(100) {
+            match self.consumer.poll(rdkafka::util::Timeout::After(Duration::from_secs(100))) {
                 None => {}
                 Some(Ok(m)) => buffer.push(m),
                 Some(Err(e)) => {
@@ -197,11 +202,11 @@ struct TailedMessage {
 #[get("/api/tailer/<cluster_id>/<topic>/<id>")]
 pub fn topic_tailer_api(
     cluster_id: ClusterId,
-    topic: &RawStr,
+    topic: String,
     id: u64,
-    config: State<Config>,
-    live_consumers_store: State<LiveConsumerStore>,
-) -> Result<String> {
+    config: &State<Config>,
+    live_consumers_store: &State<LiveConsumerStore>,
+) -> std::result::Result<String,String> {
     let cluster_config = config.clusters.get(&cluster_id);
 
     if cluster_config.is_none() || !cluster_config.unwrap().enable_tailing {
@@ -212,13 +217,13 @@ pub fn topic_tailer_api(
     let consumer = match live_consumers_store.get_consumer(id) {
         Some(consumer) => consumer,
         None => live_consumers_store
-            .add_consumer(id, cluster_config, topic)
+            .add_consumer(id, cluster_config, &topic)
             .chain_err(|| {
                 format!(
                     "Error while creating live consumer for {} {}",
                     cluster_id, topic
                 )
-            })?,
+            }).expect("Failed to create live consumer"),
     };
 
     if !consumer.is_active() {

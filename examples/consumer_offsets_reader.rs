@@ -9,11 +9,12 @@ extern crate rdkafka;
 use byteorder::{BigEndian, ReadBytesExt};
 use clap::{App, Arg};
 use futures::stream::Stream;
-use rdkafka::config::{ClientConfig, TopicConfig};
+use rdkafka::config::{ClientConfig};
 use rdkafka::consumer::stream_consumer::StreamConsumer;
 use rdkafka::consumer::Consumer;
 use rdkafka::message::Message;
 use rdkafka::util::get_rdkafka_version;
+use rocket::futures::StreamExt;
 
 use std::io::{self, BufRead, Cursor};
 use std::str;
@@ -97,31 +98,30 @@ fn parse_message(key: &[u8], payload: &[u8]) -> Result<ConsumerUpdate, ParserErr
     }
 }
 
-fn consume_and_print(brokers: &str) {
+async fn consume_and_print(brokers: &str) {
     let consumer = ClientConfig::new()
         .set("group.id", "consumer_reader_group")
         .set("bootstrap.servers", brokers)
         .set("enable.partition.eof", "false")
         .set("session.timeout.ms", "30000")
         .set("enable.auto.commit", "false")
-        .set_default_topic_config(
-            TopicConfig::new()
-                .set("auto.offset.reset", "smallest")
-                .finalize(),
-        )
+        .set("auto.offset.reset", "smallest")
         .create::<StreamConsumer<_>>()
         .expect("Consumer creation failed");
 
     consumer
         .subscribe(&vec!["__consumer_offsets"])
         .expect("Can't subscribe to specified topics");
-
-    for message in consumer.start().wait() {
+    let mut stream = consumer.stream();
+    loop {
+        let message = stream.next().await;
         match message {
-            Err(e) => {
+            None =>{break;}
+            Some(Err(e)) => {
                 warn!("Can't receive data from stream: {:?}", e);
+                break;
             }
-            Ok(Ok(m)) => {
+            Some(Ok(m)) => {
                 let key = match m.key_view::<[u8]>() {
                     None => &[],
                     Some(Ok(s)) => s,
@@ -147,9 +147,6 @@ fn consume_and_print(brokers: &str) {
 
                 let msg = parse_message(key, payload);
                 println!("{:?}", msg);
-            }
-            Ok(Err(e)) => {
-                warn!("Kafka error: {:?}", e);
             }
         };
     }

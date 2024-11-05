@@ -6,16 +6,17 @@ use regex::Regex;
 use rocket::http::RawStr;
 use rocket::State;
 
-use cache::Cache;
-use config::Config;
-use error::*;
-use live_consumer::LiveConsumerStore;
-use metadata::{ClusterId, TopicName, TopicPartition, CONSUMERS};
-use offsets::OffsetStore;
-use web_server::pages::omnisearch::OmnisearchFormParams;
-use zk::ZK;
+use crate::cache::Cache;
+use crate::config::Config;
+use crate::error::*;
+use crate::live_consumer::LiveConsumerStore;
+use crate::metadata::{ClusterId, TopicName, TopicPartition, CONSUMERS};
+use crate::offsets::OffsetStore;
+use crate::web_server::pages::omnisearch::OmnisearchFormParams;
+use crate::zk::ZK;
 
 use std::collections::{HashMap, HashSet};
+use std::time::Duration;
 
 //
 // ********** TOPICS LIST **********
@@ -31,7 +32,7 @@ struct TopicDetails {
 }
 
 #[get("/api/clusters/<cluster_id>/topics")]
-pub fn cluster_topics(cluster_id: ClusterId, cache: State<Cache>) -> String {
+pub fn cluster_topics(cluster_id: ClusterId, cache: &State<Cache>) -> String {
     let brokers = cache.brokers.get(&cluster_id);
     if brokers.is_none() {
         // TODO: Improve here
@@ -70,7 +71,7 @@ pub fn cluster_topics(cluster_id: ClusterId, cache: State<Cache>) -> String {
 //
 
 #[get("/api/clusters/<cluster_id>/brokers")]
-pub fn brokers(cluster_id: ClusterId, cache: State<Cache>) -> String {
+pub fn brokers(cluster_id: ClusterId, cache: &State<Cache>) -> String {
     let brokers = cache.brokers.get(&cluster_id);
     if brokers.is_none() {
         // TODO: Improve here
@@ -164,7 +165,7 @@ where
 }
 
 #[get("/api/clusters/<cluster_id>/groups")]
-pub fn cluster_groups(cluster_id: ClusterId, cache: State<Cache>) -> String {
+pub fn cluster_groups(cluster_id: ClusterId, cache: &State<Cache>) -> String {
     let brokers = cache.brokers.get(&cluster_id);
     if brokers.is_none() {
         // TODO: Improve here
@@ -187,7 +188,7 @@ pub fn cluster_groups(cluster_id: ClusterId, cache: State<Cache>) -> String {
 }
 
 #[get("/api/clusters/<cluster_id>/topics/<topic_name>/groups")]
-pub fn topic_groups(cluster_id: ClusterId, topic_name: &RawStr, cache: State<Cache>) -> String {
+pub fn topic_groups<'a>(cluster_id: ClusterId, topic_name: &'a str, cache: &State<Cache>) -> String {
     let brokers = cache.brokers.get(&cluster_id);
     if brokers.is_none() {
         // TODO: Improve here
@@ -213,7 +214,7 @@ pub fn topic_groups(cluster_id: ClusterId, topic_name: &RawStr, cache: State<Cac
 }
 
 #[get("/api/clusters/<cluster_id>/groups/<group_name>/members")]
-pub fn group_members(cluster_id: ClusterId, group_name: &RawStr, cache: State<Cache>) -> String {
+pub fn group_members<'a>(cluster_id: ClusterId, group_name: &'a str, cache: &State<Cache>) -> String {
     let group = cache
         .groups
         .get(&(cluster_id.clone(), group_name.to_string()));
@@ -255,8 +256,8 @@ pub fn group_members(cluster_id: ClusterId, group_name: &RawStr, cache: State<Ca
 }
 
 #[get("/api/clusters/<cluster_id>/groups/<group_name>/offsets")]
-pub fn group_offsets(cluster_id: ClusterId, group_name: &RawStr, cache: State<Cache>) -> String {
-    let offsets = cache.offsets_by_cluster_group(&cluster_id, group_name.as_str());
+pub fn group_offsets<'a>(cluster_id: ClusterId, group_name: &'a str, cache: &State<Cache>) -> String {
+    let offsets = cache.offsets_by_cluster_group(&cluster_id, group_name);
 
     let wms = time!("fetching wms", fetch_watermarks(&cluster_id, &offsets));
     let wms = match wms {
@@ -315,7 +316,7 @@ fn fetch_watermarks(
             let consumer_clone = consumer.clone();
             let topic_clone = topic.clone();
             let wm_future = cpu_pool.spawn_fn(move || {
-                let wms = consumer_clone.fetch_watermarks(&topic_clone, partition_id as i32, 10000);
+                let wms = consumer_clone.fetch_watermarks(&topic_clone, partition_id as i32, rdkafka::util::Timeout::After(Duration::from_millis(10000)));
                 Ok::<_, ()>(((topic_clone, partition_id as i32), wms)) // never fail
             });
             futures.push(wm_future);
@@ -336,7 +337,7 @@ fn fetch_watermarks(
 //
 
 #[get("/api/clusters/<cluster_id>/topics/<topic_name>/topology")]
-pub fn topic_topology(cluster_id: ClusterId, topic_name: &RawStr, cache: State<Cache>) -> String {
+pub fn topic_topology<'a>(cluster_id: ClusterId, topic_name: &'a str, cache: &State<Cache>) -> String {
     let partitions = cache
         .topics
         .get(&(cluster_id.to_owned(), topic_name.to_string()));
@@ -376,7 +377,7 @@ pub fn topic_topology(cluster_id: ClusterId, topic_name: &RawStr, cache: State<C
 //
 
 #[get("/api/search/consumer?<search..>")]
-pub fn consumer_search(search: OmnisearchFormParams, cache: State<Cache>) -> String {
+pub fn consumer_search(search: OmnisearchFormParams, cache: &State<Cache>) -> String {
     let groups = if search.regex {
         Regex::new(&search.string)
             .map(|r| build_group_list(&cache, |_, g| r.is_match(g)))
@@ -400,7 +401,7 @@ pub fn consumer_search(search: OmnisearchFormParams, cache: State<Cache>) -> Str
 }
 
 #[get("/api/search/topic?<search..>")]
-pub fn topic_search(search: OmnisearchFormParams, cache: State<Cache>) -> String {
+pub fn topic_search(search: OmnisearchFormParams, cache: &State<Cache>) -> String {
     let topics = if search.regex {
         Regex::new(&search.string)
             .map(|r| cache.topics.filter_clone(|&(_, ref name)| r.is_match(name)))
@@ -437,19 +438,20 @@ pub fn topic_search(search: OmnisearchFormParams, cache: State<Cache>) -> String
 //
 
 #[get("/api/clusters/<cluster_id>/reassignment")]
-pub fn cluster_reassignment(
+pub async fn cluster_reassignment(
     cluster_id: ClusterId,
-    cache: State<Cache>,
-    config: State<Config>,
+    cache: &State<Cache>,
+    config: &State<Config>,
 ) -> String {
     if cache.brokers.get(&cluster_id).is_none() {
         return empty();
     }
 
     let zk_url = &config.clusters.get(&cluster_id).unwrap().zookeeper;
-
-    let zk = match ZK::new(zk_url) {
+    info!("zk url={}",&zk_url);
+    let zk = match ZK::new(zk_url).await {
         // TODO: cache ZK clients
+        
         Ok(zk) => zk,
         Err(_) => {
             error!("Error connecting to {:?}", zk_url);
@@ -457,7 +459,7 @@ pub fn cluster_reassignment(
         }
     };
 
-    let reassignment = match zk.pending_reassignment() {
+    let reassignment = match zk.pending_reassignment().await {
         Some(reassignment) => reassignment,
         None => return empty(),
     };
@@ -497,7 +499,7 @@ pub fn cluster_reassignment(
 //
 
 #[get("/api/internals/cache/brokers")]
-pub fn cache_brokers(cache: State<Cache>) -> String {
+pub fn cache_brokers(cache: &State<Cache>) -> String {
     let result_data = cache.brokers.lock_iter(|brokers_cache_entry| {
         brokers_cache_entry
             .map(|(cluster_id, brokers)| {
@@ -513,7 +515,7 @@ pub fn cache_brokers(cache: State<Cache>) -> String {
 }
 
 #[get("/api/internals/cache/metrics")]
-pub fn cache_metrics(cache: State<Cache>) -> String {
+pub fn cache_metrics(cache: &State<Cache>) -> String {
     let result_data = cache.metrics.lock_iter(|metrics_cache_entry| {
         metrics_cache_entry
             .map(|(&(ref cluster_id, ref topic_id), metrics)| {
@@ -526,7 +528,7 @@ pub fn cache_metrics(cache: State<Cache>) -> String {
 }
 
 #[get("/api/internals/cache/offsets")]
-pub fn cache_offsets(cache: State<Cache>) -> String {
+pub fn cache_offsets(cache: &State<Cache>) -> String {
     let result_data = cache.offsets.lock_iter(|offsets_cache_entry| {
         offsets_cache_entry
             .map(
@@ -546,7 +548,7 @@ pub fn cache_offsets(cache: State<Cache>) -> String {
 }
 
 #[get("/api/internals/live_consumers")]
-pub fn live_consumers(live_consumers: State<LiveConsumerStore>) -> String {
+pub fn live_consumers(live_consumers: &State<LiveConsumerStore>) -> String {
     let result_data = live_consumers
         .consumers()
         .iter()

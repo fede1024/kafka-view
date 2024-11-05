@@ -1,4 +1,4 @@
-use web_server::view::layout;
+use crate::web_server::view::layout;
 
 use maud::{html, Markup};
 

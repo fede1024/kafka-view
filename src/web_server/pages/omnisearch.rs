@@ -1,9 +1,15 @@
 use maud::{html, Markup};
 use rocket::http::uri::Uri;
-use rocket::request::{FromQuery, Query};
+//use rocket::request::{FromQuery, Query};
 
-use web_server::view::layout;
+use crate::web_server::view::layout;
 
+#[derive(Debug, PartialEq, FromForm)]
+pub struct OmnisearchFormParams {
+    pub string: String,
+    pub regex: bool,
+}
+/* 
 #[derive(Debug)]
 pub struct OmnisearchFormParams {
     pub string: String,
@@ -13,7 +19,7 @@ pub struct OmnisearchFormParams {
 impl<'q> FromQuery<'q> for OmnisearchFormParams {
     type Error = ();
 
-    fn from_query(query: Query<'q>) -> Result<Self, Self::Error> {
+    fn from_query(query: Query<'q>) -> Result<Self, ()> {
         let mut params = OmnisearchFormParams {
             string: "".to_owned(),
             regex: false,
@@ -29,7 +35,7 @@ impl<'q> FromQuery<'q> for OmnisearchFormParams {
         Ok(params)
     }
 }
-
+*/
 #[get("/omnisearch")]
 pub fn omnisearch() -> Markup {
     omnisearch_p(OmnisearchFormParams {

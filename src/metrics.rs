@@ -9,11 +9,11 @@ use std::collections::{HashMap, HashSet};
 use std::f64;
 use std::io::Read;
 
-use cache::Cache;
-use config::Config;
-use error::*;
-use metadata::{Broker, ClusterId, TopicName};
-use utils::insert_at;
+use crate::cache::Cache;
+use crate::config::Config;
+use crate::error::*;
+use crate::metadata::{Broker, ClusterId, TopicName};
+use crate::utils::insert_at;
 
 #[derive(PartialEq, Serialize, Deserialize, Debug, Copy, Clone)]
 pub struct PartitionMetrics {

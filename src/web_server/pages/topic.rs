@@ -1,12 +1,11 @@
 use maud::{html, Markup, PreEscaped};
 use rand::random;
-use rocket::http::RawStr;
 
-use cache::Cache;
-use config::Config;
-use metadata::ClusterId;
-use web_server::pages;
-use web_server::view::layout;
+use crate::cache::Cache;
+use crate::config::Config;
+use crate::metadata::ClusterId;
+use crate::web_server::pages;
+use crate::web_server::view::layout;
 
 use rocket::State;
 
@@ -53,11 +52,11 @@ fn topic_tailer_panel(cluster_id: &ClusterId, topic: &str, tailer_id: u64) -> Pr
 }
 
 #[get("/clusters/<cluster_id>/topics/<topic_name>")]
-pub fn topic_page(
+pub fn topic_page<'a>(
     cluster_id: ClusterId,
-    topic_name: &RawStr,
-    cache: State<Cache>,
-    config: State<Config>,
+    topic_name: &'a str,
+    cache: &State<Cache>,
+    config: &State<Config>,
 ) -> Markup {
     let partitions = match cache
         .topics

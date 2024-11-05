@@ -1,20 +1,24 @@
 use rocket;
+use rocket::figment::providers::Env;
+use rocket::form::FromFormField;
+use rocket::fs::NamedFile;
 use rocket::http::RawStr;
 use rocket::request::{FromParam, Request};
-use rocket::response::{self, NamedFile, Redirect, Responder};
+use rocket::response::{self, Redirect, Responder};
 use scheduled_executor::ThreadPoolExecutor;
 
-use cache::Cache;
-use config::Config;
-use error::*;
-use live_consumer::{self, LiveConsumerStore};
-use metadata::ClusterId;
-use utils::{GZip, RequestLogger};
-use web_server::api;
-use web_server::pages;
+use crate::cache::Cache;
+use crate::config::Config;
+use crate::error::*;
+use crate::live_consumer::{self, LiveConsumerStore};
+use crate::metadata::ClusterId;
+use crate::utils::{GZip, RequestLogger};
+use crate::web_server::api;
+use crate::web_server::pages;
 
-use std;
+use std::net::{IpAddr, Ipv4Addr};
 use std::path::{Path, PathBuf};
+use std::{self, env};
 
 #[get("/")]
 fn index() -> Redirect {
@@ -25,22 +29,24 @@ fn index() -> Redirect {
 impl<'a> FromParam<'a> for ClusterId {
     type Error = ();
 
-    fn from_param(param: &'a RawStr) -> std::result::Result<Self, Self::Error> {
-        Ok(param.as_str().into())
+    fn from_param(param: &'a str) -> std::result::Result<Self, Self::Error> {
+        Ok(param.into())
     }
 }
 
 #[get("/public/<file..>")]
-fn files(file: PathBuf) -> Option<CachedFile> {
+async fn files(file: PathBuf) -> Option<CachedFile> {
     NamedFile::open(Path::new("resources/web_server/public/").join(file))
+        .await
         .map(CachedFile::from)
         .ok()
 }
 
 #[get("/public/<file..>?<version>")]
-fn files_v(file: PathBuf, version: &RawStr) -> Option<CachedFile> {
+async fn files_v<'a>(file: PathBuf, version: &'a str) -> Option<CachedFile> {
     let _ = version; // just ignore version
     NamedFile::open(Path::new("resources/web_server/public/").join(file))
+        .await
         .map(CachedFile::from)
         .ok()
 }
@@ -60,8 +66,8 @@ impl CachedFile {
     }
 }
 
-impl<'a> Responder<'a> for CachedFile {
-    fn respond_to(self, request: &Request) -> response::Result<'a> {
+impl<'r, 'o: 'r> Responder<'r, 'r> for CachedFile {
+    fn respond_to(self, request: &Request) -> response::Result<'r> {
         let inner_response = self.file.respond_to(request).unwrap(); // fixme
         response::Response::build_from(inner_response)
             .raw_header(
@@ -72,23 +78,24 @@ impl<'a> Responder<'a> for CachedFile {
     }
 }
 
-pub fn run_server(executor: &ThreadPoolExecutor, cache: Cache, config: &Config) -> Result<()> {
+pub async fn run_server(executor: &ThreadPoolExecutor, cache: Cache, config: &Config) -> Result<()> {
     let version = option_env!("CARGO_PKG_VERSION").unwrap_or("?");
     info!(
         "Starting kafka-view v{}, listening on {}:{}.",
         version, config.listen_host, config.listen_port
     );
 
-    let rocket_env = rocket::config::Environment::active()
-        .chain_err(|| "Invalid ROCKET_ENV environment variable")?;
-    let rocket_config = rocket::config::Config::build(rocket_env)
-        .address(config.listen_host.to_owned())
-        .port(config.listen_port)
-        .workers(4)
-        .finalize()
-        .chain_err(|| "Invalid rocket configuration")?;
+    let mut rocket_config = rocket::config::Config::from(
+        rocket::config::Config::figment().merge(Env::prefixed("ROCKET_ENV")),
+    );
+    rocket_config.address = (config.listen_host.to_owned())
+        .parse::<IpAddr>()
+        .unwrap_or(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)))
+        .into();
+    rocket_config.port = config.listen_port;
+    rocket_config.workers = 4;
 
-    rocket::custom(rocket_config)
+    let _ = rocket::custom(rocket_config)
         .attach(GZip)
         .attach(RequestLogger)
         .manage(cache)
@@ -130,7 +137,7 @@ pub fn run_server(executor: &ThreadPoolExecutor, cache: Cache, config: &Config) 
                 live_consumer::topic_tailer_api,
             ],
         )
-        .launch();
+        .launch().await.chain_err(|| "Failed to launch rocket");
 
     Ok(())
 }

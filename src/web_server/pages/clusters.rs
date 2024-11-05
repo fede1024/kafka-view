@@ -1,9 +1,9 @@
 use maud::{html, Markup, PreEscaped};
 use rocket::State;
 
-use cache::{BrokerCache, Cache, TopicCache};
-use metadata::ClusterId;
-use web_server::view::layout;
+use crate::cache::{BrokerCache, Cache, TopicCache};
+use crate::metadata::ClusterId;
+use crate::web_server::view::layout;
 
 fn cluster_pane_layout(
     cluster_id: &ClusterId,
@@ -50,7 +50,7 @@ fn cluster_pane(
 }
 
 #[get("/clusters")]
-pub fn clusters_page(cache: State<Cache>) -> Markup {
+pub fn clusters_page(cache: &State<Cache>) -> Markup {
     let mut cluster_ids = cache.brokers.keys();
     cluster_ids.sort();
 
