@@ -1,6 +1,9 @@
 kafka-view
 ==========
 
+> [!WARNING]
+> **This project is no longer actively maintained.** This repository is kept for reference only and is not receiving updates.
+
 [![Build Status](https://travis-ci.org/fede1024/kafka-view.svg?branch=master)](https://travis-ci.org/fede1024/kafka-view)
 [![Docker Image](https://img.shields.io/docker/pulls/fede1024/kafka-view.svg?maxAge=2592000)](https://hub.docker.com/r/fede1024/kafka-view/)
 [![Join the chat at https://gitter.im/rust-rdkafka/Lobby](https://badges.gitter.im/rust-rdkafka/Lobby.svg)](https://gitter.im/rust-rdkafka/Lobby?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
